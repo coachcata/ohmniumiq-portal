@@ -74,6 +74,9 @@ function Icon({ name, size = 18, color = C.textMuted }) {
     upload: <svg style={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>,
     menu: <svg style={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>,
     logout: <svg style={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
+    tool: <svg style={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>,
+    fileCheck: <svg style={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><polyline points="9 15 11 17 15 13"/></svg>,
+    csv: <svg style={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>,
   };
   return icons[name] || null;
 }
@@ -159,6 +162,8 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [resetMode, setResetMode] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   const handleLogin = async () => {
     setLoading(true); setError("");
@@ -167,29 +172,56 @@ function LoginPage() {
     setLoading(false);
   };
 
+  const handleReset = async () => {
+    if (!email) { setError("Enter your email address first"); return; }
+    setLoading(true); setError("");
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+    if (error) setError(error.message);
+    else setResetSent(true);
+    setLoading(false);
+  };
+
   return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "grid", placeItems: "center", padding: 20 }}>
       <div style={{ width: "100%", maxWidth: 400 }}>
         <div style={{ textAlign: "center", marginBottom: 40 }}>
-          <div style={{ width: 56, height: 56, borderRadius: 14, background: `linear-gradient(135deg, ${C.accent}, #8b5cf6)`, display: "grid", placeItems: "center", margin: "0 auto 16px" }}>
-            <Icon name="zap" size={28} color="#fff" />
-          </div>
+          <div style={{ width: 56, height: 56, borderRadius: 14, background: `linear-gradient(135deg, ${C.accent}, #8b5cf6)`, display: "grid", placeItems: "center", margin: "0 auto 16px" }}><Icon name="zap" size={28} color="#fff" /></div>
           <h1 style={{ fontFamily: font, fontSize: 28, fontWeight: 700, color: C.white, margin: "0 0 4px" }}>OhmniumIQ</h1>
           <p style={{ fontFamily: font, fontSize: 13, color: C.textMuted }}>Compliance Portal</p>
         </div>
         <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 28 }}>
-          <h2 style={{ fontFamily: font, fontSize: 17, fontWeight: 600, color: C.white, margin: "0 0 20px" }}>Sign in</h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <Input label="Email" type="email" value={email} onChange={setEmail} placeholder="you@company.com" />
-            <Input label="Password" type="password" value={password} onChange={setPassword} placeholder="Your password" />
-            {error && <div style={{ fontFamily: font, fontSize: 12, color: C.red, background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 8, padding: "8px 12px" }}>{error}</div>}
-            <button onClick={handleLogin} disabled={loading || !email || !password}
-              style={{ fontFamily: font, fontSize: 14, fontWeight: 600, color: C.white, background: (!email || !password) ? C.textDim : C.accent, border: "none", borderRadius: 10, padding: "12px 20px", cursor: (!email || !password) ? "not-allowed" : "pointer", minHeight: 48, opacity: loading ? 0.7 : 1, marginTop: 4 }}>
-              {loading ? "Signing in…" : "Sign In"}
-            </button>
-          </div>
+          {resetSent ? (
+            <div style={{ textAlign: "center", padding: "10px 0" }}>
+              <Icon name="checkCircle" size={36} color={C.green} />
+              <div style={{ fontFamily: font, fontSize: 14, color: C.white, fontWeight: 600, marginTop: 12 }}>Check your email</div>
+              <div style={{ fontFamily: font, fontSize: 12, color: C.textMuted, marginTop: 6 }}>A reset link has been sent to {email}</div>
+              <button onClick={() => { setResetMode(false); setResetSent(false); }} style={{ fontFamily: font, fontSize: 13, color: C.accent, background: "none", border: "none", cursor: "pointer", marginTop: 16 }}>Back to sign in</button>
+            </div>
+          ) : resetMode ? (
+            <>
+              <h2 style={{ fontFamily: font, fontSize: 17, fontWeight: 600, color: C.white, margin: "0 0 8px" }}>Reset password</h2>
+              <p style={{ fontFamily: font, fontSize: 12, color: C.textMuted, margin: "0 0 20px" }}>Enter your email and we'll send a reset link.</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <Input label="Email" type="email" value={email} onChange={setEmail} placeholder="you@company.com" />
+                {error && <div style={{ fontFamily: font, fontSize: 12, color: C.red, background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 8, padding: "8px 12px" }}>{error}</div>}
+                <button onClick={handleReset} disabled={loading || !email} style={{ fontFamily: font, fontSize: 14, fontWeight: 600, color: C.white, background: !email ? C.textDim : C.accent, border: "none", borderRadius: 10, padding: "12px 20px", cursor: !email ? "not-allowed" : "pointer", minHeight: 48, opacity: loading ? 0.7 : 1 }}>{loading ? "Sending…" : "Send Reset Link"}</button>
+                <button onClick={() => { setResetMode(false); setError(""); }} style={{ fontFamily: font, fontSize: 12, color: C.textMuted, background: "none", border: "none", cursor: "pointer", textAlign: "center" }}>Back to sign in</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <h2 style={{ fontFamily: font, fontSize: 17, fontWeight: 600, color: C.white, margin: "0 0 20px" }}>Sign in</h2>
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <Input label="Email" type="email" value={email} onChange={setEmail} placeholder="you@company.com" />
+                <Input label="Password" type="password" value={password} onChange={setPassword} placeholder="Your password" />
+                {error && <div style={{ fontFamily: font, fontSize: 12, color: C.red, background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 8, padding: "8px 12px" }}>{error}</div>}
+                <button onClick={handleLogin} disabled={loading || !email || !password} style={{ fontFamily: font, fontSize: 14, fontWeight: 600, color: C.white, background: (!email || !password) ? C.textDim : C.accent, border: "none", borderRadius: 10, padding: "12px 20px", cursor: (!email || !password) ? "not-allowed" : "pointer", minHeight: 48, opacity: loading ? 0.7 : 1, marginTop: 4 }}>{loading ? "Signing in…" : "Sign In"}</button>
+                <button onClick={() => { setResetMode(true); setError(""); }} style={{ fontFamily: font, fontSize: 12, color: C.textMuted, background: "none", border: "none", cursor: "pointer", textAlign: "center" }}>Forgot password?</button>
+              </div>
+            </>
+          )}
         </div>
-        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v7.0</p>
+        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v10.0</p>
       </div>
     </div>
   );
@@ -206,21 +238,26 @@ function DataProvider({ children, userProfile }) {
   const [engineers, setEngineers] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch all data on mount
+  const [comments, setComments] = useState([]);
+
+  // Fetch all data on mount — all queries scoped to the user's organisation
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    const [propRes, jobRes, docRes, auditRes, engRes] = await Promise.all([
-      supabase.from("properties").select("*").order("ref"),
-      supabase.from("jobs").select("*").order("created_at", { ascending: false }),
-      supabase.from("documents").select("*").order("uploaded_at", { ascending: false }),
-      supabase.from("audit_log").select("*").order("created_at", { ascending: false }).limit(50),
-      supabase.from("profiles").select("id, full_name, role").in("role", ["engineer", "junior"]),
+    const orgId = userProfile.organisation_id;
+    const [propRes, jobRes, docRes, auditRes, engRes, commentRes] = await Promise.all([
+      supabase.from("properties").select("*").eq("agency_id", orgId).order("ref"),
+      supabase.from("jobs").select("*").eq("organisation_id", orgId).order("created_at", { ascending: false }),
+      supabase.from("documents").select("*").eq("organisation_id", orgId).order("uploaded_at", { ascending: false }),
+      supabase.from("audit_log").select("*").eq("organisation_id", orgId).order("created_at", { ascending: false }).limit(100),
+      supabase.from("profiles").select("id, full_name, role, email").eq("organisation_id", orgId).in("role", ["engineer", "junior", "supervisor", "agent", "admin"]),
+      supabase.from("job_comments").select("*").eq("organisation_id", orgId).order("created_at", { ascending: true }),
     ]);
     if (propRes.data) setProperties(propRes.data);
     if (jobRes.data) setJobs(jobRes.data);
     if (docRes.data) setDocuments(docRes.data);
     if (auditRes.data) setAudit(auditRes.data);
     if (engRes.data) setEngineers(engRes.data);
+    if (commentRes.data) setComments(commentRes.data);
     setLoading(false);
   }, []);
 
@@ -243,10 +280,41 @@ function DataProvider({ children, userProfile }) {
     if (updates.lastEicr !== undefined) mapped.last_eicr = updates.lastEicr;
     if (updates.expiryDate !== undefined) mapped.expiry_date = updates.expiryDate;
     if (updates.tenant_name !== undefined) mapped.tenant_name = updates.tenant_name;
+    if (updates.tenant_phone !== undefined) mapped.tenant_phone = updates.tenant_phone;
+    if (updates.address !== undefined) mapped.address = updates.address;
+    if (updates.last_smoke !== undefined) mapped.last_smoke = updates.last_smoke;
+    if (updates.smoke_expiry !== undefined) mapped.smoke_expiry = updates.smoke_expiry;
+    if (updates.last_pat !== undefined) mapped.last_pat = updates.last_pat;
+    if (updates.pat_expiry !== undefined) mapped.pat_expiry = updates.pat_expiry;
     const { data, error } = await supabase.from("properties").update(mapped).eq("id", id).select().single();
     if (data) setProperties(prev => prev.map(p => p.id === id ? data : p));
     return { data, error };
   }, []);
+
+  const deleteProperty = useCallback(async (id) => {
+    const { error } = await supabase.from("properties").delete().eq("id", id);
+    if (!error) setProperties(prev => prev.filter(p => p.id !== id));
+    return { error };
+  }, []);
+
+  const deleteJob = useCallback(async (id) => {
+    const { error } = await supabase.from("jobs").delete().eq("id", id);
+    if (!error) setJobs(prev => prev.filter(j => j.id !== id));
+    return { error };
+  }, []);
+
+  const addComment = useCallback(async (comment) => {
+    const { data, error } = await supabase.from("job_comments").insert({
+      job_id: comment.jobId,
+      organisation_id: userProfile.organisation_id,
+      body: comment.body,
+      author_id: userProfile.id,
+      author_name: userProfile.full_name,
+      author_role: userProfile.role,
+    }).select().single();
+    if (data) setComments(prev => [...prev, data]);
+    return { data, error };
+  }, [userProfile]);
 
   const addJob = useCallback(async (job) => {
     const { data, error } = await supabase.from("jobs").insert({
@@ -266,6 +334,7 @@ function DataProvider({ children, userProfile }) {
     if (updates.date !== undefined) mapped.scheduled_date = updates.date;
     if (updates.notes !== undefined) mapped.notes = updates.notes;
     if (updates.eicrData !== undefined) mapped.eicr_data = updates.eicrData;
+    if (updates.hasCert !== undefined) mapped.has_cert = updates.hasCert;
     const { data, error } = await supabase.from("jobs").update(mapped).eq("id", id).select().single();
     if (data) setJobs(prev => prev.map(j => j.id === id ? data : j));
     return { data, error };
@@ -297,7 +366,7 @@ function DataProvider({ children, userProfile }) {
     return { data, error };
   }, []);
 
-  const ctx = { properties, jobs, documents, audit, engineers, loading, addProperty, updateProperty, addJob, updateJob, addDoc, addAudit, uploadFile, fetchAll };
+  const ctx = { properties, jobs, documents, audit, engineers, comments, loading, addProperty, updateProperty, deleteProperty, addJob, updateJob, deleteJob, addDoc, addAudit, addComment, uploadFile, fetchAll };
 
   return <DataContext.Provider value={ctx}>{children}</DataContext.Provider>;
 }
@@ -330,11 +399,125 @@ function BottomNav({ active, setActive, role, jobs }) {
   );
 }
 
+// ─────────────────────────────────────────────
+// TEAM / USER MANAGEMENT (admin only)
+// ─────────────────────────────────────────────
+function InviteUserModal({ open, onClose }) {
+  const auth = useContext(AuthContext);
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [role, setRole] = useState("engineer");
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = async () => {
+    if (!email.trim() || !name.trim()) { setError("Name and email are required"); return; }
+    setSaving(true); setError("");
+    // Create user via Supabase Admin API — requires service role key
+    // In production this should be a Supabase Edge Function. For now we use signUp
+    // which sends a confirmation email and the user sets their own password.
+    const { data, error: signupError } = await supabase.auth.admin.createUser({
+      email: email.trim(),
+      email_confirm: true,
+      user_metadata: { full_name: name.trim(), role, organisation_id: auth.orgId },
+    });
+    if (signupError) {
+      // admin.createUser requires service role — fall back to a magic link invite
+      const { error: inviteError } = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: { data: { full_name: name.trim(), role, organisation_id: auth.orgId } },
+      });
+      if (inviteError) { setError(inviteError.message); setSaving(false); return; }
+    }
+    setSaving(false); setDone(true);
+  };
+
+  const reset = () => { setEmail(""); setName(""); setRole("engineer"); setDone(false); setError(""); };
+
+  return (
+    <Modal open={open} onClose={() => { reset(); onClose(); }} title="Invite Team Member">
+      {done ? (
+        <div style={{ textAlign: "center", padding: "10px 0" }}>
+          <Icon name="checkCircle" size={36} color={C.green} />
+          <div style={{ fontFamily: font, fontSize: 14, color: C.white, fontWeight: 600, marginTop: 12 }}>Invite sent</div>
+          <div style={{ fontFamily: font, fontSize: 12, color: C.textMuted, marginTop: 6 }}>An email has been sent to <strong>{email}</strong> with a link to set their password and access the portal.</div>
+          <button onClick={() => { reset(); onClose(); }} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 10, padding: "10px 24px", cursor: "pointer", minHeight: 44, marginTop: 20 }}>Done</button>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <Input label="Full Name" value={name} onChange={setName} placeholder="e.g. James Mitchell" />
+          <Input label="Email Address" type="email" value={email} onChange={setEmail} placeholder="james@example.com" />
+          <Select label="Role" value={role} onChange={setRole} options={[
+            { value: "agent", label: "Agent — can manage properties & request jobs" },
+            { value: "engineer", label: "Engineer — can run EICR forms" },
+            { value: "junior", label: "Junior Engineer — submits for sign-off" },
+            { value: "supervisor", label: "Supervisor — signs off junior EICRs" },
+            { value: "admin", label: "Admin — full access" },
+          ]} />
+          <div style={{ background: C.accentGlow, border: `1px solid ${C.borderLight}`, borderRadius: 10, padding: "10px 14px" }}>
+            <div style={{ fontFamily: font, fontSize: 11, color: C.accent }}>ℹ️ The person will receive an email with a login link. They'll set their own password on first sign-in.</div>
+          </div>
+          {error && <div style={{ fontFamily: font, fontSize: 12, color: C.red, background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 8, padding: "8px 12px" }}>{error}</div>}
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
+            <button onClick={() => { reset(); onClose(); }} style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44 }}>Cancel</button>
+            <button onClick={submit} disabled={saving || !email || !name} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: (email && name) ? C.accent : C.textDim, border: "none", borderRadius: 10, padding: "10px 20px", cursor: (email && name) ? "pointer" : "not-allowed", minHeight: 44, opacity: saving ? 0.7 : 1 }}>{saving ? "Sending…" : "Send Invite"}</button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+function TeamPage() {
+  const { engineers } = useContext(DataContext);
+  const { w } = useWindowSize();
+  const mob = w < BP.mobile;
+  const [showInvite, setShowInvite] = useState(false);
+  const [toast, setToast] = useState(null);
+  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
+
+  const roleLabel = (r) => ({ admin: "Admin", agent: "Agent", engineer: "Engineer", junior: "Junior Engineer", supervisor: "Supervisor" }[r] || r);
+  const roleColor = (r) => ({ admin: C.white, agent: C.accent, engineer: C.green, junior: C.purple, supervisor: C.amber }[r] || C.textMuted);
+
+  return (
+    <div>
+      <Toast message={toast} show={!!toast} />
+      <InviteUserModal open={showInvite} onClose={() => { setShowInvite(false); showToast("Invite sent"); }} />
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
+        <button onClick={() => setShowInvite(true)} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 8, padding: "10px 18px", cursor: "pointer", minHeight: 40 }}>
+          <Icon name="plus" size={14} color={C.white} /> Invite Member
+        </button>
+      </div>
+      <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+        {engineers.length === 0 && (
+          <div style={{ padding: 40, textAlign: "center" }}><span style={{ fontFamily: font, fontSize: 13, color: C.textDim }}>No team members yet — invite your first engineer</span></div>
+        )}
+        {engineers.map((member, i) => (
+          <div key={member.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: i < engineers.length - 1 ? `1px solid ${C.border}` : "none", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ width: 40, height: 40, borderRadius: "50%", background: `${roleColor(member.role)}22`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                <span style={{ fontFamily: font, fontSize: 14, fontWeight: 700, color: roleColor(member.role) }}>{(member.full_name || "?")[0].toUpperCase()}</span>
+              </div>
+              <div>
+                <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{member.full_name}</div>
+                <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 2 }}>{member.email || ""}</div>
+              </div>
+            </div>
+            <span style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: roleColor(member.role), background: `${roleColor(member.role)}18`, padding: "4px 12px", borderRadius: 20, whiteSpace: "nowrap" }}>{roleLabel(member.role)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function MorePage({ setActive, role, onLogout }) {
   const moreItems = [
     ...(["engineer", "junior", "supervisor"].includes(role) ? [{ id: "eicr", label: "EICR Form", icon: "clipboard", desc: "BS 7671 inspection form" }] : []),
     ...(["supervisor", "admin"].includes(role) ? [{ id: "signoff", label: "Sign-Off Queue", icon: "checkCircle", desc: "Review junior submissions" }] : []),
     { id: "audit", label: "Audit Trail", icon: "activity", desc: "Full activity history" },
+    ...(["admin"].includes(role) ? [{ id: "team", label: "Team Management", icon: "user", desc: "Invite engineers and agents" }] : []),
   ];
   return (
     <div>
@@ -363,6 +546,7 @@ function Sidebar({ active, setActive, role, userProfile, onLogout }) {
     ...(["supervisor", "admin"].includes(role) ? [{ id: "signoff", label: "Sign-Off Queue", icon: "checkCircle" }] : []),
     { id: "documents", label: "Documents", icon: "file" },
     { id: "audit", label: "Audit Trail", icon: "activity" },
+    ...(role === "admin" ? [{ id: "team", label: "Team", icon: "user" }] : []),
   ];
   const pSO = jobs.filter(j => j.status === "Awaiting Sign-Off").length;
   return (
@@ -387,7 +571,7 @@ function Sidebar({ active, setActive, role, userProfile, onLogout }) {
       <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}` }}>
         <button onClick={onLogout} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.card, display: "grid", placeItems: "center" }}><Icon name="logout" size={16} color={C.textMuted} /></div>
-          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v7.0 — Supabase</div></div>
+          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v10.0 — Supabase</div></div>
         </button>
       </div>
     </div>
@@ -433,7 +617,7 @@ function MobileTopBar({ userProfile, globalSearch, setGlobalSearch, onSearchSele
 // ─────────────────────────────────────────────
 // DASHBOARD
 // ─────────────────────────────────────────────
-function DashboardPage() {
+function DashboardPage({ onNavigateProperty }) {
   const { properties, jobs, audit, loading } = useContext(DataContext);
   const { w } = useWindowSize();
   const mob = w < BP.mobile;
@@ -446,11 +630,13 @@ function DashboardPage() {
   const r = properties.filter(p => calcStatus(p.expiry_date) === "red").length;
   const activeJobs = jobs.filter(j => j.status !== "Completed").length;
   const awaiting = jobs.filter(j => j.status === "Awaiting Sign-Off").length;
+  const expiringSoon = properties.filter(p => calcStatus(p.expiry_date) === "amber").sort((a, b) => new Date(a.expiry_date) - new Date(b.expiry_date));
+  const overdue = properties.filter(p => calcStatus(p.expiry_date) === "red");
 
   return (
     <div>
       <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "repeat(4, 1fr)", gap: mob ? 10 : 16, marginBottom: mob ? 20 : 28 }}>
-        {[{ l: "Properties", v: properties.length, i: "home", c: C.accent }, { l: "Compliant", v: g, i: "check", c: C.green }, { l: "Expiring", v: a, i: "clock", c: C.amber }, { l: "Overdue", v: r, i: "alert", c: C.red }].map((card, idx) => (
+        {[{ l: "Properties", v: properties.length, i: "home", c: C.accent, filter: null }, { l: "Compliant", v: g, i: "check", c: C.green, filter: null }, { l: "Expiring", v: a, i: "clock", c: C.amber, filter: "amber" }, { l: "Overdue", v: r, i: "alert", c: C.red, filter: "red" }].map((card, idx) => (
           <div key={idx} style={{ background: C.card, borderRadius: mob ? 12 : 14, padding: mob ? "16px 14px" : "20px 22px", border: `1px solid ${C.border}`, position: "relative", overflow: "hidden" }}>
             <div style={{ position: "absolute", top: -20, right: -20, width: 80, height: 80, borderRadius: "50%", background: card.c, opacity: 0.06 }} />
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: mob ? 8 : 12 }}><Icon name={card.i} size={mob ? 14 : 16} color={card.c} /><span style={{ fontFamily: font, fontSize: mob ? 9 : 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>{card.l}</span></div>
@@ -459,6 +645,30 @@ function DashboardPage() {
         ))}
       </div>
       {awaiting > 0 && <div style={{ background: C.purpleBg, border: "1px solid rgba(139,92,246,.3)", borderRadius: 12, padding: "14px 20px", marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}><Icon name="checkCircle" size={20} color={C.purple} /><span style={{ fontFamily: font, fontSize: 13, color: C.text }}><strong>{awaiting} EICR{awaiting > 1 ? "s" : ""}</strong> awaiting sign-off</span></div>}
+
+      {/* Expiring + Overdue properties — clickable */}
+      {(expiringSoon.length > 0 || overdue.length > 0) && (
+        <div style={{ background: C.card, borderRadius: 14, padding: mob ? 20 : 28, border: `1px solid ${C.border}`, marginBottom: mob ? 14 : 20 }}>
+          <h3 style={{ fontFamily: font, fontSize: 15, fontWeight: 600, color: C.white, margin: "0 0 16px" }}>Needs Attention</h3>
+          {[...overdue, ...expiringSoon].slice(0, 8).map((p, i) => {
+            const st = calcStatus(p.expiry_date);
+            return (
+              <button key={p.id} onClick={() => onNavigateProperty && onNavigateProperty(p.id)}
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "11px 14px", borderRadius: 10, background: statusBg(st), border: `1px solid ${statusBorder(st)}`, marginBottom: 8, cursor: "pointer", gap: 10, textAlign: "left" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: statusColor(st), flexShrink: 0 }} />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.address?.split(",")[0]}</div>
+                    <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 1 }}>{p.tenant_name} · EICR exp {formatDate(p.expiry_date)}</div>
+                  </div>
+                </div>
+                <span style={{ fontFamily: font, fontSize: 10, fontWeight: 700, color: statusColor(st), whiteSpace: "nowrap", flexShrink: 0 }}>{st === "red" ? "OVERDUE" : "EXPIRING"} →</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div style={{ display: "grid", gridTemplateColumns: tab ? "1fr" : "1fr 1fr", gap: mob ? 14 : 20, marginBottom: mob ? 14 : 28 }}>
         <div style={{ background: C.card, borderRadius: 14, padding: mob ? 20 : 28, border: `1px solid ${C.border}` }}>
           <h3 style={{ fontFamily: font, fontSize: 15, fontWeight: 600, color: C.white, margin: "0 0 24px" }}>Compliance Heatmap</h3>
@@ -476,10 +686,11 @@ function DashboardPage() {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}><h3 style={{ fontFamily: font, fontSize: 15, fontWeight: 600, color: C.white, margin: 0 }}>Active Jobs</h3><span style={{ fontFamily: fontMono, fontSize: 11, color: C.accent, background: C.accentGlow, padding: "3px 10px", borderRadius: 20 }}>{activeJobs} open</span></div>
           {jobs.filter(j => j.status !== "Completed").length === 0 && <div style={{ padding: 20, textAlign: "center" }}><span style={{ fontFamily: font, fontSize: 12, color: C.textDim }}>No active jobs</span></div>}
           {jobs.filter(j => j.status !== "Completed").slice(0, 5).map(job => { const prop = properties.find(pp => pp.id === job.property_id); return (
-            <div key={job.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", borderRadius: 10, background: C.surfaceAlt, border: `1px solid ${C.border}`, marginBottom: 8, gap: 10 }}>
+            <button key={job.id} onClick={() => onNavigateProperty && prop && onNavigateProperty(prop.id)}
+              style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "12px 14px", borderRadius: 10, background: C.surfaceAlt, border: `1px solid ${C.border}`, marginBottom: 8, gap: 10, cursor: "pointer", textAlign: "left" }}>
               <div style={{ minWidth: 0, flex: 1 }}><div style={{ fontFamily: font, fontSize: 12, color: C.text, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{prop?.address?.split(",")[0] || "—"}</div><div style={{ fontFamily: font, fontSize: 11, color: C.textMuted, marginTop: 2 }}>{job.type} · {job.scheduled_date ? formatDate(job.scheduled_date) : "Unscheduled"}</div></div>
               <span style={{ fontFamily: font, fontSize: 10, fontWeight: 600, color: jobStatusColor(job.status), background: jobStatusBg(job.status), padding: "3px 10px", borderRadius: 20, whiteSpace: "nowrap", flexShrink: 0 }}>{job.status}</span>
-            </div>
+            </button>
           ); })}
         </div>
       </div>
@@ -535,13 +746,14 @@ function AddPropertyModal({ open, onClose }) {
   );
 }
 
-function PropertiesPage({ onRequestJob }) {
+function PropertiesPage({ onRequestJob, onSelectProperty }) {
   const { properties, loading } = useContext(DataContext);
   const auth = useContext(AuthContext);
   const { w } = useWindowSize();
   const mob = w < BP.mobile;
   const [filter, setFilter] = useState("all"); const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
+  const [showCSV, setShowCSV] = useState(false);
   const [toast, setToast] = useState(null);
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
   const role = auth.role;
@@ -559,10 +771,12 @@ function PropertiesPage({ onRequestJob }) {
     <div>
       <Toast message={toast} show={!!toast} />
       <AddPropertyModal open={showAdd} onClose={(r) => { setShowAdd(false); if (r === "added") showToast("Property added"); }} />
+      <CSVImportModal open={showCSV} onClose={(r) => { setShowCSV(false); if (r === "imported") showToast("Import complete"); }} />
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>{[{ id: "all", label: "All" }, { id: "green", label: "OK" }, { id: "amber", label: "Soon" }, { id: "red", label: "Overdue" }].map(f => (<button key={f.id} onClick={() => setFilter(f.id)} style={{ fontFamily: font, fontSize: 11, fontWeight: filter === f.id ? 600 : 400, color: filter === f.id ? C.white : C.textMuted, background: filter === f.id ? (f.id === "all" ? C.accent : statusColor(f.id)) : C.card, border: `1px solid ${filter === f.id ? "transparent" : C.border}`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>{f.label}</button>))}</div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flex: mob ? "1 1 100%" : "0 1 auto" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.card, borderRadius: 8, padding: "6px 12px", border: `1px solid ${C.border}`, flex: 1, minWidth: mob ? 0 : 220 }}><Icon name="search" size={14} color={C.textDim} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…" style={{ fontFamily: font, fontSize: 12, color: C.text, background: "transparent", border: "none", outline: "none", width: "100%", minHeight: 28 }} /></div>
+          {["admin", "agent"].includes(role) && <button onClick={() => setShowCSV(true)} style={{ display: "flex", alignItems: "center", gap: 4, fontFamily: font, fontSize: 12, fontWeight: 600, color: C.textMuted, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 12px", cursor: "pointer", minHeight: 36, whiteSpace: "nowrap" }}><Icon name="csv" size={14} color={C.textMuted} />{!mob && "CSV"}</button>}
           {["admin", "agent"].includes(role) && <button onClick={() => setShowAdd(true)} style={{ display: "flex", alignItems: "center", gap: 4, fontFamily: font, fontSize: 12, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36, whiteSpace: "nowrap" }}><Icon name="plus" size={14} color={C.white} />Add</button>}
         </div>
       </div>
@@ -570,7 +784,9 @@ function PropertiesPage({ onRequestJob }) {
         {filtered.map(p => {
           const st = calcStatus(p.expiry_date);
           return (
-            <div key={p.id} style={{ background: C.card, borderRadius: 12, padding: "16px", border: `1px solid ${C.border}` }}>
+            <div key={p.id} onClick={() => onSelectProperty && onSelectProperty(p.id)} style={{ background: C.card, borderRadius: 12, padding: "16px", border: `1px solid ${C.border}`, cursor: "pointer", transition: "border-color 0.15s" }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = C.accent}
+              onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -586,9 +802,11 @@ function PropertiesPage({ onRequestJob }) {
                   <div style={{ fontFamily: font, fontSize: 12, color: C.textMuted }}>{p.tenant_name}</div>
                   <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 2 }}>Exp: {formatDate(p.expiry_date)} · {p.ref}</div>
                 </div>
-                {["agent", "admin"].includes(role) && (
-                  <button onClick={() => onRequestJob(p)} style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: C.accent, background: C.accentGlow, border: `1px solid rgba(59,130,246,.25)`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>+ Job</button>
-                )}
+                <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>
+                  {["agent", "admin"].includes(role) && (
+                    <button onClick={() => onRequestJob(p)} style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: C.accent, background: C.accentGlow, border: `1px solid rgba(59,130,246,.25)`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>+ Job</button>
+                  )}
+                </div>
               </div>
             </div>
           );
@@ -678,7 +896,6 @@ function AssignModal({ open, job, onClose }) {
     const eng = engineers.find(e => e.id === engId);
     const prop = properties.find(p => p.id === job.property_id);
     await addAudit({ action: `Job ${job.ref} assigned to ${eng?.full_name} on ${formatDate(date)}` });
-    await addAudit({ action: `SMS sent to tenant at ${prop?.address?.split(",")[0]}`, userName: "System", userRole: "Auto" });
     setEngId(""); setDate("");
     onClose(job.ref);
   };
@@ -726,30 +943,310 @@ function RequestJobModal({ open, onClose, property }) {
   );
 }
 
-// ─── Documents Page ───
+// ─── Upload Certificate Modal ───
+function UploadCertModal({ open, onClose }) {
+  const { jobs, properties, addDoc, updateProperty, updateJob, addJob, addAudit, uploadFile, fetchAll } = useContext(DataContext);
+  const auth = useContext(AuthContext);
+  const [jobId, setJobId] = useState("");
+  const [certType, setCertType] = useState("EICR");
+  const [expiryDate, setExpiryDate] = useState("");
+  const [file, setFile] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const completedJobs = jobs.filter(j => j.status === "Completed" && !j.has_cert);
+  const selectedJob = completedJobs.find(j => j.id === jobId);
+  const selectedProp = selectedJob ? properties.find(p => p.id === selectedJob.property_id) : null;
+
+  const submit = async () => {
+    if (!jobId || !file || !expiryDate) { setError("Please select a job, expiry date, and file"); return; }
+    setSaving(true); setError("");
+    try {
+      const filePath = `${auth.orgId}/${jobId}/${Date.now()}_${file.name}`;
+      const { error: uploadErr } = await uploadFile(file, filePath);
+      if (uploadErr) { setError("File upload failed: " + uploadErr.message); setSaving(false); return; }
+
+      const { data: docData } = await addDoc({
+        jobId, propertyId: selectedJob.property_id, type: certType,
+        filePath, fileName: file.name, expiry: expiryDate,
+      });
+
+      // Auto-update property compliance dates based on cert type
+      if (selectedProp) {
+        if (certType === "EICR") {
+          const inspectionDate = new Date(expiryDate);
+          inspectionDate.setFullYear(inspectionDate.getFullYear() - 5);
+          const lastEicrDate = inspectionDate.toISOString().split("T")[0];
+          await updateProperty(selectedProp.id, { lastEicr: lastEicrDate, expiryDate });
+        } else if (certType === "Smoke Alarm") {
+          await updateProperty(selectedProp.id, { smoke_expiry: expiryDate, last_smoke: new Date().toISOString().split("T")[0] });
+        } else if (certType === "PAT") {
+          await updateProperty(selectedProp.id, { pat_expiry: expiryDate, last_pat: new Date().toISOString().split("T")[0] });
+        }
+      }
+
+      // Mark job as having cert (via updateJob so local state stays in sync)
+      await updateJob(jobId, { hasCert: true });
+
+      // Auto-create remedial if job notes mention unsatisfactory
+      if (selectedJob?.eicr_data?.outcome === "Unsatisfactory") {
+        await addJob({ propertyId: selectedJob.property_id, type: "Remedial", status: "Pending", notes: `Auto-created from unsatisfactory EICR — ${selectedJob.ref}` });
+        await addAudit({ action: `Remedial job auto-created from unsatisfactory EICR (${selectedJob.ref})`, userName: "System", userRole: "Auto" });
+      }
+
+      await addAudit({ action: `Certificate uploaded: ${certType} for ${selectedProp?.address?.split(",")[0]} (expires ${formatDate(expiryDate)})` });
+      await fetchAll();
+      setJobId(""); setCertType("EICR"); setExpiryDate(""); setFile(null);
+      onClose("uploaded");
+    } catch (e) {
+      setError("Unexpected error: " + e.message);
+    }
+    setSaving(false);
+  };
+
+  return (
+    <Modal open={open} onClose={() => onClose(null)} title="Upload Certificate">
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <Select label="Completed Job" value={jobId} onChange={setJobId}
+          options={[{ value: "", label: "— Select completed job —" }, ...completedJobs.map(j => {
+            const p = properties.find(pp => pp.id === j.property_id);
+            return { value: j.id, label: `${j.ref} · ${j.type} — ${p?.address?.split(",")[0] || "Unknown"}` };
+          })]} />
+        {selectedProp && <div style={{ background: C.surfaceAlt, borderRadius: 10, padding: 12, border: `1px solid ${C.border}` }}>
+          <div style={{ fontFamily: font, fontSize: 12, color: C.text, fontWeight: 500 }}>{selectedProp.address}</div>
+          <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 2 }}>{selectedJob?.type} · {selectedJob?.ref}</div>
+        </div>}
+        <Select label="Certificate Type" value={certType} onChange={setCertType}
+          options={[{ value: "EICR", label: "EICR" }, { value: "PAT", label: "PAT" }, { value: "Smoke Alarm", label: "Smoke Alarm" }, { value: "Remedial", label: "Remedial Sign-Off" }]} />
+        <Input label="Expiry / Valid Until" type="date" value={expiryDate} onChange={setExpiryDate} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Certificate PDF</label>
+          <label style={{ display: "flex", alignItems: "center", gap: 10, background: C.surfaceAlt, border: `2px dashed ${file ? C.accent : C.border}`, borderRadius: 10, padding: "14px 16px", cursor: "pointer", transition: "border .2s" }}>
+            <Icon name="upload" size={20} color={file ? C.accent : C.textDim} />
+            <div>
+              <div style={{ fontFamily: font, fontSize: 13, color: file ? C.white : C.textMuted }}>{file ? file.name : "Click to choose PDF"}</div>
+              {file && <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 2 }}>{(file.size / 1024).toFixed(0)} KB</div>}
+            </div>
+            <input type="file" accept=".pdf,application/pdf" style={{ display: "none" }} onChange={e => setFile(e.target.files[0] || null)} />
+          </label>
+        </div>
+        {["EICR", "Smoke Alarm", "PAT"].includes(certType) && <div style={{ fontFamily: font, fontSize: 11, color: C.accent, background: C.accentGlow, padding: "8px 12px", borderRadius: 8 }}>
+          ⚡ Uploading this certificate will automatically update this property's {certType === "EICR" ? "EICR" : certType === "Smoke Alarm" ? "smoke alarm" : "PAT"} compliance status.
+        </div>}
+        {error && <div style={{ fontFamily: font, fontSize: 12, color: C.red, background: C.redBg, padding: "8px 12px", borderRadius: 8 }}>{error}</div>}
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
+          <button onClick={() => onClose(null)} style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44 }}>Cancel</button>
+          <button onClick={submit} disabled={saving || !jobId || !file || !expiryDate}
+            style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: (jobId && file && expiryDate) ? C.accent : C.textDim, border: "none", borderRadius: 10, padding: "10px 20px", cursor: (jobId && file && expiryDate) ? "pointer" : "not-allowed", minHeight: 44, opacity: saving ? 0.7 : 1 }}>
+            {saving ? "Uploading…" : "Upload Certificate"}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── CSV Bulk Import Modal ───
+function CSVImportModal({ open, onClose }) {
+  const { addProperty, addAudit, properties, fetchAll } = useContext(DataContext);
+  const auth = useContext(AuthContext);
+  const [rows, setRows] = useState([]);
+  const [preview, setPreview] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+
+  const parseCSV = (text) => {
+    const lines = text.trim().split("\n").filter(Boolean);
+    if (lines.length < 2) { setError("CSV must have a header row and at least one data row"); return; }
+    const headers = lines[0].split(",").map(h => h.trim().toLowerCase().replace(/"/g, ""));
+    const addrIdx = headers.findIndex(h => h.includes("address"));
+    const tenantIdx = headers.findIndex(h => h.includes("tenant") || h.includes("name"));
+    const phoneIdx = headers.findIndex(h => h.includes("phone") || h.includes("tel") || h.includes("mobile"));
+    const eicrIdx = headers.findIndex(h => h.includes("eicr") || h.includes("last") || h.includes("date"));
+    if (addrIdx === -1) { setError("No 'address' column found. Check your CSV header row."); return; }
+    const parsed = lines.slice(1).map((line, i) => {
+      const cols = line.split(",").map(c => c.trim().replace(/^"|"$/g, ""));
+      const addr = cols[addrIdx] || "";
+      const tenant = tenantIdx >= 0 ? cols[tenantIdx] || "" : "";
+      const phone = phoneIdx >= 0 ? cols[phoneIdx] || "" : "";
+      const lastEicr = eicrIdx >= 0 ? cols[eicrIdx] || "" : "";
+      const isDup = properties.some(p => p.address.toLowerCase() === addr.toLowerCase());
+      return { addr, tenant, phone, lastEicr, isDup, row: i + 2 };
+    }).filter(r => r.addr);
+    setRows(parsed); setPreview(true); setError("");
+  };
+
+  const handleFile = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => parseCSV(e.target.result);
+    reader.readAsText(file);
+  };
+
+  const importAll = async () => {
+    const toImport = rows.filter(r => !r.isDup);
+    if (!toImport.length) return;
+    setSaving(true);
+    for (const r of toImport) {
+      const expiry = calcExpiry(r.lastEicr);
+      await addProperty({ address: r.addr, tenant: r.tenant, phone: r.phone, lastEicr: r.lastEicr || null, expiryDate: expiry });
+    }
+    await addAudit({ action: `CSV import: ${toImport.length} properties added` });
+    await fetchAll();
+    setSaving(false); setDone(true);
+  };
+
+  const reset = () => { setRows([]); setPreview(false); setError(""); setDone(false); setSaving(false); };
+
+  return (
+    <Modal open={open} onClose={() => { reset(); onClose(); }} title="CSV Bulk Import" width={600}>
+      {done ? (
+        <div style={{ textAlign: "center", padding: 20 }}>
+          <Icon name="checkCircle" size={40} color={C.green} />
+          <p style={{ fontFamily: font, fontSize: 15, fontWeight: 600, color: C.green, marginTop: 12 }}>Import complete</p>
+          <p style={{ fontFamily: font, fontSize: 13, color: C.textMuted, marginTop: 6 }}>{rows.filter(r => !r.isDup).length} properties added</p>
+          <button onClick={() => { reset(); onClose("imported"); }} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 10, padding: "10px 20px", cursor: "pointer", marginTop: 16, minHeight: 44 }}>Done</button>
+        </div>
+      ) : preview ? (
+        <div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <div>
+              <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 600 }}>{rows.length} rows found</div>
+              <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 2 }}>{rows.filter(r => r.isDup).length} duplicates skipped · {rows.filter(r => !r.isDup).length} will be imported</div>
+            </div>
+            <button onClick={reset} style={{ fontFamily: font, fontSize: 11, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 14px", cursor: "pointer", minHeight: 36 }}>Re-upload</button>
+          </div>
+          <div style={{ maxHeight: 300, overflowY: "auto", border: `1px solid ${C.border}`, borderRadius: 10, marginBottom: 16 }}>
+            {rows.map((r, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderBottom: i < rows.length - 1 ? `1px solid ${C.border}` : "none", background: r.isDup ? C.redBg : "transparent" }}>
+                <span style={{ fontFamily: font, fontSize: 11, color: r.isDup ? C.red : C.green, fontWeight: 600, whiteSpace: "nowrap" }}>{r.isDup ? "DUP" : "NEW"}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: font, fontSize: 12, color: r.isDup ? C.textDim : C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.addr}</div>
+                  <div style={{ fontFamily: font, fontSize: 11, color: C.textDim }}>{r.tenant}{r.lastEicr ? ` · EICR: ${r.lastEicr}` : ""}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginBottom: 12 }}>
+            Expected columns: <span style={{ color: C.accent }}>address, tenant name, phone, last eicr date</span>
+          </div>
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+            <button onClick={() => { reset(); onClose(); }} style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44 }}>Cancel</button>
+            <button onClick={importAll} disabled={saving || !rows.filter(r => !r.isDup).length}
+              style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: rows.filter(r => !r.isDup).length ? C.accent : C.textDim, border: "none", borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44, opacity: saving ? 0.7 : 1 }}>
+              {saving ? "Importing…" : `Import ${rows.filter(r => !r.isDup).length} Properties`}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ fontFamily: font, fontSize: 13, color: C.text, lineHeight: 1.6 }}>
+            Upload a CSV file with your properties. The file needs an <strong style={{ color: C.accent }}>address</strong> column, and optionally: tenant name, phone, last eicr date.
+          </div>
+          <label style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, background: C.surfaceAlt, border: `2px dashed ${C.border}`, borderRadius: 14, padding: "32px 20px", cursor: "pointer", textAlign: "center" }}>
+            <Icon name="csv" size={32} color={C.textDim} />
+            <div>
+              <div style={{ fontFamily: font, fontSize: 14, color: C.textMuted }}>Click to choose your CSV file</div>
+              <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 4 }}>Accepts .csv files</div>
+            </div>
+            <input type="file" accept=".csv,text/csv" style={{ display: "none" }} onChange={e => handleFile(e.target.files[0])} />
+          </label>
+          {error && <div style={{ fontFamily: font, fontSize: 12, color: C.red, background: C.redBg, padding: "10px 14px", borderRadius: 8 }}>{error}</div>}
+          <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, background: C.surfaceAlt, borderRadius: 8, padding: "10px 14px" }}>
+            <strong style={{ color: C.textMuted }}>Example header row:</strong><br />
+            <span style={{ fontFamily: fontMono, color: C.accent }}>address,tenant name,phone,last eicr date</span>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+
 function DocumentsPage() {
-  const { documents, properties } = useContext(DataContext);
+  const { documents, properties, jobs } = useContext(DataContext);
   const auth = useContext(AuthContext);
   const { w } = useWindowSize();
   const mob = w < BP.mobile;
+  const [showUpload, setShowUpload] = useState(false);
+  const [toast, setToast] = useState(null);
+  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
+
+  const pendingCerts = jobs.filter(j => j.status === "Completed" && !j.has_cert).length;
+
+  const getDownloadUrl = async (filePath) => {
+    if (!filePath) return null;
+    const { data } = await supabase.storage.from("certificates").createSignedUrl(filePath, 60);
+    return data?.signedUrl;
+  };
+
+  const handleDownload = async (doc) => {
+    if (!doc.file_path) { showToast("No file stored for this certificate"); return; }
+    const url = await getDownloadUrl(doc.file_path);
+    if (url) { window.open(url, "_blank"); }
+    else showToast("Could not retrieve file");
+  };
+
   return (
     <div>
-      <div style={{ background: C.card, borderRadius: 14, padding: mob ? 18 : 28, border: `1px solid ${C.border}` }}>
-        <h3 style={{ fontFamily: font, fontSize: 15, fontWeight: 600, color: C.white, margin: "0 0 20px" }}>Certificate Vault</h3>
-        {documents.length === 0 ? <div style={{ textAlign: "center", padding: 40 }}><Icon name="file" size={40} color={C.textDim} /><div style={{ fontFamily: font, fontSize: 13, color: C.textDim, marginTop: 12 }}>No certificates yet</div><p style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 4 }}>Complete a job and upload a certificate to get started</p></div> :
-        documents.map(d => { const pr = properties.find(pp => pp.id === d.property_id); const st = calcStatus(d.expiry_date); return (
-          <div key={d.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 12px", borderRadius: 10, background: C.surfaceAlt, border: `1px solid ${C.border}`, marginBottom: 8, gap: 10, flexWrap: "wrap" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 8, background: statusBg(st), display: "grid", placeItems: "center", flexShrink: 0 }}><Icon name="file" size={20} color={statusColor(st)} /></div>
-              <div style={{ minWidth: 0 }}><div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{d.type}</div><div style={{ fontFamily: font, fontSize: 11, color: C.textMuted, marginTop: 2 }}>{pr?.address?.split(",")[0]} · {formatDate(d.uploaded_at)}</div></div>
-            </div>
-            <span style={{ fontFamily: font, fontSize: 10, fontWeight: 500, color: statusColor(st), background: statusBg(st), border: `1px solid ${statusBorder(st)}`, padding: "3px 10px", borderRadius: 20, whiteSpace: "nowrap" }}>{mob ? st.toUpperCase() : `Exp ${formatDate(d.expiry_date)}`}</span>
+      <Toast message={toast} show={!!toast} />
+      <UploadCertModal open={showUpload} onClose={(r) => { setShowUpload(false); if (r === "uploaded") showToast("Certificate uploaded"); }} />
+      {pendingCerts > 0 && (
+        <div style={{ background: C.amberBg, border: `1px solid ${C.amberBorder}`, borderRadius: 12, padding: "14px 20px", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Icon name="alert" size={18} color={C.amber} />
+            <span style={{ fontFamily: font, fontSize: 13, color: C.text }}><strong>{pendingCerts} completed job{pendingCerts > 1 ? "s" : ""}</strong> awaiting certificate upload</span>
           </div>
-        ); })}
+          <button onClick={() => setShowUpload(true)} style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.white, background: C.amber, border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", minHeight: 36 }}>Upload Now</button>
+        </div>
+      )}
+      <div style={{ background: C.card, borderRadius: 14, padding: mob ? 18 : 28, border: `1px solid ${C.border}` }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
+          <h3 style={{ fontFamily: font, fontSize: 15, fontWeight: 600, color: C.white, margin: 0 }}>Certificate Vault</h3>
+          {["admin", "agent", "engineer", "supervisor"].includes(auth.role) && (
+            <button onClick={() => setShowUpload(true)} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: font, fontSize: 12, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>
+              <Icon name="upload" size={14} color={C.white} /> Upload Certificate
+            </button>
+          )}
+        </div>
+        {documents.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 40 }}>
+            <Icon name="file" size={40} color={C.textDim} />
+            <div style={{ fontFamily: font, fontSize: 13, color: C.textDim, marginTop: 12 }}>No certificates yet</div>
+            <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 4 }}>Complete a job and upload a certificate to get started</p>
+          </div>
+        ) : documents.map(d => {
+          const pr = properties.find(pp => pp.id === d.property_id);
+          const st = calcStatus(d.expiry_date);
+          return (
+            <div key={d.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 12px", borderRadius: 10, background: C.surfaceAlt, border: `1px solid ${C.border}`, marginBottom: 8, gap: 10, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 8, background: statusBg(st), display: "grid", placeItems: "center", flexShrink: 0 }}>
+                  <Icon name="fileCheck" size={20} color={statusColor(st)} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{d.type}</div>
+                  <div style={{ fontFamily: font, fontSize: 11, color: C.textMuted, marginTop: 2 }}>{pr?.address?.split(",")[0]} · {formatDate(d.uploaded_at)}</div>
+                  {d.file_name && <div style={{ fontFamily: fontMono, fontSize: 10, color: C.textDim, marginTop: 2 }}>{d.file_name}</div>}
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                <span style={{ fontFamily: font, fontSize: 10, fontWeight: 500, color: statusColor(st), background: statusBg(st), border: `1px solid ${statusBorder(st)}`, padding: "3px 10px", borderRadius: 20, whiteSpace: "nowrap" }}>{mob ? st.toUpperCase() : `Exp ${formatDate(d.expiry_date)}`}</span>
+                {d.file_path && (
+                  <button onClick={() => handleDownload(d)} style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, minHeight: 32 }}>
+                    <Icon name="download" size={14} color={C.textMuted} />
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
+
 
 // ─── Audit Page ───
 function AuditPage() {
@@ -790,15 +1287,595 @@ function AuditPage() {
 }
 
 // ─────────────────────────────────────────────
+// EICR FORM PAGE (BS 7671)
+// ─────────────────────────────────────────────
+function EICRPage() {
+  const { jobs, properties, updateJob, addAudit } = useContext(DataContext);
+  const auth = useContext(AuthContext);
+  const { w } = useWindowSize();
+  const mob = w < BP.mobile;
+
+  // Jobs assigned to this engineer that are In Progress
+  const myJobs = jobs.filter(j =>
+    (j.engineer_id === auth.id || ["supervisor", "admin"].includes(auth.role)) &&
+    ["Scheduled", "In Progress"].includes(j.status)
+  );
+
+  const [selectedJobId, setSelectedJobId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState(null);
+  const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
+
+  // EICR form fields
+  const [form, setForm] = useState({
+    clientName: "", clientAddress: "", description: "", purpose: "Periodic",
+    startDate: "", endDate: "", inspector: auth.fullName || "",
+    supplyVoltage: "230", frequency: "50", earthFaultLoop: "", prospectiveFaultCurrent: "",
+    typeOfEarthingSystem: "TN-S", maxDemand: "", numberOfCircuits: "",
+    dbLocation: "", dbType: "", dbMake: "",
+    mainSwitchRating: "", mainSwitchType: "",
+    rcdType: "", rcdRating: "", rcdTripTime: "",
+    estimatedAge: "", alterations: "", lastInspectionDate: "",
+    extent: "This report covers the condition of the fixed electrical installation described above.",
+    limitations: "",
+    observations: "", recommendations: "",
+    company: "Ohmnium Electrical",
+    outcome: "Satisfactory", // Satisfactory | Unsatisfactory | Requires Further Investigation
+    limitation1: "", limitation2: "",
+  });
+
+  const set = (key, val) => setForm(prev => ({ ...prev, [key]: val }));
+
+  const selectedJob = myJobs.find(j => j.id === selectedJobId);
+  const selectedProp = selectedJob ? properties.find(p => p.id === selectedJob.property_id) : null;
+
+  // Pre-fill address from selected property, and reload any saved draft
+  const handleJobSelect = (id) => {
+    setSelectedJobId(id);
+    const job = myJobs.find(j => j.id === id);
+    const prop = job ? properties.find(p => p.id === job.property_id) : null;
+    // If a draft exists, restore the full form from it
+    if (job?.eicr_data && job.eicr_data.isDraft) {
+      const { isDraft, submittedAt, submittedBy, ...savedFields } = job.eicr_data;
+      setForm(prev => ({ ...prev, ...savedFields }));
+    } else {
+      // Fresh job — just pre-fill address and tenant
+      if (prop) setForm(prev => ({ ...prev, clientAddress: prop.address, clientName: prop.tenant_name || "" }));
+    }
+  };
+
+  const submit = async (asDraft = false) => {
+    if (!selectedJobId) { showToast("Please select a job first", "error"); return; }
+    setSaving(true);
+    const eicrData = { ...form, submittedAt: new Date().toISOString(), submittedBy: auth.id, isDraft: asDraft };
+    const newStatus = asDraft ? "In Progress" : (auth.role === "junior" ? "Awaiting Sign-Off" : "Completed");
+    await updateJob(selectedJobId, { status: newStatus, eicrData });
+    await addAudit({ action: `EICR ${asDraft ? "draft saved" : auth.role === "junior" ? "submitted for sign-off" : "completed"} — ${selectedProp?.address?.split(",")[0]} — Outcome: ${form.outcome}` });
+    showToast(asDraft ? "Draft saved" : auth.role === "junior" ? "Submitted for Supervisor sign-off" : "EICR completed");
+    setSaving(false);
+    if (!asDraft) setSelectedJobId("");
+  };
+
+  const Field = ({ label, value, onChange, type = "text", placeholder = "", half = false }) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4, gridColumn: half && !mob ? "auto" : "auto" }}>
+      <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</label>
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+        style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40 }} />
+    </div>
+  );
+
+  const Section = ({ title, children }) => (
+    <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
+      <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, margin: "0 0 16px", textTransform: "uppercase", letterSpacing: 0.5 }}>{title}</h4>
+      <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap: 12 }}>
+        {children}
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      {toast && <Toast message={toast.msg} type={toast.type} show />}
+      <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
+        <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, margin: "0 0 16px", textTransform: "uppercase", letterSpacing: 0.5 }}>Select Job</h4>
+        {myJobs.length === 0 ? (
+          <div style={{ fontFamily: font, fontSize: 13, color: C.textDim, padding: "12px 0" }}>No active jobs assigned to you. Jobs must be Scheduled or In Progress.</div>
+        ) : (
+          <Select label="Job" value={selectedJobId} onChange={handleJobSelect}
+            options={[{ value: "", label: "— Select a job —" }, ...myJobs.map(j => {
+              const p = properties.find(pp => pp.id === j.property_id);
+              return { value: j.id, label: `${j.ref} · ${j.type} — ${p?.address?.split(",")[0] || "Unknown"}` };
+            })]} />
+        )}
+      </div>
+
+      <Section title="Section A — Details of the Client and Installation">
+        <Field label="Client / Occupier Name" value={form.clientName} onChange={v => set("clientName", v)} />
+        <Field label="Purpose of Report" value={form.purpose} onChange={v => set("purpose", v)} />
+        <div style={{ gridColumn: "1 / -1" }}>
+          <Field label="Address of Installation" value={form.clientAddress} onChange={v => set("clientAddress", v)} placeholder="Full installation address" />
+        </div>
+        <Field label="Description of Premises" value={form.description} onChange={v => set("description", v)} placeholder="e.g. Residential flat" />
+        <Field label="Estimated Age of Installation" value={form.estimatedAge} onChange={v => set("estimatedAge", v)} placeholder="e.g. 15 years" />
+        <Field label="Evidence of Additions or Alterations" value={form.alterations} onChange={v => set("alterations", v)} placeholder="Yes / No / Unknown" />
+        <Field label="Date of Last Inspection" value={form.lastInspectionDate} onChange={v => set("lastInspectionDate", v)} type="date" />
+      </Section>
+
+      <Section title="Section B — Extent and Limitations">
+        <div style={{ gridColumn: "1 / -1" }}>
+          <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Extent of Inspection</label>
+          <textarea value={form.extent} onChange={e => set("extent", e.target.value)}
+            style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", outline: "none", minHeight: 80, resize: "vertical", width: "100%", marginTop: 4, boxSizing: "border-box" }} />
+        </div>
+        <div style={{ gridColumn: "1 / -1" }}>
+          <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Limitations</label>
+          <textarea value={form.limitations || ""} onChange={e => set("limitations", e.target.value)} placeholder="Record any limitations to the inspection…"
+            style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", outline: "none", minHeight: 80, resize: "vertical", width: "100%", marginTop: 4, boxSizing: "border-box" }} />
+        </div>
+      </Section>
+
+      <Section title="Section C — Supply Characteristics">
+        <Field label="Nominal Voltage (V)" value={form.supplyVoltage} onChange={v => set("supplyVoltage", v)} placeholder="230" />
+        <Field label="Frequency (Hz)" value={form.frequency} onChange={v => set("frequency", v)} placeholder="50" />
+        <Field label="Type of Earthing System" value={form.typeOfEarthingSystem} onChange={v => set("typeOfEarthingSystem", v)} placeholder="TN-S / TN-C-S / TT" />
+        <Field label="Earth Fault Loop Impedance Ze (Ω)" value={form.earthFaultLoop} onChange={v => set("earthFaultLoop", v)} placeholder="e.g. 0.35" />
+        <Field label="Prospective Short-Circuit Current (kA)" value={form.prospectiveFaultCurrent} onChange={v => set("prospectiveFaultCurrent", v)} placeholder="e.g. 0.8" />
+        <Field label="Max Demand (A)" value={form.maxDemand} onChange={v => set("maxDemand", v)} placeholder="e.g. 60" />
+      </Section>
+
+      <Section title="Section D — Distribution Board">
+        <Field label="Consumer Unit / DB Make" value={form.dbMake} onChange={v => set("dbMake", v)} placeholder="e.g. Hager, Schneider" />
+        <Field label="Location" value={form.dbLocation} onChange={v => set("dbLocation", v)} placeholder="e.g. Under stair cupboard" />
+        <Field label="Type" value={form.dbType} onChange={v => set("dbType", v)} placeholder="e.g. Split load, dual RCD" />
+        <Field label="Number of Circuits" value={form.numberOfCircuits} onChange={v => set("numberOfCircuits", v)} placeholder="e.g. 12" />
+        <Field label="Main Switch Rating (A)" value={form.mainSwitchRating} onChange={v => set("mainSwitchRating", v)} placeholder="e.g. 100" />
+        <Field label="Main Switch Type" value={form.mainSwitchType} onChange={v => set("mainSwitchType", v)} placeholder="e.g. DP isolator" />
+        <Field label="RCD Type" value={form.rcdType} onChange={v => set("rcdType", v)} placeholder="e.g. Type A, RCBO" />
+        <Field label="RCD Rating (mA)" value={form.rcdRating} onChange={v => set("rcdRating", v)} placeholder="e.g. 30" />
+        <Field label="RCD Trip Time (ms)" value={form.rcdTripTime} onChange={v => set("rcdTripTime", v)} placeholder="e.g. 28" />
+      </Section>
+
+      <Section title="Section E — Inspection Dates">
+        <Field label="Inspector Name" value={form.inspector} onChange={v => set("inspector", v)} />
+        <Field label="Employer / Company" value={form.company} onChange={v => set("company", v)} placeholder="Ohmnium Electrical" />
+        <Field label="Inspection Start Date" value={form.startDate} onChange={v => set("startDate", v)} type="date" />
+        <Field label="Inspection End Date" value={form.endDate} onChange={v => set("endDate", v)} type="date" />
+      </Section>
+
+      <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
+        <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, margin: "0 0 16px", textTransform: "uppercase", letterSpacing: 0.5 }}>Section F — Observations &amp; Outcome</h4>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div>
+            <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Observations / Defects (use C1/C2/C3/FI codes)</label>
+            <textarea value={form.observations} onChange={e => set("observations", e.target.value)} placeholder="e.g. C2 — No RCD protection to socket outlets in bathrooms…"
+              style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", outline: "none", minHeight: 120, resize: "vertical", width: "100%", marginTop: 4, boxSizing: "border-box" }} />
+          </div>
+          <div>
+            <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Recommendations</label>
+            <textarea value={form.recommendations} onChange={e => set("recommendations", e.target.value)} placeholder="e.g. Install RCD protection, replace consumer unit…"
+              style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", outline: "none", minHeight: 80, resize: "vertical", width: "100%", marginTop: 4, boxSizing: "border-box" }} />
+          </div>
+          <div>
+            <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Overall Outcome</label>
+            <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+              {["Satisfactory", "Unsatisfactory", "Requires Further Investigation"].map(o => (
+                <button key={o} onClick={() => set("outcome", o)}
+                  style={{ fontFamily: font, fontSize: 12, fontWeight: form.outcome === o ? 600 : 400, color: form.outcome === o ? C.white : C.textMuted,
+                    background: form.outcome === o ? (o === "Satisfactory" ? C.green : o === "Unsatisfactory" ? C.red : C.amber) : C.surfaceAlt,
+                    border: `1px solid ${form.outcome === o ? "transparent" : C.border}`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>
+                  {o}
+                </button>
+              ))}
+            </div>
+          </div>
+          {form.outcome === "Unsatisfactory" && (
+            <div style={{ background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+              <Icon name="alert" size={16} color={C.red} />
+              <span style={{ fontFamily: font, fontSize: 12, color: C.red }}>An <strong>Unsatisfactory</strong> outcome will automatically trigger a Remedial job when the certificate is uploaded.</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+        <button onClick={() => submit(true)} disabled={saving || !selectedJobId}
+          style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: selectedJobId ? "pointer" : "not-allowed", minHeight: 44, opacity: saving ? 0.7 : 1 }}>
+          Save Draft
+        </button>
+        <button onClick={() => submit(false)} disabled={saving || !selectedJobId}
+          style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: selectedJobId ? C.accent : C.textDim, border: "none", borderRadius: 10, padding: "10px 24px", cursor: selectedJobId ? "pointer" : "not-allowed", minHeight: 44, opacity: saving ? 0.7 : 1 }}>
+          {saving ? "Saving…" : auth.role === "junior" ? "Submit for Sign-Off" : "Complete EICR"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// SIGN-OFF QUEUE PAGE
+// ─────────────────────────────────────────────
+function SignOffPage() {
+  const { jobs, properties, engineers, updateJob, addAudit, addJob, fetchAll } = useContext(DataContext);
+  const auth = useContext(AuthContext);
+  const { w } = useWindowSize();
+  const mob = w < BP.mobile;
+  const [toast, setToast] = useState(null);
+  const [selectedJob, setSelectedJob] = useState(null);
+  const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
+
+  const queue = jobs.filter(j => j.status === "Awaiting Sign-Off");
+
+  const approve = async (job) => {
+    await updateJob(job.id, { status: "Completed" });
+    const prop = properties.find(p => p.id === job.property_id);
+    await addAudit({ action: `EICR signed off by ${auth.fullName} — ${prop?.address?.split(",")[0]} — Outcome: ${job.eicr_data?.outcome || "—"}` });
+    if (job.eicr_data?.outcome === "Unsatisfactory") {
+      await addJob({ propertyId: job.property_id, type: "Remedial", status: "Pending", notes: `Auto-created from unsatisfactory EICR — ${job.ref}` });
+      await addAudit({ action: `Remedial job auto-created from unsatisfactory EICR (${job.ref})`, userName: "System", userRole: "Auto" });
+    }
+    await fetchAll();
+    setSelectedJob(null);
+    showToast("EICR signed off" + (job.eicr_data?.outcome === "Unsatisfactory" ? " · Remedial job created" : ""));
+  };
+
+  const reject = async (job) => {
+    await updateJob(job.id, { status: "In Progress" });
+    const prop = properties.find(p => p.id === job.property_id);
+    await addAudit({ action: `EICR rejected by ${auth.fullName} — ${prop?.address?.split(",")[0]} — returned to engineer` });
+    await fetchAll();
+    setSelectedJob(null);
+    showToast("Returned to engineer for correction", "warning");
+  };
+
+  return (
+    <div>
+      {toast && <Toast message={toast.msg} type={toast.type} show />}
+      {queue.length === 0 ? (
+        <div style={{ background: C.card, borderRadius: 14, padding: 60, border: `1px solid ${C.border}`, textAlign: "center" }}>
+          <Icon name="checkCircle" size={40} color={C.green} />
+          <div style={{ fontFamily: font, fontSize: 14, color: C.white, fontWeight: 600, marginTop: 16 }}>Queue is clear</div>
+          <div style={{ fontFamily: font, fontSize: 12, color: C.textDim, marginTop: 6 }}>No EICRs awaiting sign-off</div>
+        </div>
+      ) : queue.map(job => {
+        const prop = properties.find(p => p.id === job.property_id);
+        const eng = engineers.find(e => e.id === job.engineer_id);
+        const eicr = job.eicr_data || {};
+        const isOpen = selectedJob?.id === job.id;
+        return (
+          <div key={job.id} style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, marginBottom: 12, overflow: "hidden" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: mob ? "16px" : "20px 24px", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, minWidth: 0 }}>
+                <div style={{ width: 42, height: 42, borderRadius: 10, background: C.purpleBg, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                  <Icon name="clipboard" size={20} color={C.purple} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: font, fontSize: 14, color: C.white, fontWeight: 500 }}>{prop?.address?.split(",")[0] || "—"}</div>
+                  <div style={{ fontFamily: font, fontSize: 12, color: C.textMuted, marginTop: 3 }}>
+                    {eng?.full_name || "—"} · {job.ref}
+                    {eicr.outcome && <span style={{ marginLeft: 10, color: eicr.outcome === "Satisfactory" ? C.green : eicr.outcome === "Unsatisfactory" ? C.red : C.amber, fontWeight: 600 }}>{eicr.outcome}</span>}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+                <button onClick={() => setSelectedJob(isOpen ? null : job)} style={{ fontFamily: font, fontSize: 12, color: C.accent, background: C.accentGlow, border: `1px solid rgba(59,130,246,.25)`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>
+                  {isOpen ? "Hide" : "Review"}
+                </button>
+                <button onClick={() => reject(job)} style={{ fontFamily: font, fontSize: 12, color: C.red, background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>Reject</button>
+                <button onClick={() => approve(job)} style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.white, background: C.green, border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", minHeight: 36 }}>Approve</button>
+              </div>
+            </div>
+            {isOpen && eicr && (
+              <div style={{ padding: mob ? "0 16px 16px" : "0 24px 24px", borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "repeat(3,1fr)", gap: 14 }}>
+                  {[
+                    ["Client / Occupier", eicr.clientName], ["Address", eicr.clientAddress], ["Purpose", eicr.purpose],
+                    ["Earthing System", eicr.typeOfEarthingSystem], ["Supply Voltage", eicr.supplyVoltage ? eicr.supplyVoltage + "V" : ""], ["Earth Fault Loop Ze", eicr.earthFaultLoop ? eicr.earthFaultLoop + " Ω" : ""],
+                    ["DB Make", eicr.dbMake], ["DB Location", eicr.dbLocation], ["Number of Circuits", eicr.numberOfCircuits],
+                    ["Inspector", eicr.inspector], ["Inspection Date", eicr.startDate ? formatDate(eicr.startDate) : ""], ["Outcome", eicr.outcome],
+                  ].map(([label, val], i) => val ? (
+                    <div key={i} style={{ background: C.surfaceAlt, borderRadius: 8, padding: "10px 12px" }}>
+                      <div style={{ fontFamily: font, fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>{label}</div>
+                      <div style={{ fontFamily: font, fontSize: 12, color: label === "Outcome" ? (val === "Satisfactory" ? C.green : val === "Unsatisfactory" ? C.red : C.amber) : C.white, fontWeight: label === "Outcome" ? 600 : 400 }}>{val}</div>
+                    </div>
+                  ) : null)}
+                </div>
+                {eicr.observations && (
+                  <div style={{ marginTop: 14, background: C.surfaceAlt, borderRadius: 8, padding: "12px 14px" }}>
+                    <div style={{ fontFamily: font, fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Observations</div>
+                    <div style={{ fontFamily: font, fontSize: 12, color: C.text, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{eicr.observations}</div>
+                  </div>
+                )}
+                {eicr.recommendations && (
+                  <div style={{ marginTop: 10, background: C.surfaceAlt, borderRadius: 8, padding: "12px 14px" }}>
+                    <div style={{ fontFamily: font, fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Recommendations</div>
+                    <div style={{ fontFamily: font, fontSize: 12, color: C.text, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{eicr.recommendations}</div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// EDIT PROPERTY MODAL
+// ─────────────────────────────────────────────
+function EditPropertyModal({ open, onClose, property }) {
+  const { updateProperty, deleteProperty, addAudit } = useContext(DataContext);
+  const [addr, setAddr] = useState(""); const [tenant, setTenant] = useState(""); const [phone, setPhone] = useState("");
+  const [saving, setSaving] = useState(false); const [confirmDelete, setConfirmDelete] = useState(false); const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (property) { setAddr(property.address || ""); setTenant(property.tenant_name || ""); setPhone(property.tenant_phone || ""); }
+  }, [property]);
+
+  const submit = async () => {
+    if (!addr.trim() || !tenant.trim()) { setError("Address and tenant required"); return; }
+    setSaving(true);
+    await updateProperty(property.id, { address: addr.trim(), tenant_name: tenant.trim(), tenant_phone: phone.trim() });
+    await addAudit({ action: `Property ${property.ref} updated — ${addr.split(",")[0]}` });
+    setSaving(false); onClose("updated");
+  };
+
+  const handleDelete = async () => {
+    setSaving(true);
+    await deleteProperty(property.id);
+    await addAudit({ action: `Property ${property.ref} deleted — ${property.address?.split(",")[0]}` });
+    setSaving(false); onClose("deleted");
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title="Edit Property">
+      {confirmDelete ? (
+        <div style={{ textAlign: "center", padding: "10px 0" }}>
+          <Icon name="alert" size={36} color={C.red} />
+          <div style={{ fontFamily: font, fontSize: 14, color: C.white, fontWeight: 600, marginTop: 12 }}>Delete this property?</div>
+          <div style={{ fontFamily: font, fontSize: 12, color: C.textMuted, marginTop: 6, marginBottom: 20 }}>This cannot be undone. All jobs and certificates linked to this property will remain in the system.</div>
+          <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+            <button onClick={() => setConfirmDelete(false)} style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44 }}>Cancel</button>
+            <button onClick={handleDelete} disabled={saving} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: C.red, border: "none", borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44, opacity: saving ? 0.7 : 1 }}>{saving ? "Deleting…" : "Yes, Delete"}</button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <Input label="Property Address" value={addr} onChange={setAddr} placeholder="e.g. 15 Station Road, Leeds LS1 2AB" />
+          <Input label="Tenant Name" value={tenant} onChange={setTenant} placeholder="e.g. John Smith" />
+          <Input label="Tenant Phone" value={phone} onChange={setPhone} placeholder="e.g. 07700 900000" />
+          {error && <div style={{ fontFamily: font, fontSize: 12, color: C.red }}>{error}</div>}
+          <div style={{ display: "flex", gap: 10, justifyContent: "space-between", marginTop: 8, flexWrap: "wrap" }}>
+            <button onClick={() => setConfirmDelete(true)} style={{ fontFamily: font, fontSize: 12, color: C.red, background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 10, padding: "10px 16px", cursor: "pointer", minHeight: 44 }}>Delete Property</button>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={onClose} style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44 }}>Cancel</button>
+              <button onClick={submit} disabled={saving} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44, opacity: saving ? 0.7 : 1 }}>{saving ? "Saving…" : "Save Changes"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+// ─────────────────────────────────────────────
+// PROPERTY DETAIL PAGE
+// ─────────────────────────────────────────────
+function PropertyDetailPage({ propertyId, onBack, onRequestJob }) {
+  const { properties, jobs, documents, comments, updateJob, deleteJob, addJob, addAudit, addComment, fetchAll } = useContext(DataContext);
+  const auth = useContext(AuthContext);
+  const { w } = useWindowSize();
+  const mob = w < BP.mobile;
+  const [showEdit, setShowEdit] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const [activeJobComments, setActiveJobComments] = useState(null);
+  const [toast, setToast] = useState(null);
+  const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
+
+  const property = properties.find(p => p.id === propertyId);
+  if (!property) return null;
+
+  const propJobs = jobs.filter(j => j.property_id === propertyId).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  const propDocs = documents.filter(d => d.property_id === propertyId).sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
+
+  const eicrStatus = calcStatus(property.expiry_date);
+  const smokeStatus = calcStatus(property.smoke_expiry);
+  const patStatus = calcStatus(property.pat_expiry);
+
+  const handleCancelJob = async (job) => {
+    await deleteJob(job.id);
+    await addAudit({ action: `Job ${job.ref} cancelled — ${property.address?.split(",")[0]}` });
+    showToast("Job cancelled");
+  };
+
+  const handleDownload = async (doc) => {
+    if (!doc.file_path) { showToast("No file stored", "error"); return; }
+    const { data } = await supabase.storage.from("certificates").createSignedUrl(doc.file_path, 60);
+    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+    else showToast("Could not retrieve file", "error");
+  };
+
+  const submitComment = async (jobId) => {
+    if (!commentText.trim()) return;
+    await addComment({ jobId, body: commentText.trim() });
+    setCommentText("");
+    showToast("Comment added");
+  };
+
+  const CompliancePill = ({ label, status, date }) => (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: statusBg(status), border: `1px solid ${statusBorder(status)}`, borderRadius: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ width: 8, height: 8, borderRadius: "50%", background: statusColor(status) }} />
+        <span style={{ fontFamily: font, fontSize: 12, color: C.text, fontWeight: 500 }}>{label}</span>
+      </div>
+      <span style={{ fontFamily: font, fontSize: 11, color: statusColor(status), fontWeight: 600 }}>{date ? `Exp ${formatDate(date)}` : "No record"}</span>
+    </div>
+  );
+
+  return (
+    <div>
+      {toast && <Toast message={toast.msg} type={toast.type} show />}
+      <EditPropertyModal open={showEdit} onClose={(r) => { setShowEdit(false); if (r === "deleted") onBack(); else if (r === "updated") showToast("Property updated"); }} property={property} />
+      <UploadCertModal open={showUpload} onClose={(r) => { setShowUpload(false); if (r === "uploaded") { showToast("Certificate uploaded"); fetchAll(); } }} />
+
+      {/* Back + actions */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, gap: 10, flexWrap: "wrap" }}>
+        <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: font, fontSize: 13, color: C.textMuted, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>
+          <svg style={{ width: 14, height: 14 }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
+          All Properties
+        </button>
+        {["admin", "agent"].includes(auth.role) && (
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => setShowEdit(true)} style={{ fontFamily: font, fontSize: 12, color: C.textMuted, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>Edit</button>
+            <button onClick={() => onRequestJob(property)} style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>+ Job</button>
+          </div>
+        )}
+      </div>
+
+      {/* Property header */}
+      <div style={{ background: C.card, borderRadius: 14, padding: mob ? 18 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 14 }}>
+          <div>
+            <h2 style={{ fontFamily: font, fontSize: mob ? 16 : 18, fontWeight: 700, color: C.white, margin: "0 0 4px" }}>{property.address?.split(",")[0]}</h2>
+            <div style={{ fontFamily: font, fontSize: 12, color: C.textDim }}>{property.address?.split(",").slice(1).join(",").trim()}</div>
+          </div>
+          <span style={{ fontFamily: fontMono, fontSize: 10, color: C.textMuted, background: C.surfaceAlt, padding: "4px 10px", borderRadius: 6, whiteSpace: "nowrap", flexShrink: 0 }}>{property.ref}</span>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
+          <div style={{ background: C.surfaceAlt, borderRadius: 8, padding: "8px 12px", flex: 1, minWidth: 160 }}>
+            <div style={{ fontFamily: font, fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5 }}>Tenant</div>
+            <div style={{ fontFamily: font, fontSize: 13, color: C.white, marginTop: 3 }}>{property.tenant_name || "—"}</div>
+          </div>
+          <div style={{ background: C.surfaceAlt, borderRadius: 8, padding: "8px 12px", flex: 1, minWidth: 160 }}>
+            <div style={{ fontFamily: font, fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5 }}>Phone</div>
+            <div style={{ fontFamily: font, fontSize: 13, color: C.white, marginTop: 3 }}>{property.tenant_phone || "—"}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Compliance status for all 3 certificate types */}
+      <div style={{ background: C.card, borderRadius: 14, padding: mob ? 18 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
+        <h3 style={{ fontFamily: font, fontSize: 14, fontWeight: 600, color: C.white, margin: "0 0 14px" }}>Compliance Status</h3>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <CompliancePill label="EICR" status={eicrStatus} date={property.expiry_date} />
+          <CompliancePill label="Smoke & CO Alarms" status={smokeStatus} date={property.smoke_expiry} />
+          <CompliancePill label="PAT Testing" status={patStatus} date={property.pat_expiry} />
+        </div>
+        {["admin", "agent", "engineer", "supervisor"].includes(auth.role) && (
+          <button onClick={() => setShowUpload(true)} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: font, fontSize: 12, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36, marginTop: 14 }}>
+            <Icon name="upload" size={14} color={C.white} /> Upload Certificate
+          </button>
+        )}
+      </div>
+
+      {/* Jobs */}
+      <div style={{ background: C.card, borderRadius: 14, padding: mob ? 18 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
+        <h3 style={{ fontFamily: font, fontSize: 14, fontWeight: 600, color: C.white, margin: "0 0 14px" }}>Job History</h3>
+        {propJobs.length === 0 && <div style={{ fontFamily: font, fontSize: 13, color: C.textDim, padding: "12px 0" }}>No jobs yet</div>}
+        {propJobs.map(job => {
+          const jobComments = comments.filter(c => c.job_id === job.id);
+          const showComments = activeJobComments === job.id;
+          return (
+            <div key={job.id} style={{ borderRadius: 10, border: `1px solid ${C.border}`, marginBottom: 10, overflow: "hidden" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", gap: 10, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 8, background: job.type === "EICR" ? C.accentGlow : job.type === "Remedial" ? C.redBg : C.greenBg, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                    <Icon name={job.type === "EICR" ? "shield" : job.type === "Remedial" ? "alert" : "check"} size={16} color={job.type === "EICR" ? C.accent : job.type === "Remedial" ? C.red : C.green} />
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{job.type} <span style={{ color: C.textDim, fontWeight: 400 }}>· {job.ref}</span></div>
+                    <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 2 }}>{job.scheduled_date ? formatDate(job.scheduled_date) : "Unscheduled"}{job.notes ? ` · ${job.notes}` : ""}</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                  <button onClick={() => setActiveJobComments(showComments ? null : job.id)} style={{ fontFamily: font, fontSize: 11, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "5px 10px", cursor: "pointer", minHeight: 30 }}>
+                    💬 {jobComments.length}
+                  </button>
+                  {["admin"].includes(auth.role) && ["Pending", "Scheduled"].includes(job.status) && (
+                    <button onClick={() => handleCancelJob(job)} style={{ fontFamily: font, fontSize: 11, color: C.red, background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 6, padding: "5px 10px", cursor: "pointer", minHeight: 30 }}>Cancel</button>
+                  )}
+                  <span style={{ fontFamily: font, fontSize: 10, fontWeight: 600, color: jobStatusColor(job.status), background: jobStatusBg(job.status), padding: "4px 10px", borderRadius: 20, whiteSpace: "nowrap" }}>{job.status}</span>
+                </div>
+              </div>
+              {showComments && (
+                <div style={{ borderTop: `1px solid ${C.border}`, background: C.surfaceAlt, padding: "12px 14px" }}>
+                  {jobComments.length === 0 && <div style={{ fontFamily: font, fontSize: 12, color: C.textDim, marginBottom: 10 }}>No comments yet</div>}
+                  {jobComments.map((c, i) => (
+                    <div key={c.id || i} style={{ marginBottom: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                        <span style={{ fontFamily: font, fontSize: 11, color: C.accent, fontWeight: 600 }}>{c.author_name}</span>
+                        <span style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>{c.created_at ? new Date(c.created_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}</span>
+                      </div>
+                      <div style={{ fontFamily: font, fontSize: 12, color: C.text, lineHeight: 1.5 }}>{c.body}</div>
+                    </div>
+                  ))}
+                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                    <input value={commentText} onChange={e => setCommentText(e.target.value)} onKeyDown={e => e.key === "Enter" && submitComment(job.id)} placeholder="Add a comment…"
+                      style={{ flex: 1, fontFamily: font, fontSize: 12, color: C.text, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 12px", outline: "none", minHeight: 36 }} />
+                    <button onClick={() => submitComment(job.id)} disabled={!commentText.trim()} style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.white, background: commentText.trim() ? C.accent : C.textDim, border: "none", borderRadius: 8, padding: "8px 14px", cursor: commentText.trim() ? "pointer" : "not-allowed", minHeight: 36 }}>Post</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Certificates */}
+      <div style={{ background: C.card, borderRadius: 14, padding: mob ? 18 : 24, border: `1px solid ${C.border}` }}>
+        <h3 style={{ fontFamily: font, fontSize: 14, fontWeight: 600, color: C.white, margin: "0 0 14px" }}>Certificates</h3>
+        {propDocs.length === 0 && <div style={{ fontFamily: font, fontSize: 13, color: C.textDim, padding: "12px 0" }}>No certificates uploaded yet</div>}
+        {propDocs.map(d => {
+          const st = calcStatus(d.expiry_date);
+          return (
+            <div key={d.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px", borderRadius: 10, background: C.surfaceAlt, border: `1px solid ${C.border}`, marginBottom: 8, gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 8, background: statusBg(st), display: "grid", placeItems: "center", flexShrink: 0 }}><Icon name="fileCheck" size={16} color={statusColor(st)} /></div>
+                <div>
+                  <div style={{ fontFamily: font, fontSize: 12, color: C.white, fontWeight: 500 }}>{d.type}</div>
+                  <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 2 }}>{formatDate(d.uploaded_at)}{d.file_name ? ` · ${d.file_name}` : ""}</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                <span style={{ fontFamily: font, fontSize: 10, fontWeight: 500, color: statusColor(st), background: statusBg(st), border: `1px solid ${statusBorder(st)}`, padding: "3px 8px", borderRadius: 20, whiteSpace: "nowrap" }}>Exp {formatDate(d.expiry_date)}</span>
+                {d.file_path && <button onClick={() => handleDownload(d)} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", cursor: "pointer", display: "flex", alignItems: "center", minHeight: 30 }}><Icon name="download" size={14} color={C.textMuted} /></button>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── CSV Compliance Export ───
+function exportComplianceCSV(properties) {
+  const headers = ["Ref", "Address", "Tenant", "Phone", "EICR Expiry", "EICR Status", "Smoke Expiry", "Smoke Status", "PAT Expiry", "PAT Status"];
+  const rows = properties.map(p => [
+    p.ref || "", `"${(p.address || "").replace(/"/g, '""')}"`, `"${(p.tenant_name || "").replace(/"/g, '""')}"`, p.tenant_phone || "",
+    p.expiry_date || "", calcStatus(p.expiry_date).toUpperCase(),
+    p.smoke_expiry || "", calcStatus(p.smoke_expiry).toUpperCase(),
+    p.pat_expiry || "", calcStatus(p.pat_expiry).toUpperCase(),
+  ]);
+  const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = `compliance-export-${new Date().toISOString().split("T")[0]}.csv`; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─────────────────────────────────────────────
 // MAIN APP
 // ─────────────────────────────────────────────
-const TITLES = { dashboard: "Dashboard", properties: "Properties", jobs: "Jobs", eicr: "EICR Form", signoff: "Sign-Off Queue", documents: "Documents", audit: "Audit Trail", more: "More" };
+const TITLES = { dashboard: "Dashboard", properties: "Properties", propertyDetail: "Property", jobs: "Jobs", eicr: "EICR Form", signoff: "Sign-Off Queue", documents: "Documents", audit: "Audit Trail", team: "Team Management", more: "More" };
 
 function PortalApp({ session, userProfile, onLogout }) {
   const [page, setPage] = useState("dashboard");
   const [gs, setGs] = useState("");
   const [showRequestJob, setShowRequestJob] = useState(false);
   const [requestJobProp, setRequestJobProp] = useState(null);
+  const [selectedPropertyId, setSelectedPropertyId] = useState(null);
   const { w } = useWindowSize();
   const isMobile = w < BP.tablet;
   const role = userProfile.role;
@@ -808,17 +1885,24 @@ function PortalApp({ session, userProfile, onLogout }) {
     if (page === "signoff" && !["supervisor", "admin"].includes(role)) setPage("dashboard");
   }, [role]);
 
+  const navigateToProperty = (id) => { setSelectedPropertyId(id); setPage("propertyDetail"); };
+  const requestJob = (p) => { setRequestJobProp(p); setShowRequestJob(true); };
+
   const authCtx = { id: userProfile.id, role: userProfile.role, fullName: userProfile.full_name, orgId: userProfile.organisation_id };
 
   const render = () => {
     switch (page) {
-      case "dashboard": return <DashboardPage />;
-      case "properties": return <PropertiesPage onRequestJob={(p) => { setRequestJobProp(p); setShowRequestJob(true); }} />;
+      case "dashboard": return <DashboardPage onNavigateProperty={navigateToProperty} />;
+      case "properties": return <PropertiesPage onRequestJob={requestJob} onSelectProperty={navigateToProperty} />;
+      case "propertyDetail": return <PropertyDetailPage propertyId={selectedPropertyId} onBack={() => setPage("properties")} onRequestJob={requestJob} />;
       case "jobs": return <JobsPage />;
+      case "eicr": return <EICRPage />;
+      case "signoff": return <SignOffPage />;
       case "documents": return <DocumentsPage />;
       case "audit": return <AuditPage />;
+      case "team": return <TeamPage />;
       case "more": return <MorePage setActive={setPage} role={role} onLogout={onLogout} />;
-      default: return <DashboardPage />;
+      default: return <DashboardPage onNavigateProperty={navigateToProperty} />;
     }
   };
 
@@ -828,20 +1912,25 @@ function PortalApp({ session, userProfile, onLogout }) {
         <DataContext.Consumer>
           {(ctx) => (
             <div style={{ fontFamily: font, background: C.bg, minHeight: "100vh", color: C.text }}>
-              {!isMobile && <Sidebar active={page} setActive={setPage} role={role} userProfile={userProfile} onLogout={onLogout} />}
+              {!isMobile && <Sidebar active={page} setActive={(p) => { setPage(p); if (p !== "propertyDetail") setSelectedPropertyId(null); }} role={role} userProfile={userProfile} onLogout={onLogout} />}
               <div style={{ marginLeft: isMobile ? 0 : 240, paddingBottom: isMobile ? 72 : 0 }}>
-                {isMobile && <MobileTopBar userProfile={userProfile} globalSearch={gs} setGlobalSearch={setGs} onSearchSelect={() => setPage("properties")} />}
+                {isMobile && <MobileTopBar userProfile={userProfile} globalSearch={gs} setGlobalSearch={setGs} onSearchSelect={(id) => navigateToProperty(id)} />}
                 <div style={{ padding: isMobile ? "20px 16px" : "28px 32px" }}>
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: isMobile ? 18 : 24, gap: 10 }}>
                     <div>
                       <h1 style={{ fontFamily: font, fontSize: isMobile ? 20 : 22, fontWeight: 700, color: C.white, margin: 0 }}>{TITLES[page]}</h1>
                       <p style={{ fontFamily: font, fontSize: 12, color: C.textMuted, marginTop: 4 }}>{userProfile.full_name} · {ctx.properties.length} properties</p>
                     </div>
+                    {page === "properties" && ["admin", "agent"].includes(role) && (
+                      <button onClick={() => exportComplianceCSV(ctx.properties)} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: font, fontSize: 12, fontWeight: 600, color: C.textMuted, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36, whiteSpace: "nowrap", flexShrink: 0 }}>
+                        <Icon name="download" size={14} color={C.textMuted} />{!isMobile && "Export CSV"}
+                      </button>
+                    )}
                   </div>
                   {render()}
                 </div>
               </div>
-              {isMobile && <BottomNav active={page} setActive={setPage} role={role} jobs={ctx.jobs} />}
+              {isMobile && <BottomNav active={page} setActive={(p) => { setPage(p); if (p !== "propertyDetail") setSelectedPropertyId(null); }} role={role} jobs={ctx.jobs} />}
               <RequestJobModal open={showRequestJob} onClose={() => { setShowRequestJob(false); setRequestJobProp(null); }} property={requestJobProp} />
             </div>
           )}
