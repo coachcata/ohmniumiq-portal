@@ -45,6 +45,12 @@ function statusBorder(s) { return s === "green" ? C.greenBorder : s === "amber" 
 function jobStatusColor(s) { if (s === "Completed") return C.green; if (s === "In Progress") return C.accent; if (s === "Scheduled") return C.amber; if (s === "Awaiting Sign-Off") return C.purple; return C.textMuted; }
 function jobStatusBg(s) { if (s === "Completed") return C.greenBg; if (s === "In Progress") return C.accentGlow; if (s === "Scheduled") return C.amberBg; if (s === "Awaiting Sign-Off") return C.purpleBg; return "rgba(255,255,255,.05)"; }
 function formatDate(d) { return d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—"; }
+function overallStatus(p) {
+  const statuses = [calcStatus(p.expiry_date), calcStatus(p.smoke_expiry), calcStatus(p.pat_expiry)];
+  if (statuses.includes("red")) return "red";
+  if (statuses.includes("amber")) return "amber";
+  return "green";
+}
 
 // ─── Data Context ───
 const DataContext = createContext(null);
@@ -221,7 +227,7 @@ function LoginPage() {
             </>
           )}
         </div>
-        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v10.0</p>
+        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v12.0</p>
       </div>
     </div>
   );
@@ -248,7 +254,7 @@ function DataProvider({ children, userProfile }) {
       supabase.from("properties").select("*").eq("agency_id", orgId).order("ref"),
       supabase.from("jobs").select("*").eq("organisation_id", orgId).order("created_at", { ascending: false }),
       supabase.from("documents").select("*").eq("organisation_id", orgId).order("uploaded_at", { ascending: false }),
-      supabase.from("audit_log").select("*").eq("organisation_id", orgId).order("created_at", { ascending: false }).limit(100),
+      supabase.from("audit_log").select("*").eq("organisation_id", orgId).order("created_at", { ascending: false }).limit(500),
       supabase.from("profiles").select("id, full_name, role, email").eq("organisation_id", orgId).in("role", ["engineer", "junior", "supervisor", "agent", "admin"]),
       supabase.from("job_comments").select("*").eq("organisation_id", orgId).order("created_at", { ascending: true }),
     ]);
@@ -512,7 +518,98 @@ function TeamPage() {
   );
 }
 
+function ChangePasswordModal({ open, onClose }) {
+  const [current, setCurrent] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+
+  const reset = () => { setCurrent(""); setNewPw(""); setConfirm(""); setError(""); setDone(false); };
+
+  const submit = async () => {
+    setError("");
+    if (!newPw || newPw.length < 8) { setError("New password must be at least 8 characters"); return; }
+    if (newPw !== confirm) { setError("Passwords do not match"); return; }
+    setSaving(true);
+    // Supabase requires re-auth before password update — sign in again first
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error: signInErr } = await supabase.auth.signInWithPassword({ email: user.email, password: current });
+    if (signInErr) { setError("Current password is incorrect"); setSaving(false); return; }
+    const { error: updateErr } = await supabase.auth.updateUser({ password: newPw });
+    if (updateErr) { setError(updateErr.message); setSaving(false); return; }
+    setSaving(false); setDone(true);
+  };
+
+  return (
+    <Modal open={open} onClose={() => { reset(); onClose(); }} title="Change Password">
+      {done ? (
+        <div style={{ textAlign: "center", padding: "10px 0" }}>
+          <Icon name="checkCircle" size={36} color={C.green} />
+          <div style={{ fontFamily: font, fontSize: 14, color: C.white, fontWeight: 600, marginTop: 12 }}>Password updated</div>
+          <div style={{ fontFamily: font, fontSize: 12, color: C.textMuted, marginTop: 6 }}>Your password has been changed successfully.</div>
+          <button onClick={() => { reset(); onClose(); }} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 10, padding: "10px 24px", cursor: "pointer", minHeight: 44, marginTop: 20 }}>Done</button>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <Input label="Current Password" type="password" value={current} onChange={setCurrent} placeholder="Your current password" />
+          <Input label="New Password" type="password" value={newPw} onChange={setNewPw} placeholder="At least 8 characters" />
+          <Input label="Confirm New Password" type="password" value={confirm} onChange={setConfirm} placeholder="Repeat new password" />
+          {error && <div style={{ fontFamily: font, fontSize: 12, color: C.red, background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 8, padding: "8px 12px" }}>{error}</div>}
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
+            <button onClick={() => { reset(); onClose(); }} style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44 }}>Cancel</button>
+            <button onClick={submit} disabled={saving || !current || !newPw || !confirm} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: (current && newPw && confirm) ? C.accent : C.textDim, border: "none", borderRadius: 10, padding: "10px 20px", cursor: (current && newPw && confirm) ? "pointer" : "not-allowed", minHeight: 44, opacity: saving ? 0.7 : 1 }}>{saving ? "Updating…" : "Update Password"}</button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+function EditNameModal({ open, onClose }) {
+  const auth = useContext(AuthContext);
+  const [name, setName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+
+  useEffect(() => { if (open) { setName(auth.fullName || ""); setError(""); setDone(false); } }, [open]);
+
+  const submit = async () => {
+    if (!name.trim()) { setError("Name cannot be empty"); return; }
+    setSaving(true);
+    const { error: err } = await supabase.from("profiles").update({ full_name: name.trim() }).eq("id", auth.id);
+    if (err) { setError(err.message); setSaving(false); return; }
+    setSaving(false); setDone(true);
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title="Edit Name">
+      {done ? (
+        <div style={{ textAlign: "center", padding: "10px 0" }}>
+          <Icon name="checkCircle" size={36} color={C.green} />
+          <div style={{ fontFamily: font, fontSize: 14, color: C.white, fontWeight: 600, marginTop: 12 }}>Name updated</div>
+          <div style={{ fontFamily: font, fontSize: 12, color: C.textMuted, marginTop: 6 }}>Your display name has been changed. Reload to see the update everywhere.</div>
+          <button onClick={onClose} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 10, padding: "10px 24px", cursor: "pointer", minHeight: 44, marginTop: 20 }}>Done</button>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <Input label="Display Name" value={name} onChange={setName} placeholder="Your full name" />
+          {error && <div style={{ fontFamily: font, fontSize: 12, color: C.red, background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 8, padding: "8px 12px" }}>{error}</div>}
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
+            <button onClick={onClose} style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44 }}>Cancel</button>
+            <button onClick={submit} disabled={saving || !name.trim()} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: name.trim() ? C.accent : C.textDim, border: "none", borderRadius: 10, padding: "10px 20px", cursor: name.trim() ? "pointer" : "not-allowed", minHeight: 44, opacity: saving ? 0.7 : 1 }}>{saving ? "Saving…" : "Save"}</button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 function MorePage({ setActive, role, onLogout }) {
+  const [showChangePw, setShowChangePw] = useState(false);
+  const [showEditName, setShowEditName] = useState(false);
   const moreItems = [
     ...(["engineer", "junior", "supervisor"].includes(role) ? [{ id: "eicr", label: "EICR Form", icon: "clipboard", desc: "BS 7671 inspection form" }] : []),
     ...(["supervisor", "admin"].includes(role) ? [{ id: "signoff", label: "Sign-Off Queue", icon: "checkCircle", desc: "Review junior submissions" }] : []),
@@ -521,13 +618,23 @@ function MorePage({ setActive, role, onLogout }) {
   ];
   return (
     <div>
+      <ChangePasswordModal open={showChangePw} onClose={() => setShowChangePw(false)} />
+      <EditNameModal open={showEditName} onClose={() => setShowEditName(false)} />
       {moreItems.map(item => (
         <button key={item.id} onClick={() => setActive(item.id)} style={{ display: "flex", alignItems: "center", gap: 16, width: "100%", padding: "18px 20px", background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, cursor: "pointer", marginBottom: 10, textAlign: "left" }}>
           <div style={{ width: 44, height: 44, borderRadius: 12, background: C.accentGlow, display: "grid", placeItems: "center", flexShrink: 0 }}><Icon name={item.icon} size={20} color={C.accent} /></div>
           <div><div style={{ fontFamily: font, fontSize: 14, fontWeight: 600, color: C.white }}>{item.label}</div><div style={{ fontFamily: font, fontSize: 12, color: C.textDim, marginTop: 2 }}>{item.desc}</div></div>
         </button>
       ))}
-      <button onClick={onLogout} style={{ display: "flex", alignItems: "center", gap: 16, width: "100%", padding: "18px 20px", background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 14, cursor: "pointer", marginTop: 20, textAlign: "left" }}>
+      <button onClick={() => setShowEditName(true)} style={{ display: "flex", alignItems: "center", gap: 16, width: "100%", padding: "18px 20px", background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, cursor: "pointer", marginBottom: 10, textAlign: "left" }}>
+        <div style={{ width: 44, height: 44, borderRadius: 12, background: C.accentGlow, display: "grid", placeItems: "center", flexShrink: 0 }}><Icon name="user" size={20} color={C.accent} /></div>
+        <div><div style={{ fontFamily: font, fontSize: 14, fontWeight: 600, color: C.white }}>Edit Name</div><div style={{ fontFamily: font, fontSize: 12, color: C.textDim, marginTop: 2 }}>Update your display name</div></div>
+      </button>
+      <button onClick={() => setShowChangePw(true)} style={{ display: "flex", alignItems: "center", gap: 16, width: "100%", padding: "18px 20px", background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, cursor: "pointer", marginBottom: 10, textAlign: "left" }}>
+        <div style={{ width: 44, height: 44, borderRadius: 12, background: C.accentGlow, display: "grid", placeItems: "center", flexShrink: 0 }}><Icon name="shield" size={20} color={C.accent} /></div>
+        <div><div style={{ fontFamily: font, fontSize: 14, fontWeight: 600, color: C.white }}>Change Password</div><div style={{ fontFamily: font, fontSize: 12, color: C.textDim, marginTop: 2 }}>Update your account password</div></div>
+      </button>
+      <button onClick={onLogout} style={{ display: "flex", alignItems: "center", gap: 16, width: "100%", padding: "18px 20px", background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 14, cursor: "pointer", marginTop: 10, textAlign: "left" }}>
         <div style={{ width: 44, height: 44, borderRadius: 12, background: C.redBg, display: "grid", placeItems: "center", flexShrink: 0 }}><Icon name="logout" size={20} color={C.red} /></div>
         <div style={{ fontFamily: font, fontSize: 14, fontWeight: 600, color: C.red }}>Sign Out</div>
       </button>
@@ -571,7 +678,7 @@ function Sidebar({ active, setActive, role, userProfile, onLogout }) {
       <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}` }}>
         <button onClick={onLogout} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.card, display: "grid", placeItems: "center" }}><Icon name="logout" size={16} color={C.textMuted} /></div>
-          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v10.0 — Supabase</div></div>
+          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v12.0 — Supabase</div></div>
         </button>
       </div>
     </div>
@@ -619,19 +726,89 @@ function MobileTopBar({ userProfile, globalSearch, setGlobalSearch, onSearchSele
 // ─────────────────────────────────────────────
 function DashboardPage({ onNavigateProperty }) {
   const { properties, jobs, audit, loading } = useContext(DataContext);
+  const auth = useContext(AuthContext);
   const { w } = useWindowSize();
   const mob = w < BP.mobile;
   const tab = w < BP.tablet;
 
   if (loading) return <div style={{ padding: 60, textAlign: "center" }}><div style={{ fontFamily: font, fontSize: 14, color: C.textMuted }}>Loading dashboard…</div></div>;
 
-  const g = properties.filter(p => calcStatus(p.expiry_date) === "green").length;
-  const a = properties.filter(p => calcStatus(p.expiry_date) === "amber").length;
-  const r = properties.filter(p => calcStatus(p.expiry_date) === "red").length;
+  // Engineer-specific dashboard
+  if (["engineer", "junior"].includes(auth.role)) {
+    const myJobs = jobs.filter(j => j.engineer_id === auth.id && j.status !== "Completed" && j.status !== "Cancelled");
+    const today = new Date().toISOString().split("T")[0];
+    const todayJobs = myJobs.filter(j => j.scheduled_date === today);
+    const upcomingJobs = myJobs.filter(j => j.scheduled_date && j.scheduled_date > today).sort((a,b) => new Date(a.scheduled_date) - new Date(b.scheduled_date));
+    const pendingSignOff = myJobs.filter(j => j.status === "Awaiting Sign-Off");
+    return (
+      <div>
+        <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "repeat(3,1fr)", gap: mob ? 10 : 16, marginBottom: mob ? 20 : 28 }}>
+          {[{ l: "Today", v: todayJobs.length, c: todayJobs.length > 0 ? C.accent : C.green, i: "clock" }, { l: "Upcoming", v: upcomingJobs.length, c: C.amber, i: "briefcase" }, { l: "Awaiting Sign-Off", v: pendingSignOff.length, c: C.purple, i: "clipboard" }].map((card, idx) => (
+            <div key={idx} style={{ background: C.card, borderRadius: 14, padding: mob ? "16px 14px" : "20px 22px", border: `1px solid ${C.border}`, position: "relative", overflow: "hidden" }}>
+              <div style={{ position: "absolute", top: -20, right: -20, width: 80, height: 80, borderRadius: "50%", background: card.c, opacity: 0.06 }} />
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: mob ? 8 : 12 }}><Icon name={card.i} size={mob ? 14 : 16} color={card.c} /><span style={{ fontFamily: font, fontSize: mob ? 9 : 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>{card.l}</span></div>
+              <div style={{ fontFamily: font, fontSize: mob ? 26 : 32, fontWeight: 700, color: C.white, lineHeight: 1 }}>{card.v}</div>
+            </div>
+          ))}
+        </div>
+        {todayJobs.length > 0 && (
+          <div style={{ background: C.card, borderRadius: 14, padding: mob ? 20 : 28, border: `1px solid ${C.border}`, marginBottom: mob ? 14 : 20 }}>
+            <h3 style={{ fontFamily: font, fontSize: 15, fontWeight: 600, color: C.white, margin: "0 0 16px" }}>Today's Jobs</h3>
+            {todayJobs.map(job => { const prop = properties.find(p => p.id === job.property_id); return (
+              <div key={job.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", borderRadius: 10, background: C.accentGlow, border: `1px solid rgba(59,130,246,.25)`, marginBottom: 8, gap: 10 }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 600 }}>{prop?.address?.split(",")[0] || "—"}</div>
+                  <div style={{ fontFamily: font, fontSize: 11, color: C.textMuted, marginTop: 2 }}>{job.type} · {job.ref}{job.notes ? ` · ${job.notes}` : ""}</div>
+                  {prop?.tenant_phone && <div style={{ fontFamily: font, fontSize: 11, color: C.accent, marginTop: 2 }}>📞 {prop.tenant_phone}</div>}
+                </div>
+                <span style={{ fontFamily: font, fontSize: 10, fontWeight: 600, color: jobStatusColor(job.status), background: jobStatusBg(job.status), padding: "4px 10px", borderRadius: 20, whiteSpace: "nowrap", flexShrink: 0 }}>{job.status}</span>
+              </div>
+            ); })}
+          </div>
+        )}
+        {upcomingJobs.length > 0 && (
+          <div style={{ background: C.card, borderRadius: 14, padding: mob ? 20 : 28, border: `1px solid ${C.border}`, marginBottom: mob ? 14 : 20 }}>
+            <h3 style={{ fontFamily: font, fontSize: 15, fontWeight: 600, color: C.white, margin: "0 0 16px" }}>Upcoming Jobs</h3>
+            {upcomingJobs.slice(0, 5).map(job => { const prop = properties.find(p => p.id === job.property_id); return (
+              <div key={job.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", borderRadius: 10, background: C.surfaceAlt, border: `1px solid ${C.border}`, marginBottom: 8, gap: 10 }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{prop?.address?.split(",")[0] || "—"}</div>
+                  <div style={{ fontFamily: font, fontSize: 11, color: C.textMuted, marginTop: 2 }}>{job.type} · {formatDate(job.scheduled_date)}</div>
+                </div>
+                <span style={{ fontFamily: font, fontSize: 10, fontWeight: 600, color: jobStatusColor(job.status), background: jobStatusBg(job.status), padding: "4px 10px", borderRadius: 20, whiteSpace: "nowrap", flexShrink: 0 }}>{job.status}</span>
+              </div>
+            ); })}
+          </div>
+        )}
+        {pendingSignOff.length > 0 && (
+          <div style={{ background: C.purpleBg, border: "1px solid rgba(139,92,246,.3)", borderRadius: 12, padding: "14px 20px", display: "flex", alignItems: "center", gap: 12 }}>
+            <Icon name="clipboard" size={20} color={C.purple} />
+            <span style={{ fontFamily: font, fontSize: 13, color: C.text }}><strong>{pendingSignOff.length} EICR{pendingSignOff.length > 1 ? "s" : ""}</strong> awaiting supervisor sign-off</span>
+          </div>
+        )}
+        {myJobs.length === 0 && (
+          <div style={{ background: C.card, borderRadius: 14, padding: 60, border: `1px solid ${C.border}`, textAlign: "center" }}>
+            <Icon name="checkCircle" size={40} color={C.green} />
+            <div style={{ fontFamily: font, fontSize: 14, color: C.white, fontWeight: 600, marginTop: 16 }}>No active jobs</div>
+            <div style={{ fontFamily: font, fontSize: 12, color: C.textDim, marginTop: 6 }}>You have no jobs assigned at the moment</div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Overall compliance = worst status across all 3 cert types for each property
+  const g = properties.filter(p => overallStatus(p) === "green").length;
+  const a = properties.filter(p => overallStatus(p) === "amber").length;
+  const r = properties.filter(p => overallStatus(p) === "red").length;
   const activeJobs = jobs.filter(j => j.status !== "Completed").length;
   const awaiting = jobs.filter(j => j.status === "Awaiting Sign-Off").length;
-  const expiringSoon = properties.filter(p => calcStatus(p.expiry_date) === "amber").sort((a, b) => new Date(a.expiry_date) - new Date(b.expiry_date));
-  const overdue = properties.filter(p => calcStatus(p.expiry_date) === "red");
+  const expiringSoon = properties.filter(p => overallStatus(p) === "amber").sort((a, b) => {
+    const aMin = Math.min(...[p => p.expiry_date, p => p.smoke_expiry, p => p.pat_expiry].map(f => f(a) ? new Date(f(a)) : Infinity));
+    const bMin = Math.min(...[p => p.expiry_date, p => p.smoke_expiry, p => p.pat_expiry].map(f => f(b) ? new Date(f(b)) : Infinity));
+    return aMin - bMin;
+  });
+  const overdue = properties.filter(p => overallStatus(p) === "red");
 
   return (
     <div>
@@ -651,7 +828,15 @@ function DashboardPage({ onNavigateProperty }) {
         <div style={{ background: C.card, borderRadius: 14, padding: mob ? 20 : 28, border: `1px solid ${C.border}`, marginBottom: mob ? 14 : 20 }}>
           <h3 style={{ fontFamily: font, fontSize: 15, fontWeight: 600, color: C.white, margin: "0 0 16px" }}>Needs Attention</h3>
           {[...overdue, ...expiringSoon].slice(0, 8).map((p, i) => {
-            const st = calcStatus(p.expiry_date);
+            const st = overallStatus(p);
+            const eicrSt = calcStatus(p.expiry_date);
+            const smokeSt = calcStatus(p.smoke_expiry);
+            const patSt = calcStatus(p.pat_expiry);
+            const expiring = [
+              eicrSt !== "green" ? `EICR exp ${formatDate(p.expiry_date)}` : null,
+              smokeSt !== "green" ? `Smoke exp ${formatDate(p.smoke_expiry)}` : null,
+              patSt !== "green" ? `PAT exp ${formatDate(p.pat_expiry)}` : null,
+            ].filter(Boolean).join(" · ");
             return (
               <button key={p.id} onClick={() => onNavigateProperty && onNavigateProperty(p.id)}
                 style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "11px 14px", borderRadius: 10, background: statusBg(st), border: `1px solid ${statusBorder(st)}`, marginBottom: 8, cursor: "pointer", gap: 10, textAlign: "left" }}>
@@ -659,7 +844,7 @@ function DashboardPage({ onNavigateProperty }) {
                   <div style={{ width: 8, height: 8, borderRadius: "50%", background: statusColor(st), flexShrink: 0 }} />
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.address?.split(",")[0]}</div>
-                    <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 1 }}>{p.tenant_name} · EICR exp {formatDate(p.expiry_date)}</div>
+                    <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 1 }}>{p.tenant_name} · {expiring}</div>
                   </div>
                 </div>
                 <span style={{ fontFamily: font, fontSize: 10, fontWeight: 700, color: statusColor(st), whiteSpace: "nowrap", flexShrink: 0 }}>{st === "red" ? "OVERDUE" : "EXPIRING"} →</span>
@@ -674,7 +859,7 @@ function DashboardPage({ onNavigateProperty }) {
           <h3 style={{ fontFamily: font, fontSize: 15, fontWeight: 600, color: C.white, margin: "0 0 24px" }}>Compliance Heatmap</h3>
           <div style={{ display: "flex", alignItems: mob ? "center" : "center", flexDirection: mob ? "column" : "row", gap: mob ? 20 : 36 }}>
             <ComplianceDonut green={g} amber={a} red={r} size={mob ? 140 : 180} />
-            <div style={{ flex: 1, width: "100%" }}>{[{ l: "Compliant", c: g, s: "green" }, { l: "Expiring < 60 days", c: a, s: "amber" }, { l: "Overdue", c: r, s: "red" }].map((row, i) => (
+            <div style={{ flex: 1, width: "100%" }}>{[{ l: "Fully compliant", c: g, s: "green" }, { l: "Expiring < 60 days", c: a, s: "amber" }, { l: "Overdue / missing cert", c: r, s: "red" }].map((row, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: i < 2 ? `1px solid ${C.border}` : "none" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}><div style={{ width: 10, height: 10, borderRadius: 3, background: statusColor(row.s) }} /><span style={{ fontFamily: font, fontSize: 13, color: C.text }}>{row.l}</span></div>
                 <span style={{ fontFamily: font, fontSize: 18, fontWeight: 700, color: statusColor(row.s) }}>{row.c}</span>
@@ -752,17 +937,29 @@ function PropertiesPage({ onRequestJob, onSelectProperty }) {
   const { w } = useWindowSize();
   const mob = w < BP.mobile;
   const [filter, setFilter] = useState("all"); const [search, setSearch] = useState("");
+  const [sort, setSort] = useState("ref");
   const [showAdd, setShowAdd] = useState(false);
   const [showCSV, setShowCSV] = useState(false);
   const [toast, setToast] = useState(null);
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
   const role = auth.role;
 
+  const statusOrder = { red: 0, amber: 1, green: 2 };
+
   const filtered = properties.filter(p => {
-    const st = calcStatus(p.expiry_date);
+    const st = overallStatus(p);
     if (filter !== "all" && st !== filter) return false;
     if (search && !p.address.toLowerCase().includes(search.toLowerCase()) && !(p.tenant_name || "").toLowerCase().includes(search.toLowerCase()) && !(p.ref || "").toLowerCase().includes(search.toLowerCase())) return false;
     return true;
+  }).sort((a, b) => {
+    if (sort === "status") return statusOrder[overallStatus(a)] - statusOrder[overallStatus(b)];
+    if (sort === "expiry") {
+      const da = a.expiry_date ? new Date(a.expiry_date) : new Date("9999-01-01");
+      const db = b.expiry_date ? new Date(b.expiry_date) : new Date("9999-01-01");
+      return da - db;
+    }
+    if (sort === "tenant") return (a.tenant_name || "").localeCompare(b.tenant_name || "");
+    return 0; // default: database order (ref)
   });
 
   if (loading) return <div style={{ padding: 40, textAlign: "center" }}><span style={{ fontFamily: font, fontSize: 13, color: C.textDim }}>Loading properties…</span></div>;
@@ -773,7 +970,12 @@ function PropertiesPage({ onRequestJob, onSelectProperty }) {
       <AddPropertyModal open={showAdd} onClose={(r) => { setShowAdd(false); if (r === "added") showToast("Property added"); }} />
       <CSVImportModal open={showCSV} onClose={(r) => { setShowCSV(false); if (r === "imported") showToast("Import complete"); }} />
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
-        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>{[{ id: "all", label: "All" }, { id: "green", label: "OK" }, { id: "amber", label: "Soon" }, { id: "red", label: "Overdue" }].map(f => (<button key={f.id} onClick={() => setFilter(f.id)} style={{ fontFamily: font, fontSize: 11, fontWeight: filter === f.id ? 600 : 400, color: filter === f.id ? C.white : C.textMuted, background: filter === f.id ? (f.id === "all" ? C.accent : statusColor(f.id)) : C.card, border: `1px solid ${filter === f.id ? "transparent" : C.border}`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>{f.label}</button>))}</div>
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+          {[{ id: "all", label: "All" }, { id: "green", label: "OK" }, { id: "amber", label: "Soon" }, { id: "red", label: "Overdue" }].map(f => (<button key={f.id} onClick={() => setFilter(f.id)} style={{ fontFamily: font, fontSize: 11, fontWeight: filter === f.id ? 600 : 400, color: filter === f.id ? C.white : C.textMuted, background: filter === f.id ? (f.id === "all" ? C.accent : statusColor(f.id)) : C.card, border: `1px solid ${filter === f.id ? "transparent" : C.border}`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>{f.label}</button>))}
+        </div>
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+          {[{ id: "ref", label: "Default" }, { id: "status", label: "Status" }, { id: "expiry", label: "Expiry" }, { id: "tenant", label: "A–Z" }].map(s => (<button key={s.id} onClick={() => setSort(s.id)} style={{ fontFamily: font, fontSize: 11, fontWeight: sort === s.id ? 600 : 400, color: sort === s.id ? C.accent : C.textMuted, background: "transparent", border: `1px solid ${sort === s.id ? C.accent : "transparent"}`, borderRadius: 8, padding: "8px 10px", cursor: "pointer", minHeight: 36 }}>{s.label}</button>))}
+        </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flex: mob ? "1 1 100%" : "0 1 auto" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.card, borderRadius: 8, padding: "6px 12px", border: `1px solid ${C.border}`, flex: 1, minWidth: mob ? 0 : 220 }}><Icon name="search" size={14} color={C.textDim} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…" style={{ fontFamily: font, fontSize: 12, color: C.text, background: "transparent", border: "none", outline: "none", width: "100%", minHeight: 28 }} /></div>
           {["admin", "agent"].includes(role) && <button onClick={() => setShowCSV(true)} style={{ display: "flex", alignItems: "center", gap: 4, fontFamily: font, fontSize: 12, fontWeight: 600, color: C.textMuted, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 12px", cursor: "pointer", minHeight: 36, whiteSpace: "nowrap" }}><Icon name="csv" size={14} color={C.textMuted} />{!mob && "CSV"}</button>}
@@ -782,7 +984,7 @@ function PropertiesPage({ onRequestJob, onSelectProperty }) {
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {filtered.map(p => {
-          const st = calcStatus(p.expiry_date);
+          const st = overallStatus(p);
           return (
             <div key={p.id} onClick={() => onSelectProperty && onSelectProperty(p.id)} style={{ background: C.card, borderRadius: 12, padding: "16px", border: `1px solid ${C.border}`, cursor: "pointer", transition: "border-color 0.15s" }}
               onMouseEnter={e => e.currentTarget.style.borderColor = C.accent}
@@ -820,20 +1022,27 @@ function PropertiesPage({ onRequestJob, onSelectProperty }) {
 // ─────────────────────────────────────────────
 // JOBS PAGE
 // ─────────────────────────────────────────────
-function JobsPage() {
+function JobsPage({ onNavigateEicr }) {
   const { jobs, properties, engineers, updateJob, addJob, addAudit } = useContext(DataContext);
   const auth = useContext(AuthContext);
   const { w } = useWindowSize();
   const mob = w < BP.mobile;
   const role = auth.role;
   const [sf, setSf] = useState("all");
+  const [search, setSearch] = useState("");
   const [assignModal, setAssignModal] = useState(null);
+  const [editModal, setEditModal] = useState(null);
   const [toast, setToast] = useState(null);
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
   const filtered = jobs.filter(j => {
     if (sf !== "all" && j.status !== sf) return false;
     if (["engineer", "junior"].includes(role)) return j.engineer_id === auth.id;
+    if (search) {
+      const prop = properties.find(p => p.id === j.property_id);
+      const q = search.toLowerCase();
+      return (prop?.address || "").toLowerCase().includes(q) || (j.ref || "").toLowerCase().includes(q) || (j.type || "").toLowerCase().includes(q) || (prop?.tenant_name || "").toLowerCase().includes(q);
+    }
     return true;
   });
 
@@ -850,10 +1059,18 @@ function JobsPage() {
   return (
     <div>
       <Toast message={toast} show={!!toast} />
-      <div style={{ display: "flex", gap: 4, marginBottom: 16, flexWrap: "wrap" }}>
-        {["all", "Pending", "Scheduled", "In Progress", "Completed"].map(s => (
-          <button key={s} onClick={() => setSf(s)} style={{ fontFamily: font, fontSize: 11, fontWeight: sf === s ? 600 : 400, color: sf === s ? C.white : C.textMuted, background: sf === s ? C.accent : C.card, border: `1px solid ${sf === s ? "transparent" : C.border}`, borderRadius: 8, padding: "8px 12px", cursor: "pointer", minHeight: 36 }}>{s === "all" ? "All" : s}</button>
-        ))}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+          {["all", "Pending", "Scheduled", "In Progress", "Awaiting Sign-Off", "Completed"].map(s => (
+            <button key={s} onClick={() => setSf(s)} style={{ fontFamily: font, fontSize: 11, fontWeight: sf === s ? 600 : 400, color: sf === s ? C.white : C.textMuted, background: sf === s ? C.accent : C.card, border: `1px solid ${sf === s ? "transparent" : C.border}`, borderRadius: 8, padding: "8px 12px", cursor: "pointer", minHeight: 36 }}>{s === "all" ? "All" : s}</button>
+          ))}
+        </div>
+        {!["engineer", "junior"].includes(role) && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.card, borderRadius: 8, padding: "6px 12px", border: `1px solid ${C.border}`, flex: mob ? "1 1 100%" : "0 1 220px" }}>
+            <Icon name="search" size={14} color={C.textDim} />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search jobs…" style={{ fontFamily: font, fontSize: 12, color: C.text, background: "transparent", border: "none", outline: "none", width: "100%", minHeight: 28 }} />
+          </div>
+        )}
       </div>
       {filtered.map(job => {
         const prop = properties.find(pp => pp.id === job.property_id);
@@ -873,42 +1090,100 @@ function JobsPage() {
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap", justifyContent: mob ? "flex-end" : "flex-end" }}>
+              {role === "admin" && job.status === "Pending" && <button onClick={() => setEditModal(job)} style={{ fontFamily: font, fontSize: 11, color: C.textMuted, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>Edit</button>}
               {role === "admin" && job.status === "Pending" && <button onClick={() => setAssignModal(job)} style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>Assign</button>}
+              {role === "admin" && ["Scheduled", "In Progress"].includes(job.status) && <button onClick={() => setAssignModal(job)} style={{ fontFamily: font, fontSize: 11, color: C.amber, background: C.amberBg, border: `1px solid ${C.amberBorder}`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>Reschedule</button>}
               {["engineer", "junior"].includes(role) && job.status === "Scheduled" && <button onClick={() => advanceStatus(job)} style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>Start</button>}
-              {["engineer", "junior"].includes(role) && job.status === "In Progress" && <button onClick={() => advanceStatus(job)} style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: C.white, background: C.green, border: "none", borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>Complete</button>}
+              {["engineer", "junior"].includes(role) && job.status === "In Progress" && job.type !== "EICR" && <button onClick={() => advanceStatus(job)} style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: C.white, background: C.green, border: "none", borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>Complete</button>}
+              {["engineer", "junior"].includes(role) && job.status === "In Progress" && job.type === "EICR" && <button onClick={() => onNavigateEicr && onNavigateEicr()} style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>Open EICR Form</button>}
               <span style={{ fontFamily: font, fontSize: 10, fontWeight: 600, color: jobStatusColor(job.status), background: jobStatusBg(job.status), padding: "5px 14px", borderRadius: 20 }}>{job.status}</span>
             </div>
           </div>
         );
       })}
       {filtered.length === 0 && <div style={{ padding: 40, textAlign: "center", background: C.card, borderRadius: 14, border: `1px solid ${C.border}` }}><span style={{ fontFamily: font, fontSize: 13, color: C.textDim }}>No jobs match</span></div>}
-      <AssignModal open={!!assignModal} job={assignModal} onClose={(r) => { setAssignModal(null); if (r) showToast("Assigned"); }} />
+      <EditJobModal open={!!editModal} job={editModal} onClose={(r) => { setEditModal(null); if (r) showToast("Job updated"); }} />
+      <AssignModal open={!!assignModal} job={assignModal} onClose={(r) => { setAssignModal(null); if (r) showToast(r); }} />
     </div>
+  );
+}
+
+// ─── Edit Job Modal (admin, Pending jobs only) ───
+function EditJobModal({ open, job, onClose }) {
+  const { properties, updateJob, addAudit } = useContext(DataContext);
+  const [type, setType] = useState("EICR");
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (job) { setType(job.type || "EICR"); setNotes(job.notes || ""); }
+  }, [job]);
+
+  const submit = async () => {
+    setSaving(true);
+    await updateJob(job.id, { type, notes: notes.trim() });
+    await addAudit({ action: `Job ${job.ref} updated — type: ${type}` });
+    setSaving(false);
+    onClose("updated");
+  };
+
+  const prop = job ? properties.find(p => p.id === job.property_id) : null;
+  return (
+    <Modal open={open} onClose={() => onClose(null)} title="Edit Job">
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {prop && <div style={{ background: C.surfaceAlt, borderRadius: 10, padding: 14, border: `1px solid ${C.border}` }}>
+          <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{prop.address.split(",")[0]}</div>
+          <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 2 }}>{job.ref} · Pending</div>
+        </div>}
+        <Select label="Service Type" value={type} onChange={setType} options={[{ value: "EICR", label: "EICR" }, { value: "Remedial", label: "Remedial" }, { value: "Smoke Alarm", label: "Smoke Alarm" }, { value: "PAT", label: "PAT" }]} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Notes</label>
+          <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. Key at branch…" style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", outline: "none", minHeight: 70, resize: "vertical" }} />
+        </div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button onClick={() => onClose(null)} style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44 }}>Cancel</button>
+          <button onClick={submit} disabled={saving} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44, opacity: saving ? 0.7 : 1 }}>{saving ? "Saving…" : "Save"}</button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
 function AssignModal({ open, job, onClose }) {
   const { engineers, properties, updateJob, addAudit } = useContext(DataContext);
-  const [engId, setEngId] = useState(""); const [date, setDate] = useState("");
+  const isReassign = job && (job.status === "Scheduled" || job.status === "In Progress");
+  const [engId, setEngId] = useState("");
+  const [date, setDate] = useState("");
+
+  useEffect(() => {
+    if (job) {
+      setEngId(job.engineer_id || "");
+      setDate(job.scheduled_date || "");
+    }
+  }, [job]);
+
   const submit = async () => {
     if (!date || !engId) return;
     await updateJob(job.id, { engineerId: engId, date, status: "Scheduled" });
     const eng = engineers.find(e => e.id === engId);
-    const prop = properties.find(p => p.id === job.property_id);
-    await addAudit({ action: `Job ${job.ref} assigned to ${eng?.full_name} on ${formatDate(date)}` });
+    await addAudit({ action: `Job ${job.ref} ${isReassign ? "rescheduled" : "assigned"} → ${eng?.full_name} on ${formatDate(date)}` });
     setEngId(""); setDate("");
     onClose(job.ref);
   };
+
   const prop = job ? properties.find(p => p.id === job.property_id) : null;
   return (
-    <Modal open={open} onClose={() => onClose(null)} title="Assign Engineer">
+    <Modal open={open} onClose={() => onClose(null)} title={isReassign ? "Reschedule / Reassign" : "Assign Engineer"}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        {prop && <div style={{ background: C.surfaceAlt, borderRadius: 10, padding: 14, border: `1px solid ${C.border}` }}><div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{job.type} — {prop.address.split(",")[0]}</div></div>}
+        {prop && <div style={{ background: C.surfaceAlt, borderRadius: 10, padding: 14, border: `1px solid ${C.border}` }}>
+          <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{job.type} — {prop.address.split(",")[0]}</div>
+          {isReassign && <div style={{ fontFamily: font, fontSize: 11, color: C.amber, marginTop: 4 }}>Currently: {engineers.find(e => e.id === job.engineer_id)?.full_name || "Unassigned"} · {job.scheduled_date ? formatDate(job.scheduled_date) : "No date"}</div>}
+        </div>}
         <Select label="Engineer" value={engId} onChange={setEngId} options={[{ value: "", label: "— Select —" }, ...engineers.map(e => ({ value: e.id, label: `${e.full_name} (${e.role === "junior" ? "Junior" : "Senior"})` }))]} />
         <Input label="Scheduled Date" type="date" value={date} onChange={setDate} />
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
           <button onClick={() => onClose(null)} style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44 }}>Cancel</button>
-          <button onClick={submit} disabled={!date || !engId} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: (date && engId) ? C.accent : C.textDim, border: "none", borderRadius: 10, padding: "10px 20px", cursor: (date && engId) ? "pointer" : "not-allowed", minHeight: 44 }}>Assign</button>
+          <button onClick={submit} disabled={!date || !engId} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: (date && engId) ? C.accent : C.textDim, border: "none", borderRadius: 10, padding: "10px 20px", cursor: (date && engId) ? "pointer" : "not-allowed", minHeight: 44 }}>{isReassign ? "Update" : "Assign"}</button>
         </div>
       </div>
     </Modal>
@@ -1170,6 +1445,8 @@ function DocumentsPage() {
   const { w } = useWindowSize();
   const mob = w < BP.mobile;
   const [showUpload, setShowUpload] = useState(false);
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
   const [toast, setToast] = useState(null);
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
@@ -1184,15 +1461,27 @@ function DocumentsPage() {
   const handleDownload = async (doc) => {
     if (!doc.file_path) { showToast("No file stored for this certificate"); return; }
     const url = await getDownloadUrl(doc.file_path);
-    if (url) { window.open(url, "_blank"); }
+    if (url) window.open(url, "_blank");
     else showToast("Could not retrieve file");
   };
+
+  const filtered = documents.filter(d => {
+    const pr = properties.find(pp => pp.id === d.property_id);
+    if (typeFilter !== "all" && d.type !== typeFilter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      return (pr?.address || "").toLowerCase().includes(q) || (pr?.tenant_name || "").toLowerCase().includes(q) || (d.type || "").toLowerCase().includes(q);
+    }
+    return true;
+  });
+
+  const certTypes = [...new Set(documents.map(d => d.type))].filter(Boolean);
 
   return (
     <div>
       <Toast message={toast} show={!!toast} />
       <UploadCertModal open={showUpload} onClose={(r) => { setShowUpload(false); if (r === "uploaded") showToast("Certificate uploaded"); }} />
-      {pendingCerts > 0 && (
+      {pendingCerts > 0 && ["admin", "agent", "engineer", "supervisor"].includes(auth.role) && (
         <div style={{ background: C.amberBg, border: `1px solid ${C.amberBorder}`, borderRadius: 12, padding: "14px 20px", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <Icon name="alert" size={18} color={C.amber} />
@@ -1202,7 +1491,7 @@ function DocumentsPage() {
         </div>
       )}
       <div style={{ background: C.card, borderRadius: 14, padding: mob ? 18 : 28, border: `1px solid ${C.border}` }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
           <h3 style={{ fontFamily: font, fontSize: 15, fontWeight: 600, color: C.white, margin: 0 }}>Certificate Vault</h3>
           {["admin", "agent", "engineer", "supervisor"].includes(auth.role) && (
             <button onClick={() => setShowUpload(true)} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: font, fontSize: 12, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>
@@ -1210,13 +1499,23 @@ function DocumentsPage() {
             </button>
           )}
         </div>
-        {documents.length === 0 ? (
+        {/* Search + type filter */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.surfaceAlt, borderRadius: 8, padding: "6px 12px", border: `1px solid ${C.border}`, flex: 1, minWidth: 180 }}>
+            <Icon name="search" size={14} color={C.textDim} />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by property or tenant…" style={{ fontFamily: font, fontSize: 12, color: C.text, background: "transparent", border: "none", outline: "none", width: "100%", minHeight: 28 }} />
+          </div>
+          <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ fontFamily: font, fontSize: 12, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 12px", cursor: "pointer", minHeight: 36 }}>
+            <option value="all">All types</option>
+            {certTypes.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+        {filtered.length === 0 ? (
           <div style={{ textAlign: "center", padding: 40 }}>
             <Icon name="file" size={40} color={C.textDim} />
-            <div style={{ fontFamily: font, fontSize: 13, color: C.textDim, marginTop: 12 }}>No certificates yet</div>
-            <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 4 }}>Complete a job and upload a certificate to get started</p>
+            <div style={{ fontFamily: font, fontSize: 13, color: C.textDim, marginTop: 12 }}>{documents.length === 0 ? "No certificates yet" : "No certificates match"}</div>
           </div>
-        ) : documents.map(d => {
+        ) : filtered.map(d => {
           const pr = properties.find(pp => pp.id === d.property_id);
           const st = calcStatus(d.expiry_date);
           return (
@@ -1254,21 +1553,34 @@ function AuditPage() {
   const { w } = useWindowSize();
   const mob = w < BP.mobile;
   const [roleFilter, setRoleFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const [showAll, setShowAll] = useState(false);
   const allRoles = [...new Set(audit.map(l => l.user_role))];
-  const filtered = roleFilter === "all" ? audit : audit.filter(l => l.user_role === roleFilter);
+  const filtered = audit.filter(l => {
+    if (roleFilter !== "all" && l.user_role !== roleFilter) return false;
+    if (search && !(l.action || "").toLowerCase().includes(search.toLowerCase()) && !(l.user_name || "").toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+  const displayed = showAll ? filtered : filtered.slice(0, 30);
 
   return (
     <div>
       <div style={{ background: C.card, borderRadius: 14, padding: mob ? 18 : 28, border: `1px solid ${C.border}` }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
           <div><h3 style={{ fontFamily: font, fontSize: 15, fontWeight: 600, color: C.white, margin: 0 }}>Audit Trail</h3><span style={{ fontFamily: font, fontSize: 11, color: C.textDim }}>{filtered.length} entries</span></div>
-          <div style={{ display: "flex", gap: 3, background: C.surfaceAlt, borderRadius: 8, padding: 3, border: `1px solid ${C.border}`, flexWrap: "wrap" }}>
-            {["all", ...allRoles].map(r => (<button key={r} onClick={() => setRoleFilter(r)} style={{ fontFamily: font, fontSize: 10, fontWeight: roleFilter === r ? 600 : 400, color: roleFilter === r ? C.white : C.textMuted, background: roleFilter === r ? C.accent : "transparent", border: "none", borderRadius: 5, padding: "5px 10px", cursor: "pointer", minHeight: 28 }}>{r === "all" ? "All" : r}</button>))}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }}>
+            <div style={{ display: "flex", gap: 3, background: C.surfaceAlt, borderRadius: 8, padding: 3, border: `1px solid ${C.border}`, flexWrap: "wrap" }}>
+              {["all", ...allRoles].map(r => (<button key={r} onClick={() => setRoleFilter(r)} style={{ fontFamily: font, fontSize: 10, fontWeight: roleFilter === r ? 600 : 400, color: roleFilter === r ? C.white : C.textMuted, background: roleFilter === r ? C.accent : "transparent", border: "none", borderRadius: 5, padding: "5px 10px", cursor: "pointer", minHeight: 28 }}>{r === "all" ? "All" : r}</button>))}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.surfaceAlt, borderRadius: 8, padding: "6px 12px", border: `1px solid ${C.border}`, minWidth: mob ? 0 : 240 }}>
+              <Icon name="search" size={13} color={C.textDim} />
+              <input value={search} onChange={e => { setSearch(e.target.value); setShowAll(false); }} placeholder="Search actions, names…" style={{ fontFamily: font, fontSize: 12, color: C.text, background: "transparent", border: "none", outline: "none", width: "100%", minHeight: 24 }} />
+            </div>
           </div>
         </div>
         {filtered.length === 0 && <div style={{ padding: 40, textAlign: "center" }}><span style={{ fontFamily: font, fontSize: 13, color: C.textDim }}>No audit entries</span></div>}
-        {filtered.slice(0, 30).map((l, i) => (
-          <div key={l.id || i} style={{ display: "flex", gap: mob ? 10 : 16, padding: "14px 0", borderBottom: i < Math.min(filtered.length, 30) - 1 ? `1px solid ${C.border}` : "none" }}>
+        {displayed.map((l, i) => (
+          <div key={l.id || i} style={{ display: "flex", gap: mob ? 10 : 16, padding: "14px 0", borderBottom: i < displayed.length - 1 ? `1px solid ${C.border}` : "none" }}>
             {!mob && <div style={{ minWidth: 120 }}><div style={{ fontFamily: fontMono, fontSize: 11, color: C.textDim }}>{l.created_at ? new Date(l.created_at).toLocaleDateString("en-GB") : ""}</div><div style={{ fontFamily: fontMono, fontSize: 11, color: C.textDim }}>{l.created_at ? new Date(l.created_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : ""}</div></div>}
             <div style={{ width: 8, height: 8, borderRadius: "50%", marginTop: 5, flexShrink: 0, background: l.user_role === "Auto" ? C.accent : l.user_role === "engineer" ? C.green : l.user_role === "junior" ? C.purple : l.user_role === "admin" ? C.white : C.amber }} />
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -1281,6 +1593,11 @@ function AuditPage() {
             </div>
           </div>
         ))}
+        {!showAll && filtered.length > 30 && (
+          <button onClick={() => setShowAll(true)} style={{ display: "block", width: "100%", fontFamily: font, fontSize: 13, color: C.accent, background: C.accentGlow, border: `1px solid rgba(59,130,246,.25)`, borderRadius: 10, padding: "12px 20px", cursor: "pointer", marginTop: 12, minHeight: 44 }}>
+            Load all {filtered.length} entries
+          </button>
+        )}
       </div>
     </div>
   );
@@ -1334,12 +1651,11 @@ function EICRPage() {
     setSelectedJobId(id);
     const job = myJobs.find(j => j.id === id);
     const prop = job ? properties.find(p => p.id === job.property_id) : null;
-    // If a draft exists, restore the full form from it
-    if (job?.eicr_data && job.eicr_data.isDraft) {
-      const { isDraft, submittedAt, submittedBy, ...savedFields } = job.eicr_data;
+    // If a rejected or draft EICR exists, restore the full form
+    if (job?.eicr_data && (job.eicr_data.isDraft || job.eicr_data.rejectionReason)) {
+      const { isDraft, submittedAt, submittedBy, rejectionReason, rejectedBy, rejectedAt, ...savedFields } = job.eicr_data;
       setForm(prev => ({ ...prev, ...savedFields }));
     } else {
-      // Fresh job — just pre-fill address and tenant
       if (prop) setForm(prev => ({ ...prev, clientAddress: prop.address, clientName: prop.tenant_name || "" }));
     }
   };
@@ -1384,8 +1700,23 @@ function EICRPage() {
           <Select label="Job" value={selectedJobId} onChange={handleJobSelect}
             options={[{ value: "", label: "— Select a job —" }, ...myJobs.map(j => {
               const p = properties.find(pp => pp.id === j.property_id);
-              return { value: j.id, label: `${j.ref} · ${j.type} — ${p?.address?.split(",")[0] || "Unknown"}` };
+              const rejected = j.eicr_data?.rejectionReason ? " ⚠ Rejected" : "";
+              return { value: j.id, label: `${j.ref} · ${j.type} — ${p?.address?.split(",")[0] || "Unknown"}${rejected}` };
             })]} />
+        )}
+        {/* Rejection reason banner */}
+        {selectedJob?.eicr_data?.rejectionReason && (
+          <div style={{ marginTop: 14, background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 10, padding: "12px 14px" }}>
+            <div style={{ fontFamily: font, fontSize: 11, fontWeight: 700, color: C.red, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Returned by supervisor</div>
+            <div style={{ fontFamily: font, fontSize: 13, color: C.white }}>{selectedJob.eicr_data.rejectionReason}</div>
+            <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 4 }}>Rejected by {selectedJob.eicr_data.rejectedBy} · {selectedJob.eicr_data.rejectedAt ? new Date(selectedJob.eicr_data.rejectedAt).toLocaleDateString("en-GB") : ""}</div>
+          </div>
+        )}
+        {/* No phone warning */}
+        {selectedJob && !properties.find(p => p.id === selectedJob.property_id)?.tenant_phone && (
+          <div style={{ marginTop: 10, background: C.amberBg, border: `1px solid ${C.amberBorder}`, borderRadius: 8, padding: "8px 12px" }}>
+            <div style={{ fontFamily: font, fontSize: 11, color: C.amber }}>⚠ No tenant phone number on this property — SMS notifications cannot be sent when this job is assigned.</div>
+          </div>
         )}
       </div>
 
@@ -1477,7 +1808,12 @@ function EICRPage() {
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap", alignItems: "center" }}>
+        {auth.role === "junior" && (
+          <div style={{ flex: 1, fontFamily: font, fontSize: 11, color: C.purple, background: C.purpleBg, border: "1px solid rgba(139,92,246,.3)", borderRadius: 8, padding: "8px 12px" }}>
+            ℹ️ As a Junior Engineer, your completed EICRs are sent to a Supervisor for sign-off before being finalised.
+          </div>
+        )}
         <button onClick={() => submit(true)} disabled={saving || !selectedJobId}
           style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: selectedJobId ? "pointer" : "not-allowed", minHeight: 44, opacity: saving ? 0.7 : 1 }}>
           Save Draft
@@ -1501,6 +1837,10 @@ function SignOffPage() {
   const mob = w < BP.mobile;
   const [toast, setToast] = useState(null);
   const [selectedJob, setSelectedJob] = useState(null);
+  const [rejectJob, setRejectJob] = useState(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejecting, setRejecting] = useState(false);
+  const [reviewedJobs, setReviewedJobs] = useState({});
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
 
   const queue = jobs.filter(j => j.status === "Awaiting Sign-Off");
@@ -1518,18 +1858,43 @@ function SignOffPage() {
     showToast("EICR signed off" + (job.eicr_data?.outcome === "Unsatisfactory" ? " · Remedial job created" : ""));
   };
 
-  const reject = async (job) => {
-    await updateJob(job.id, { status: "In Progress" });
-    const prop = properties.find(p => p.id === job.property_id);
-    await addAudit({ action: `EICR rejected by ${auth.fullName} — ${prop?.address?.split(",")[0]} — returned to engineer` });
+  const confirmReject = async () => {
+    if (!rejectJob) return;
+    setRejecting(true);
+    const reason = rejectReason.trim() || "No reason given";
+    const prop = properties.find(p => p.id === rejectJob.property_id);
+    // Store rejection reason in eicr_data so engineer sees it
+    const updatedEicrData = { ...(rejectJob.eicr_data || {}), rejectionReason: reason, rejectedBy: auth.fullName, rejectedAt: new Date().toISOString() };
+    await updateJob(rejectJob.id, { status: "In Progress", eicrData: updatedEicrData });
+    await addAudit({ action: `EICR rejected by ${auth.fullName} — ${prop?.address?.split(",")[0]} — Reason: ${reason}` });
     await fetchAll();
-    setSelectedJob(null);
+    setSelectedJob(null); setRejectJob(null); setRejectReason(""); setRejecting(false);
     showToast("Returned to engineer for correction", "warning");
   };
 
   return (
     <div>
       {toast && <Toast message={toast.msg} type={toast.type} show />}
+
+      {/* Rejection reason modal */}
+      <Modal open={!!rejectJob} onClose={() => { setRejectJob(null); setRejectReason(""); }} title="Reject EICR">
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 10, padding: 14 }}>
+            <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{properties.find(p => p.id === rejectJob?.property_id)?.address?.split(",")[0]}</div>
+            <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 3 }}>This EICR will be returned to the engineer with your feedback.</div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Reason for rejection</label>
+            <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="e.g. Missing circuit schedule, observations incomplete, wrong earthing system recorded…"
+              style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", outline: "none", minHeight: 90, resize: "vertical" }} />
+          </div>
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+            <button onClick={() => { setRejectJob(null); setRejectReason(""); }} style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44 }}>Cancel</button>
+            <button onClick={confirmReject} disabled={rejecting} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: C.red, border: "none", borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44, opacity: rejecting ? 0.7 : 1 }}>{rejecting ? "Rejecting…" : "Reject & Return"}</button>
+          </div>
+        </div>
+      </Modal>
+
       {queue.length === 0 ? (
         <div style={{ background: C.card, borderRadius: 14, padding: 60, border: `1px solid ${C.border}`, textAlign: "center" }}>
           <Icon name="checkCircle" size={40} color={C.green} />
@@ -1557,11 +1922,9 @@ function SignOffPage() {
                 </div>
               </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
-                <button onClick={() => setSelectedJob(isOpen ? null : job)} style={{ fontFamily: font, fontSize: 12, color: C.accent, background: C.accentGlow, border: `1px solid rgba(59,130,246,.25)`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>
-                  {isOpen ? "Hide" : "Review"}
-                </button>
-                <button onClick={() => reject(job)} style={{ fontFamily: font, fontSize: 12, color: C.red, background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>Reject</button>
-                <button onClick={() => approve(job)} style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.white, background: C.green, border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", minHeight: 36 }}>Approve</button>
+                <button onClick={() => { setSelectedJob(isOpen ? null : job); if (!isOpen) setReviewedJobs(r => ({ ...r, [job.id]: true })); }} style={{ fontFamily: font, fontSize: 12, color: C.accent, background: C.accentGlow, border: `1px solid rgba(59,130,246,.25)`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>{isOpen ? "Hide" : "Review"}</button>
+                <button onClick={() => setRejectJob(job)} style={{ fontFamily: font, fontSize: 12, color: C.red, background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>Reject</button>
+                <button onClick={() => reviewedJobs[job.id] && approve(job)} title={reviewedJobs[job.id] ? "" : "Open Review first"} style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.white, background: reviewedJobs[job.id] ? C.green : C.textDim, border: "none", borderRadius: 8, padding: "8px 16px", cursor: reviewedJobs[job.id] ? "pointer" : "not-allowed", minHeight: 36, opacity: reviewedJobs[job.id] ? 1 : 0.5 }}>Approve</button>
               </div>
             </div>
             {isOpen && eicr && (
@@ -1579,18 +1942,8 @@ function SignOffPage() {
                     </div>
                   ) : null)}
                 </div>
-                {eicr.observations && (
-                  <div style={{ marginTop: 14, background: C.surfaceAlt, borderRadius: 8, padding: "12px 14px" }}>
-                    <div style={{ fontFamily: font, fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Observations</div>
-                    <div style={{ fontFamily: font, fontSize: 12, color: C.text, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{eicr.observations}</div>
-                  </div>
-                )}
-                {eicr.recommendations && (
-                  <div style={{ marginTop: 10, background: C.surfaceAlt, borderRadius: 8, padding: "12px 14px" }}>
-                    <div style={{ fontFamily: font, fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Recommendations</div>
-                    <div style={{ fontFamily: font, fontSize: 12, color: C.text, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{eicr.recommendations}</div>
-                  </div>
-                )}
+                {eicr.observations && <div style={{ marginTop: 14, background: C.surfaceAlt, borderRadius: 8, padding: "12px 14px" }}><div style={{ fontFamily: font, fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Observations</div><div style={{ fontFamily: font, fontSize: 12, color: C.text, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{eicr.observations}</div></div>}
+                {eicr.recommendations && <div style={{ marginTop: 10, background: C.surfaceAlt, borderRadius: 8, padding: "12px 14px" }}><div style={{ fontFamily: font, fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Recommendations</div><div style={{ fontFamily: font, fontSize: 12, color: C.text, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{eicr.recommendations}</div></div>}
               </div>
             )}
           </div>
@@ -1604,7 +1957,7 @@ function SignOffPage() {
 // EDIT PROPERTY MODAL
 // ─────────────────────────────────────────────
 function EditPropertyModal({ open, onClose, property }) {
-  const { updateProperty, deleteProperty, addAudit } = useContext(DataContext);
+  const { updateProperty, deleteProperty, addAudit, jobs } = useContext(DataContext);
   const [addr, setAddr] = useState(""); const [tenant, setTenant] = useState(""); const [phone, setPhone] = useState("");
   const [saving, setSaving] = useState(false); const [confirmDelete, setConfirmDelete] = useState(false); const [error, setError] = useState("");
 
@@ -1627,13 +1980,21 @@ function EditPropertyModal({ open, onClose, property }) {
     setSaving(false); onClose("deleted");
   };
 
+  const activeJobs = property ? jobs.filter(j => j.property_id === property.id && !["Completed", "Cancelled"].includes(j.status)) : [];
+
   return (
     <Modal open={open} onClose={onClose} title="Edit Property">
       {confirmDelete ? (
         <div style={{ textAlign: "center", padding: "10px 0" }}>
           <Icon name="alert" size={36} color={C.red} />
           <div style={{ fontFamily: font, fontSize: 14, color: C.white, fontWeight: 600, marginTop: 12 }}>Delete this property?</div>
-          <div style={{ fontFamily: font, fontSize: 12, color: C.textMuted, marginTop: 6, marginBottom: 20 }}>This cannot be undone. All jobs and certificates linked to this property will remain in the system.</div>
+          <div style={{ fontFamily: font, fontSize: 12, color: C.textMuted, marginTop: 6, marginBottom: activeJobs.length > 0 ? 12 : 20 }}>This cannot be undone. All jobs and certificates linked to this property will remain in the system but will be detached.</div>
+          {activeJobs.length > 0 && (
+            <div style={{ background: C.amberBg, border: `1px solid ${C.amberBorder}`, borderRadius: 10, padding: "10px 14px", marginBottom: 20, textAlign: "left" }}>
+              <div style={{ fontFamily: font, fontSize: 12, color: C.amber, fontWeight: 600, marginBottom: 4 }}>⚠ {activeJobs.length} active job{activeJobs.length > 1 ? "s" : ""} will be left without a property</div>
+              {activeJobs.map(j => <div key={j.id} style={{ fontFamily: font, fontSize: 11, color: C.textMuted }}>{j.ref} · {j.type} · {j.status}</div>)}
+            </div>
+          )}
           <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
             <button onClick={() => setConfirmDelete(false)} style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44 }}>Cancel</button>
             <button onClick={handleDelete} disabled={saving} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: C.red, border: "none", borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44, opacity: saving ? 0.7 : 1 }}>{saving ? "Deleting…" : "Yes, Delete"}</button>
@@ -1668,7 +2029,7 @@ function PropertyDetailPage({ propertyId, onBack, onRequestJob }) {
   const mob = w < BP.mobile;
   const [showEdit, setShowEdit] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
-  const [commentText, setCommentText] = useState("");
+  const [commentText, setCommentText] = useState({});
   const [activeJobComments, setActiveJobComments] = useState(null);
   const [toast, setToast] = useState(null);
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
@@ -1684,7 +2045,7 @@ function PropertyDetailPage({ propertyId, onBack, onRequestJob }) {
   const patStatus = calcStatus(property.pat_expiry);
 
   const handleCancelJob = async (job) => {
-    await deleteJob(job.id);
+    await updateJob(job.id, { status: "Cancelled" });
     await addAudit({ action: `Job ${job.ref} cancelled — ${property.address?.split(",")[0]}` });
     showToast("Job cancelled");
   };
@@ -1697,9 +2058,9 @@ function PropertyDetailPage({ propertyId, onBack, onRequestJob }) {
   };
 
   const submitComment = async (jobId) => {
-    if (!commentText.trim()) return;
-    await addComment({ jobId, body: commentText.trim() });
-    setCommentText("");
+    if (!(commentText[jobId] || "").trim()) return;
+    await addComment({ jobId, body: commentText[jobId].trim() });
+    setCommentText(t => ({ ...t, [jobId]: "" }));
     showToast("Comment added");
   };
 
@@ -1776,6 +2137,8 @@ function PropertyDetailPage({ propertyId, onBack, onRequestJob }) {
         {propJobs.map(job => {
           const jobComments = comments.filter(c => c.job_id === job.id);
           const showComments = activeJobComments === job.id;
+          const eicr = job.eicr_data;
+          const hasEicrReport = eicr && !eicr.isDraft && job.type === "EICR";
           return (
             <div key={job.id} style={{ borderRadius: 10, border: `1px solid ${C.border}`, marginBottom: 10, overflow: "hidden" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", gap: 10, flexWrap: "wrap" }}>
@@ -1784,11 +2147,18 @@ function PropertyDetailPage({ propertyId, onBack, onRequestJob }) {
                     <Icon name={job.type === "EICR" ? "shield" : job.type === "Remedial" ? "alert" : "check"} size={16} color={job.type === "EICR" ? C.accent : job.type === "Remedial" ? C.red : C.green} />
                   </div>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{job.type} <span style={{ color: C.textDim, fontWeight: 400 }}>· {job.ref}</span></div>
+                    <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{job.type} <span style={{ color: C.textDim, fontWeight: 400 }}>· {job.ref}</span>
+                      {hasEicrReport && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, color: eicr.outcome === "Satisfactory" ? C.green : eicr.outcome === "Unsatisfactory" ? C.red : C.amber }}>{eicr.outcome}</span>}
+                    </div>
                     <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 2 }}>{job.scheduled_date ? formatDate(job.scheduled_date) : "Unscheduled"}{job.notes ? ` · ${job.notes}` : ""}</div>
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                  {hasEicrReport && (
+                    <button onClick={() => setActiveJobComments(showEicr ? null : `eicr-${job.id}`)} style={{ fontFamily: font, fontSize: 11, color: C.accent, background: C.accentGlow, border: `1px solid rgba(59,130,246,.25)`, borderRadius: 6, padding: "5px 10px", cursor: "pointer", minHeight: 30 }}>
+                      {activeJobComments === `eicr-${job.id}` ? "Hide" : "Report"}
+                    </button>
+                  )}
                   <button onClick={() => setActiveJobComments(showComments ? null : job.id)} style={{ fontFamily: font, fontSize: 11, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "5px 10px", cursor: "pointer", minHeight: 30 }}>
                     💬 {jobComments.length}
                   </button>
@@ -1798,6 +2168,22 @@ function PropertyDetailPage({ propertyId, onBack, onRequestJob }) {
                   <span style={{ fontFamily: font, fontSize: 10, fontWeight: 600, color: jobStatusColor(job.status), background: jobStatusBg(job.status), padding: "4px 10px", borderRadius: 20, whiteSpace: "nowrap" }}>{job.status}</span>
                 </div>
               </div>
+              {/* EICR report panel */}
+              {activeJobComments === `eicr-${job.id}` && hasEicrReport && (
+                <div style={{ borderTop: `1px solid ${C.border}`, background: C.surfaceAlt, padding: "14px" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
+                    {[["Inspector", eicr.inspector], ["Date", eicr.startDate ? formatDate(eicr.startDate) : "—"], ["Outcome", eicr.outcome], ["Earthing", eicr.typeOfEarthingSystem], ["Supply", eicr.supplyVoltage ? eicr.supplyVoltage + "V" : "—"], ["Circuits", eicr.numberOfCircuits]].map(([l, v]) => v ? (
+                      <div key={l} style={{ background: C.card, borderRadius: 8, padding: "8px 10px" }}>
+                        <div style={{ fontFamily: font, fontSize: 9, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5 }}>{l}</div>
+                        <div style={{ fontFamily: font, fontSize: 12, color: l === "Outcome" ? (v === "Satisfactory" ? C.green : v === "Unsatisfactory" ? C.red : C.amber) : C.white, fontWeight: l === "Outcome" ? 700 : 400, marginTop: 2 }}>{v}</div>
+                      </div>
+                    ) : null)}
+                  </div>
+                  {eicr.observations && <div style={{ background: C.card, borderRadius: 8, padding: "10px 12px", marginBottom: 8 }}><div style={{ fontFamily: font, fontSize: 9, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Observations</div><div style={{ fontFamily: font, fontSize: 12, color: C.text, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{eicr.observations}</div></div>}
+                  {eicr.recommendations && <div style={{ background: C.card, borderRadius: 8, padding: "10px 12px" }}><div style={{ fontFamily: font, fontSize: 9, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Recommendations</div><div style={{ fontFamily: font, fontSize: 12, color: C.text, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{eicr.recommendations}</div></div>}
+                </div>
+              )}
+              {/* Comments panel */}
               {showComments && (
                 <div style={{ borderTop: `1px solid ${C.border}`, background: C.surfaceAlt, padding: "12px 14px" }}>
                   {jobComments.length === 0 && <div style={{ fontFamily: font, fontSize: 12, color: C.textDim, marginBottom: 10 }}>No comments yet</div>}
@@ -1811,9 +2197,9 @@ function PropertyDetailPage({ propertyId, onBack, onRequestJob }) {
                     </div>
                   ))}
                   <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                    <input value={commentText} onChange={e => setCommentText(e.target.value)} onKeyDown={e => e.key === "Enter" && submitComment(job.id)} placeholder="Add a comment…"
+                    <input value={commentText[job.id] || ""} onChange={e => setCommentText(t => ({ ...t, [job.id]: e.target.value }))} onKeyDown={e => e.key === "Enter" && submitComment(job.id)} placeholder="Add a comment…"
                       style={{ flex: 1, fontFamily: font, fontSize: 12, color: C.text, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 12px", outline: "none", minHeight: 36 }} />
-                    <button onClick={() => submitComment(job.id)} disabled={!commentText.trim()} style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.white, background: commentText.trim() ? C.accent : C.textDim, border: "none", borderRadius: 8, padding: "8px 14px", cursor: commentText.trim() ? "pointer" : "not-allowed", minHeight: 36 }}>Post</button>
+                    <button onClick={() => submitComment(job.id)} disabled={!(commentText[job.id] || "").trim()} style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.white, background: (commentText[job.id] || "").trim() ? C.accent : C.textDim, border: "none", borderRadius: 8, padding: "8px 14px", cursor: (commentText[job.id] || "").trim() ? "pointer" : "not-allowed", minHeight: 36 }}>Post</button>
                   </div>
                 </div>
               )}
@@ -1895,7 +2281,7 @@ function PortalApp({ session, userProfile, onLogout }) {
       case "dashboard": return <DashboardPage onNavigateProperty={navigateToProperty} />;
       case "properties": return <PropertiesPage onRequestJob={requestJob} onSelectProperty={navigateToProperty} />;
       case "propertyDetail": return <PropertyDetailPage propertyId={selectedPropertyId} onBack={() => setPage("properties")} onRequestJob={requestJob} />;
-      case "jobs": return <JobsPage />;
+      case "jobs": return <JobsPage onNavigateEicr={() => setPage("eicr")} />;
       case "eicr": return <EICRPage />;
       case "signoff": return <SignOffPage />;
       case "documents": return <DocumentsPage />;
