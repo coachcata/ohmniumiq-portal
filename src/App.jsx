@@ -369,6 +369,7 @@ function DataProvider({ children, userProfile }) {
       created_by: userProfile.id,
     }).select().single();
     if (data) setJobs(prev => [data, ...prev]);
+    if (error) console.error("addJob Supabase error:", JSON.stringify(error));
     return { data, error };
   }, [userProfile]);
 
@@ -1616,15 +1617,19 @@ function AssignModal({ open, job, onClose }) {
 // ─── Request Job Modal ───
 function RequestJobModal({ open, onClose, property }) {
   const { addJob, addAudit } = useContext(DataContext);
-  const [type, setType] = useState("EICR"); const [notes, setNotes] = useState(""); const [submitted, setSubmitted] = useState(false); const [saving, setSaving] = useState(false);
+  const [type, setType] = useState("EICR"); const [notes, setNotes] = useState(""); const [submitted, setSubmitted] = useState(false); const [saving, setSaving] = useState(false); const [error, setError] = useState("");
   const submit = async () => {
     if (!property) return;
-    setSaving(true);
-    const { data } = await addJob({ propertyId: property.id, type, notes: notes.trim() || "Requested" });
+    setSaving(true); setError("");
+    const { data, error: err } = await addJob({ propertyId: property.id, type, notes: notes.trim() || "Requested" });
+    if (err || !data) {
+      setError(err?.message || "Failed to create job. Please try again.");
+      setSaving(false); return;
+    }
     await addAudit({ action: `New job ${data?.ref} (${type}) for ${property.address.split(",")[0]}` });
     setSaving(false); setSubmitted(true);
   };
-  const reset = () => { setType("EICR"); setNotes(""); setSubmitted(false); };
+  const reset = () => { setType("EICR"); setNotes(""); setSubmitted(false); setError(""); };
   return (
     <Modal open={open} onClose={() => { reset(); onClose(); }} title="Request a Job">
       {submitted ? (
@@ -1634,6 +1639,7 @@ function RequestJobModal({ open, onClose, property }) {
           <div style={{ background: C.surfaceAlt, borderRadius: 10, padding: 14, border: `1px solid ${C.border}` }}><div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{property?.address?.split(",")[0]}</div><div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 2 }}>{property?.tenant_name} · {property?.ref}</div></div>
           <Select label="Service Type" value={type} onChange={setType} options={[{ value: "EICR", label: "EICR" }, { value: "Remedial", label: "Remedial" }, { value: "Smoke Alarm", label: "Smoke Alarm" }, { value: "PAT", label: "PAT" }]} />
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Notes</label><textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. Key at branch…" style={{ fontFamily: font, fontSize: 14, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", outline: "none", minHeight: 70, resize: "vertical" }} /></div>
+          {error && <div style={{ fontFamily: font, fontSize: 12, color: C.red, background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 8, padding: "10px 12px" }}>{error}</div>}
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><button onClick={() => { reset(); onClose(); }} style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44 }}>Cancel</button><button onClick={submit} disabled={saving} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44, opacity: saving ? 0.7 : 1 }}>{saving ? "Saving…" : "Request"}</button></div>
         </div>
       )}
