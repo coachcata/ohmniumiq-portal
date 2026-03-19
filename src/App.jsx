@@ -227,7 +227,7 @@ function LoginPage() {
             </>
           )}
         </div>
-        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v12.0</p>
+        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v15.0</p>
       </div>
     </div>
   );
@@ -274,6 +274,7 @@ function DataProvider({ children, userProfile }) {
     const { data, error } = await supabase.from("properties").insert({
       address: prop.address, tenant_name: prop.tenant, tenant_phone: prop.phone,
       last_eicr: prop.lastEicr || null, expiry_date: prop.expiryDate || null,
+      smoke_expiry: prop.smokeExpiry || null, pat_expiry: prop.patExpiry || null,
       agency_id: prop.agencyId || userProfile.organisation_id,
       created_by: userProfile.id,
     }).select().single();
@@ -380,8 +381,9 @@ function DataProvider({ children, userProfile }) {
 // ─────────────────────────────────────────────
 // BOTTOM NAV (mobile)
 // ─────────────────────────────────────────────
-function BottomNav({ active, setActive, role, jobs }) {
+function BottomNav({ active, setActive, role, jobs, authId }) {
   const pSO = jobs.filter(j => j.status === "Awaiting Sign-Off").length;
+  const rejectedEicrs = ["engineer", "junior"].includes(role) ? jobs.filter(j => j.engineer_id === authId && j.status === "In Progress" && j.type === "EICR" && j.eicr_data?.rejectionReason).length : 0;
   const items = [
     { id: "dashboard", label: "Home", icon: "shield" },
     { id: "properties", label: "Properties", icon: "home" },
@@ -398,6 +400,7 @@ function BottomNav({ active, setActive, role, jobs }) {
             <Icon name={item.icon} size={20} color={isA ? C.accent : C.textDim} />
             <span style={{ fontFamily: font, fontSize: 9, fontWeight: isA ? 600 : 400, color: isA ? C.accent : C.textDim }}>{item.label}</span>
             {item.id === "more" && pSO > 0 && ["supervisor", "admin"].includes(role) && <span style={{ position: "absolute", top: 2, right: 6, width: 8, height: 8, borderRadius: "50%", background: C.purple }} />}
+            {item.id === "jobs" && rejectedEicrs > 0 && <span style={{ position: "absolute", top: 2, right: 6, width: 8, height: 8, borderRadius: "50%", background: C.red }} />}
           </button>
         );
       })}
@@ -678,7 +681,7 @@ function Sidebar({ active, setActive, role, userProfile, onLogout }) {
       <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}` }}>
         <button onClick={onLogout} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.card, display: "grid", placeItems: "center" }}><Icon name="logout" size={16} color={C.textMuted} /></div>
-          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v12.0 — Supabase</div></div>
+          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v15.0 — Supabase</div></div>
         </button>
       </div>
     </div>
@@ -803,6 +806,22 @@ function DashboardPage({ onNavigateProperty }) {
   const r = properties.filter(p => overallStatus(p) === "red").length;
   const activeJobs = jobs.filter(j => j.status !== "Completed").length;
   const awaiting = jobs.filter(j => j.status === "Awaiting Sign-Off").length;
+
+  // Empty state for agents/admins with no properties
+  if (properties.length === 0) {
+    return (
+      <div style={{ padding: mob ? 30 : 60, textAlign: "center" }}>
+        <div style={{ background: C.card, borderRadius: 16, padding: mob ? 40 : 60, border: `1px solid ${C.border}`, maxWidth: 480, margin: "0 auto" }}>
+          <div style={{ width: 64, height: 64, borderRadius: 16, background: C.accentGlow, display: "grid", placeItems: "center", margin: "0 auto 20px" }}><Icon name="home" size={32} color={C.accent} /></div>
+          <h2 style={{ fontFamily: font, fontSize: 20, fontWeight: 700, color: C.white, margin: "0 0 10px" }}>Welcome to OhmniumIQ</h2>
+          <p style={{ fontFamily: font, fontSize: 14, color: C.textMuted, margin: "0 0 8px", lineHeight: 1.5 }}>You don't have any properties yet. Add your first property to start tracking compliance.</p>
+          <p style={{ fontFamily: font, fontSize: 12, color: C.textDim, margin: "0 0 28px", lineHeight: 1.5 }}>You can add properties one by one or import a batch using CSV upload from the Properties page.</p>
+          <button onClick={() => onNavigateProperty && onNavigateProperty("__goto_properties__")} style={{ fontFamily: font, fontSize: 14, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 10, padding: "12px 28px", cursor: "pointer", minHeight: 48 }}>Go to Properties →</button>
+        </div>
+      </div>
+    );
+  }
+
   const expiringSoon = properties.filter(p => overallStatus(p) === "amber").sort((a, b) => {
     const aMin = Math.min(...[p => p.expiry_date, p => p.smoke_expiry, p => p.pat_expiry].map(f => f(a) ? new Date(f(a)) : Infinity));
     const bMin = Math.min(...[p => p.expiry_date, p => p.smoke_expiry, p => p.pat_expiry].map(f => f(b) ? new Date(f(b)) : Infinity));
@@ -879,6 +898,85 @@ function DashboardPage({ onNavigateProperty }) {
           ); })}
         </div>
       </div>
+      {/* ── Charts ── */}
+      {(() => {
+        // Monthly jobs completed — last 6 months
+        const months = [];
+        for (let i = 5; i >= 0; i--) {
+          const d = new Date(); d.setMonth(d.getMonth() - i);
+          months.push({ label: d.toLocaleString("en-GB", { month: "short" }), year: d.getFullYear(), month: d.getMonth() });
+        }
+        const monthlyData = months.map(m => ({
+          label: m.label,
+          count: jobs.filter(j => {
+            if (!j.created_at) return false;
+            const jd = new Date(j.created_at);
+            return jd.getMonth() === m.month && jd.getFullYear() === m.year;
+          }).length,
+        }));
+        const maxCount = Math.max(...monthlyData.map(m => m.count), 1);
+
+        // Per cert-type compliance
+        const certTypes = [
+          { label: "EICR", green: properties.filter(p => calcStatus(p.expiry_date) === "green").length, amber: properties.filter(p => calcStatus(p.expiry_date) === "amber").length, red: properties.filter(p => calcStatus(p.expiry_date) === "red").length },
+          { label: "Smoke", green: properties.filter(p => calcStatus(p.smoke_expiry) === "green").length, amber: properties.filter(p => calcStatus(p.smoke_expiry) === "amber").length, red: properties.filter(p => calcStatus(p.smoke_expiry) === "red").length },
+          { label: "PAT", green: properties.filter(p => calcStatus(p.pat_expiry) === "green").length, amber: properties.filter(p => calcStatus(p.pat_expiry) === "amber").length, red: properties.filter(p => calcStatus(p.pat_expiry) === "red").length },
+        ];
+
+        return (
+          <div style={{ display: "grid", gridTemplateColumns: tab ? "1fr" : "1fr 1fr", gap: mob ? 14 : 20, marginBottom: mob ? 14 : 20 }}>
+            {/* Monthly jobs bar chart */}
+            <div style={{ background: C.card, borderRadius: 14, padding: mob ? 20 : 28, border: `1px solid ${C.border}` }}>
+              <h3 style={{ fontFamily: font, fontSize: 15, fontWeight: 600, color: C.white, margin: "0 0 20px" }}>Jobs — Last 6 Months</h3>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 100 }}>
+                {monthlyData.map((m, i) => (
+                  <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, height: "100%" }}>
+                    <div style={{ flex: 1, display: "flex", alignItems: "flex-end", width: "100%" }}>
+                      <div style={{ width: "100%", height: `${Math.max((m.count / maxCount) * 100, m.count > 0 ? 6 : 0)}%`, background: `linear-gradient(180deg, ${C.accent}, ${C.accent}99)`, borderRadius: "4px 4px 0 0", position: "relative", minHeight: m.count > 0 ? 6 : 0 }}>
+                        {m.count > 0 && <div style={{ position: "absolute", top: -18, left: "50%", transform: "translateX(-50%)", fontFamily: fontMono, fontSize: 10, color: C.accent, fontWeight: 600, whiteSpace: "nowrap" }}>{m.count}</div>}
+                      </div>
+                    </div>
+                    <span style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>{m.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Per cert-type compliance stacked bars */}
+            <div style={{ background: C.card, borderRadius: 14, padding: mob ? 20 : 28, border: `1px solid ${C.border}` }}>
+              <h3 style={{ fontFamily: font, fontSize: 15, fontWeight: 600, color: C.white, margin: "0 0 20px" }}>Compliance by Cert Type</h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {certTypes.map((ct, i) => {
+                  const total = ct.green + ct.amber + ct.red || 1;
+                  const gPct = (ct.green / total) * 100;
+                  const aPct = (ct.amber / total) * 100;
+                  const rPct = (ct.red / total) * 100;
+                  return (
+                    <div key={i}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                        <span style={{ fontFamily: font, fontSize: 12, color: C.text, fontWeight: 500 }}>{ct.label}</span>
+                        <span style={{ fontFamily: font, fontSize: 11, color: C.textDim }}>{ct.green}/{total} compliant</span>
+                      </div>
+                      <div style={{ display: "flex", height: 10, borderRadius: 5, overflow: "hidden", gap: 1 }}>
+                        {gPct > 0 && <div style={{ flex: gPct, background: C.green }} />}
+                        {aPct > 0 && <div style={{ flex: aPct, background: C.amber }} />}
+                        {rPct > 0 && <div style={{ flex: rPct, background: C.red }} />}
+                      </div>
+                    </div>
+                  );
+                })}
+                <div style={{ display: "flex", gap: 14, marginTop: 4 }}>
+                  {[{ l: "OK", c: C.green }, { l: "Expiring", c: C.amber }, { l: "Overdue", c: C.red }].map((item, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: 2, background: item.c }} />
+                      <span style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>{item.l}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       <div style={{ background: C.card, borderRadius: 14, padding: mob ? 20 : 28, border: `1px solid ${C.border}` }}>
         <h3 style={{ fontFamily: font, fontSize: 15, fontWeight: 600, color: C.white, margin: "0 0 20px" }}>Recent Activity</h3>
         {audit.length === 0 && <div style={{ padding: 20, textAlign: "center" }}><span style={{ fontFamily: font, fontSize: 12, color: C.textDim }}>No activity yet</span></div>}
@@ -1036,6 +1134,7 @@ function JobsPage({ onNavigateEicr }) {
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
   const filtered = jobs.filter(j => {
+    if (sf === "all" && j.status === "Cancelled") return false;
     if (sf !== "all" && j.status !== sf) return false;
     if (["engineer", "junior"].includes(role)) return j.engineer_id === auth.id;
     if (search) {
@@ -1061,8 +1160,8 @@ function JobsPage({ onNavigateEicr }) {
       <Toast message={toast} show={!!toast} />
       <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-          {["all", "Pending", "Scheduled", "In Progress", "Awaiting Sign-Off", "Completed"].map(s => (
-            <button key={s} onClick={() => setSf(s)} style={{ fontFamily: font, fontSize: 11, fontWeight: sf === s ? 600 : 400, color: sf === s ? C.white : C.textMuted, background: sf === s ? C.accent : C.card, border: `1px solid ${sf === s ? "transparent" : C.border}`, borderRadius: 8, padding: "8px 12px", cursor: "pointer", minHeight: 36 }}>{s === "all" ? "All" : s}</button>
+          {["all", "Pending", "Scheduled", "In Progress", "Awaiting Sign-Off", "Completed", "Cancelled"].map(s => (
+            <button key={s} onClick={() => setSf(s)} style={{ fontFamily: font, fontSize: 11, fontWeight: sf === s ? 600 : 400, color: sf === s ? C.white : C.textMuted, background: sf === s ? (s === "Cancelled" ? C.textDim : C.accent) : C.card, border: `1px solid ${sf === s ? "transparent" : C.border}`, borderRadius: 8, padding: "8px 12px", cursor: "pointer", minHeight: 36 }}>{s === "all" ? "All" : s}</button>
           ))}
         </div>
         {!["engineer", "junior"].includes(role) && (
@@ -1078,9 +1177,9 @@ function JobsPage({ onNavigateEicr }) {
         return (
           <div key={job.id} style={{ background: C.card, borderRadius: 14, padding: mob ? "16px" : "20px 24px", border: `1px solid ${C.border}`, display: "flex", flexDirection: mob ? "column" : "row", alignItems: mob ? "stretch" : "center", justifyContent: "space-between", marginBottom: 10, gap: mob ? 14 : 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, minWidth: 0 }}>
-              <div style={{ width: 42, height: 42, borderRadius: 10, background: job.type === "EICR" ? C.accentGlow : job.type === "Remedial" ? C.redBg : C.greenBg, display: "grid", placeItems: "center", flexShrink: 0 }}><Icon name={job.type === "EICR" ? "shield" : job.type === "Remedial" ? "alert" : "check"} size={20} color={job.type === "EICR" ? C.accent : job.type === "Remedial" ? C.red : C.green} /></div>
+              <div style={{ width: 42, height: 42, borderRadius: 10, background: job.type === "EICR" ? C.accentGlow : job.type === "Remedial" ? C.redBg : job.type === "Smoke Alarm" ? C.amberBg : C.greenBg, display: "grid", placeItems: "center", flexShrink: 0 }}><Icon name={job.type === "EICR" ? "shield" : job.type === "Remedial" ? "alert" : job.type === "Smoke Alarm" ? "activity" : "check"} size={20} color={job.type === "EICR" ? C.accent : job.type === "Remedial" ? C.red : job.type === "Smoke Alarm" ? C.amber : C.green} /></div>
               <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontFamily: font, fontSize: 14, color: C.white, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{job.type} — {prop?.address?.split(",")[0] || "—"}</div>
+                <div style={{ fontFamily: font, fontSize: 14, color: C.white, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 8 }}>{job.type} — {prop?.address?.split(",")[0] || "—"}{job.type === "EICR" && <span style={{ fontFamily: font, fontSize: 9, fontWeight: 700, color: C.accent, background: C.accentGlow, padding: "2px 8px", borderRadius: 4, letterSpacing: 0.5, textTransform: "uppercase", flexShrink: 0 }}>Form Required</span>}</div>
                 <div style={{ fontFamily: font, fontSize: 12, color: C.textMuted, marginTop: 3 }}>{job.notes || "No notes"}</div>
                 <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 4, display: "flex", gap: 12, flexWrap: "wrap" }}>
                   <span>{eng?.full_name || "Unassigned"}</span>
@@ -1179,7 +1278,7 @@ function AssignModal({ open, job, onClose }) {
           <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{job.type} — {prop.address.split(",")[0]}</div>
           {isReassign && <div style={{ fontFamily: font, fontSize: 11, color: C.amber, marginTop: 4 }}>Currently: {engineers.find(e => e.id === job.engineer_id)?.full_name || "Unassigned"} · {job.scheduled_date ? formatDate(job.scheduled_date) : "No date"}</div>}
         </div>}
-        <Select label="Engineer" value={engId} onChange={setEngId} options={[{ value: "", label: "— Select —" }, ...engineers.map(e => ({ value: e.id, label: `${e.full_name} (${e.role === "junior" ? "Junior" : "Senior"})` }))]} />
+        <Select label="Engineer" value={engId} onChange={setEngId} options={[{ value: "", label: "— Select —" }, ...engineers.filter(e => ["engineer", "junior"].includes(e.role)).map(e => ({ value: e.id, label: `${e.full_name} (${e.role === "junior" ? "Junior" : "Senior"})` }))]} />
         <Input label="Scheduled Date" type="date" value={date} onChange={setDate} />
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
           <button onClick={() => onClose(null)} style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44 }}>Cancel</button>
@@ -1338,7 +1437,9 @@ function CSVImportModal({ open, onClose }) {
     const addrIdx = headers.findIndex(h => h.includes("address"));
     const tenantIdx = headers.findIndex(h => h.includes("tenant") || h.includes("name"));
     const phoneIdx = headers.findIndex(h => h.includes("phone") || h.includes("tel") || h.includes("mobile"));
-    const eicrIdx = headers.findIndex(h => h.includes("eicr") || h.includes("last") || h.includes("date"));
+    const eicrIdx = headers.findIndex(h => (h.includes("eicr") || h.includes("last")) && !h.includes("smoke") && !h.includes("pat"));
+    const smokeIdx = headers.findIndex(h => h.includes("smoke"));
+    const patIdx = headers.findIndex(h => h.includes("pat"));
     if (addrIdx === -1) { setError("No 'address' column found. Check your CSV header row."); return; }
     const parsed = lines.slice(1).map((line, i) => {
       const cols = line.split(",").map(c => c.trim().replace(/^"|"$/g, ""));
@@ -1346,8 +1447,10 @@ function CSVImportModal({ open, onClose }) {
       const tenant = tenantIdx >= 0 ? cols[tenantIdx] || "" : "";
       const phone = phoneIdx >= 0 ? cols[phoneIdx] || "" : "";
       const lastEicr = eicrIdx >= 0 ? cols[eicrIdx] || "" : "";
+      const smokeExpiry = smokeIdx >= 0 ? cols[smokeIdx] || "" : "";
+      const patExpiry = patIdx >= 0 ? cols[patIdx] || "" : "";
       const isDup = properties.some(p => p.address.toLowerCase() === addr.toLowerCase());
-      return { addr, tenant, phone, lastEicr, isDup, row: i + 2 };
+      return { addr, tenant, phone, lastEicr, smokeExpiry, patExpiry, isDup, row: i + 2 };
     }).filter(r => r.addr);
     setRows(parsed); setPreview(true); setError("");
   };
@@ -1365,7 +1468,7 @@ function CSVImportModal({ open, onClose }) {
     setSaving(true);
     for (const r of toImport) {
       const expiry = calcExpiry(r.lastEicr);
-      await addProperty({ address: r.addr, tenant: r.tenant, phone: r.phone, lastEicr: r.lastEicr || null, expiryDate: expiry });
+      await addProperty({ address: r.addr, tenant: r.tenant, phone: r.phone, lastEicr: r.lastEicr || null, expiryDate: expiry, smokeExpiry: r.smokeExpiry || null, patExpiry: r.patExpiry || null });
     }
     await addAudit({ action: `CSV import: ${toImport.length} properties added` });
     await fetchAll();
@@ -1398,13 +1501,13 @@ function CSVImportModal({ open, onClose }) {
                 <span style={{ fontFamily: font, fontSize: 11, color: r.isDup ? C.red : C.green, fontWeight: 600, whiteSpace: "nowrap" }}>{r.isDup ? "DUP" : "NEW"}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: font, fontSize: 12, color: r.isDup ? C.textDim : C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.addr}</div>
-                  <div style={{ fontFamily: font, fontSize: 11, color: C.textDim }}>{r.tenant}{r.lastEicr ? ` · EICR: ${r.lastEicr}` : ""}</div>
+                  <div style={{ fontFamily: font, fontSize: 11, color: C.textDim }}>{r.tenant}{r.lastEicr ? ` · EICR: ${r.lastEicr}` : ""}{r.smokeExpiry ? ` · Smoke: ${r.smokeExpiry}` : ""}{r.patExpiry ? ` · PAT: ${r.patExpiry}` : ""}</div>
                 </div>
               </div>
             ))}
           </div>
           <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginBottom: 12 }}>
-            Expected columns: <span style={{ color: C.accent }}>address, tenant name, phone, last eicr date</span>
+            Expected columns: <span style={{ color: C.accent }}>address, tenant name, phone, last eicr date, smoke expiry, pat expiry</span>
           </div>
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
             <button onClick={() => { reset(); onClose(); }} style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44 }}>Cancel</button>
@@ -1417,7 +1520,7 @@ function CSVImportModal({ open, onClose }) {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ fontFamily: font, fontSize: 13, color: C.text, lineHeight: 1.6 }}>
-            Upload a CSV file with your properties. The file needs an <strong style={{ color: C.accent }}>address</strong> column, and optionally: tenant name, phone, last eicr date.
+            Upload a CSV file with your properties. The file needs an <strong style={{ color: C.accent }}>address</strong> column, and optionally: tenant name, phone, last eicr date, smoke expiry, pat expiry.
           </div>
           <label style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, background: C.surfaceAlt, border: `2px dashed ${C.border}`, borderRadius: 14, padding: "32px 20px", cursor: "pointer", textAlign: "center" }}>
             <Icon name="csv" size={32} color={C.textDim} />
@@ -1777,15 +1880,132 @@ function EICRPage() {
         <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, margin: "0 0 16px", textTransform: "uppercase", letterSpacing: 0.5 }}>Section F — Observations &amp; Outcome</h4>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div>
-            <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Observations / Defects (use C1/C2/C3/FI codes)</label>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Observations / Defects (use C1/C2/C3/FI codes)</label>
+              <button onClick={() => set("showObsLibrary", !form.showObsLibrary)}
+                style={{ fontFamily: font, fontSize: 10, fontWeight: 600, color: C.accent, background: C.accentGlow, border: `1px solid rgba(59,130,246,.3)`, borderRadius: 6, padding: "4px 10px", cursor: "pointer", minHeight: 28 }}>
+                📋 Quick-pick
+              </button>
+            </div>
+
+            {/* ── Quick-pick observation library ── */}
+            {form.showObsLibrary && (() => {
+              const library = [
+                { code: "C1", text: "C1 — No main protective bonding to gas installation pipework. Danger present — immediate action required." },
+                { code: "C1", text: "C1 — Live parts exposed / accessible at consumer unit. Danger present." },
+                { code: "C2", text: "C2 — No RCD protection to socket outlets in bathroom zones. Install 30mA RCD protection." },
+                { code: "C2", text: "C2 — No RCD protection to socket outlets in general areas (post-2008 requirements). Upgrade required." },
+                { code: "C2", text: "C2 — Earthing conductor absent or inadequate at consumer unit. Earth continuity cannot be confirmed." },
+                { code: "C2", text: "C2 — Consumer unit is of combustible (plastic) construction. Replace with non-combustible metal enclosure (BS EN 61439-3)." },
+                { code: "C2", text: "C2 — Supplementary bonding absent in bathroom. Install 4mm² bonding to all simultaneously accessible metalwork." },
+                { code: "C2", text: "C2 — Single-pole switching/protection in neutral conductor detected. Replace with double-pole devices." },
+                { code: "C3", text: "C3 — No surge protection device (SPD) installed. Recommend installation as per BS 7671 Regulation 443." },
+                { code: "C3", text: "C3 — No AFDD (arc fault detection device) installed. Recommend installation for enhanced fire protection." },
+                { code: "C3", text: "C3 — Wiring installation is ageing (pre-1970s rubber/fabric insulation). Recommend periodic monitoring and phased rewire." },
+                { code: "C3", text: "C3 — Socket outlets lack shuttered contacts. Recommend upgrading to modern shuttered sockets." },
+                { code: "FI", text: "FI — Unable to confirm earth continuity to ring final circuit — further investigation required." },
+                { code: "FI", text: "FI — RCD trip time exceeds 300ms. Further testing required to identify cause." },
+                { code: "FI", text: "FI — Insulation resistance low on circuit — further investigation required before energising." },
+              ];
+              const codeColors = { C1: C.red, C2: C.amber, C3: C.accent, FI: C.purple };
+              const addObs = (text) => {
+                const current = form.observations.trim();
+                set("observations", current ? current + "\n" + text : text);
+              };
+              return (
+                <div style={{ background: C.surfaceAlt, border: `1px solid ${C.borderLight}`, borderRadius: 10, padding: 12, marginBottom: 8 }}>
+                  <div style={{ fontFamily: font, fontSize: 10, color: C.textDim, marginBottom: 8 }}>Tap an observation to add it. C1 = danger, C2 = potentially dangerous, C3 = improvement recommended, FI = further investigation.</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 280, overflowY: "auto" }}>
+                    {library.map((obs, i) => (
+                      <button key={i} onClick={() => addObs(obs.text)}
+                        style={{ display: "flex", alignItems: "flex-start", gap: 10, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", cursor: "pointer", textAlign: "left", minHeight: 44 }}>
+                        <span style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 700, color: codeColors[obs.code] || C.textMuted, background: `${codeColors[obs.code]}20`, padding: "2px 7px", borderRadius: 4, flexShrink: 0, marginTop: 1 }}>{obs.code}</span>
+                        <span style={{ fontFamily: font, fontSize: 12, color: C.text, lineHeight: 1.5 }}>{obs.text.replace(/^(C1|C2|C3|FI) — /, "")}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ── Smart text suggestions ── */}
+            {(() => {
+              const lastWord = form.observations.split(/\s+/).pop()?.toLowerCase() || "";
+              const suggestions = [
+                { trigger: "c1", hint: "C1 — " }, { trigger: "c2", hint: "C2 — " }, { trigger: "c3", hint: "C3 — " }, { trigger: "fi", hint: "FI — " },
+                { trigger: "rcd", hint: "RCD protection absent on circuit" }, { trigger: "bond", hint: "bonding conductor absent / inadequate" },
+                { trigger: "earth", hint: "earthing inadequate — continuity not confirmed" }, { trigger: "socket", hint: "socket outlets lack shuttered contacts" },
+                { trigger: "consum", hint: "consumer unit is combustible plastic construction" }, { trigger: "insul", hint: "insulation resistance low — further investigation required" },
+                { trigger: "no", hint: "no RCD protection installed to" }, { trigger: "miss", hint: "missing protective conductor on" },
+                { trigger: "bath", hint: "bathroom supplementary bonding absent" }, { trigger: "overh", hint: "overheating evident at connection — further investigation required" },
+              ].filter(s => lastWord.length >= 2 && s.trigger.startsWith(lastWord) && s.trigger !== lastWord);
+
+              if (!suggestions.length || !form.observations) return null;
+              return (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
+                  {suggestions.slice(0, 4).map((s, i) => (
+                    <button key={i} onClick={() => {
+                      const words = form.observations.split(/(\s+)/);
+                      words[words.length - 1] = s.hint;
+                      set("observations", words.join(""));
+                    }} style={{ fontFamily: fontMono, fontSize: 10, color: C.accent, background: C.accentGlow, border: `1px solid rgba(59,130,246,.25)`, borderRadius: 6, padding: "4px 10px", cursor: "pointer", minHeight: 28 }}>
+                      {s.hint}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
+
             <textarea value={form.observations} onChange={e => set("observations", e.target.value)} placeholder="e.g. C2 — No RCD protection to socket outlets in bathrooms…"
               style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", outline: "none", minHeight: 120, resize: "vertical", width: "100%", marginTop: 4, boxSizing: "border-box" }} />
           </div>
           <div>
-            <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Recommendations</label>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+              <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Recommendations</label>
+            </div>
             <textarea value={form.recommendations} onChange={e => set("recommendations", e.target.value)} placeholder="e.g. Install RCD protection, replace consumer unit…"
               style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", outline: "none", minHeight: 80, resize: "vertical", width: "100%", marginTop: 4, boxSizing: "border-box" }} />
           </div>
+
+          {/* ── AI Remedial Scope Generator ── */}
+          {form.observations.trim().length > 20 && (
+            <div style={{ background: C.purpleBg, border: "1px solid rgba(139,92,246,.3)", borderRadius: 10, padding: "12px 16px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Icon name="zap" size={16} color={C.purple} />
+                  <span style={{ fontFamily: font, fontSize: 12, color: C.text, fontWeight: 500 }}>Generate remedial scope from observations</span>
+                </div>
+                <button onClick={async () => {
+                  set("aiLoading", true);
+                  try {
+                    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        model: "claude-sonnet-4-20250514",
+                        max_tokens: 1000,
+                        messages: [{
+                          role: "user",
+                          content: `You are a qualified electrical engineer writing remedial work scopes based on EICR observations. Given these observations from an EICR inspection, write a clear, professional remedial works scope suitable for quoting and scheduling. Use plain trade language. List each item numbered. Do not include preamble or sign-off text.\n\nObservations:\n${form.observations}`
+                        }]
+                      })
+                    });
+                    const data = await resp.json();
+                    const text = data.content?.find(b => b.type === "text")?.text || "";
+                    set("recommendations", text.trim());
+                  } catch (e) {
+                    set("recommendations", "Could not generate scope — check your connection.");
+                  }
+                  set("aiLoading", false);
+                }} disabled={form.aiLoading}
+                  style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.white, background: form.aiLoading ? C.textDim : C.purple, border: "none", borderRadius: 8, padding: "8px 16px", cursor: form.aiLoading ? "not-allowed" : "pointer", minHeight: 36, opacity: form.aiLoading ? 0.7 : 1 }}>
+                  {form.aiLoading ? "Generating…" : "✦ Draft Remedial Scope"}
+                </button>
+              </div>
+              {form.aiLoading && <div style={{ fontFamily: font, fontSize: 11, color: C.purple, marginTop: 8 }}>Reading observations and drafting scope…</div>}
+            </div>
+          )}
+
           <div>
             <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Overall Outcome</label>
             <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
@@ -1959,16 +2179,25 @@ function SignOffPage() {
 function EditPropertyModal({ open, onClose, property }) {
   const { updateProperty, deleteProperty, addAudit, jobs } = useContext(DataContext);
   const [addr, setAddr] = useState(""); const [tenant, setTenant] = useState(""); const [phone, setPhone] = useState("");
+  const [lastEicr, setLastEicr] = useState(""); const [smokeExpiry, setSmokeExpiry] = useState(""); const [patExpiry, setPatExpiry] = useState("");
   const [saving, setSaving] = useState(false); const [confirmDelete, setConfirmDelete] = useState(false); const [error, setError] = useState("");
 
   useEffect(() => {
-    if (property) { setAddr(property.address || ""); setTenant(property.tenant_name || ""); setPhone(property.tenant_phone || ""); }
+    if (property) {
+      setAddr(property.address || ""); setTenant(property.tenant_name || ""); setPhone(property.tenant_phone || "");
+      setLastEicr(property.last_eicr || ""); setSmokeExpiry(property.smoke_expiry || ""); setPatExpiry(property.pat_expiry || "");
+    }
   }, [property]);
 
   const submit = async () => {
     if (!addr.trim() || !tenant.trim()) { setError("Address and tenant required"); return; }
     setSaving(true);
-    await updateProperty(property.id, { address: addr.trim(), tenant_name: tenant.trim(), tenant_phone: phone.trim() });
+    const expiryDate = calcExpiry(lastEicr);
+    await updateProperty(property.id, {
+      address: addr.trim(), tenant_name: tenant.trim(), tenant_phone: phone.trim(),
+      lastEicr: lastEicr || null, expiryDate: expiryDate || null,
+      smoke_expiry: smokeExpiry || null, pat_expiry: patExpiry || null,
+    });
     await addAudit({ action: `Property ${property.ref} updated — ${addr.split(",")[0]}` });
     setSaving(false); onClose("updated");
   };
@@ -2005,6 +2234,15 @@ function EditPropertyModal({ open, onClose, property }) {
           <Input label="Property Address" value={addr} onChange={setAddr} placeholder="e.g. 15 Station Road, Leeds LS1 2AB" />
           <Input label="Tenant Name" value={tenant} onChange={setTenant} placeholder="e.g. John Smith" />
           <Input label="Tenant Phone" value={phone} onChange={setPhone} placeholder="e.g. 07700 900000" />
+          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14, marginTop: 2 }}>
+            <div style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>Compliance Dates</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <Input label="Last EICR Date" type="date" value={lastEicr} onChange={setLastEicr} />
+              {lastEicr && <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: -4 }}>Expiry: {formatDate(calcExpiry(lastEicr))} — <span style={{ color: statusColor(calcStatus(calcExpiry(lastEicr))), fontWeight: 600 }}>{calcStatus(calcExpiry(lastEicr)).toUpperCase()}</span></div>}
+              <Input label="Smoke & CO Alarm Expiry" type="date" value={smokeExpiry} onChange={setSmokeExpiry} />
+              <Input label="PAT Testing Expiry" type="date" value={patExpiry} onChange={setPatExpiry} />
+            </div>
+          </div>
           {error && <div style={{ fontFamily: font, fontSize: 12, color: C.red }}>{error}</div>}
           <div style={{ display: "flex", gap: 10, justifyContent: "space-between", marginTop: 8, flexWrap: "wrap" }}>
             <button onClick={() => setConfirmDelete(true)} style={{ fontFamily: font, fontSize: 12, color: C.red, background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 10, padding: "10px 16px", cursor: "pointer", minHeight: 44 }}>Delete Property</button>
@@ -2316,7 +2554,7 @@ function PortalApp({ session, userProfile, onLogout }) {
                   {render()}
                 </div>
               </div>
-              {isMobile && <BottomNav active={page} setActive={(p) => { setPage(p); if (p !== "propertyDetail") setSelectedPropertyId(null); }} role={role} jobs={ctx.jobs} />}
+              {isMobile && <BottomNav active={page} setActive={(p) => { setPage(p); if (p !== "propertyDetail") setSelectedPropertyId(null); }} role={role} jobs={ctx.jobs} authId={userProfile.id} />}
               <RequestJobModal open={showRequestJob} onClose={() => { setShowRequestJob(false); setRequestJobProp(null); }} property={requestJobProp} />
             </div>
           )}
