@@ -227,7 +227,7 @@ function LoginPage() {
             </>
           )}
         </div>
-        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v15.0</p>
+        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v18.0</p>
       </div>
     </div>
   );
@@ -243,27 +243,58 @@ function DataProvider({ children, userProfile }) {
   const [audit, setAudit] = useState([]);
   const [engineers, setEngineers] = useState([]);
   const [loading, setLoading] = useState(true);
-
   const [comments, setComments] = useState([]);
+  const [organisations, setOrganisations] = useState([]);
 
-  // Fetch all data on mount — all queries scoped to the user's organisation
+  const isAdmin = ["admin"].includes(userProfile.role);
+  const ohmniumOrgId = userProfile.organisation_id;
+
+  // Fetch all data on mount
   const fetchAll = useCallback(async () => {
     setLoading(true);
     const orgId = userProfile.organisation_id;
-    const [propRes, jobRes, docRes, auditRes, engRes, commentRes] = await Promise.all([
-      supabase.from("properties").select("*").eq("agency_id", orgId).order("ref"),
-      supabase.from("jobs").select("*").eq("organisation_id", orgId).order("created_at", { ascending: false }),
-      supabase.from("documents").select("*").eq("organisation_id", orgId).order("uploaded_at", { ascending: false }),
-      supabase.from("audit_log").select("*").eq("organisation_id", orgId).order("created_at", { ascending: false }).limit(500),
-      supabase.from("profiles").select("id, full_name, role, email").eq("organisation_id", orgId).in("role", ["engineer", "junior", "supervisor", "agent", "admin"]),
-      supabase.from("job_comments").select("*").eq("organisation_id", orgId).order("created_at", { ascending: true }),
-    ]);
-    if (propRes.data) setProperties(propRes.data);
-    if (jobRes.data) setJobs(jobRes.data);
-    if (docRes.data) setDocuments(docRes.data);
-    if (auditRes.data) setAudit(auditRes.data);
-    if (engRes.data) setEngineers(engRes.data);
-    if (commentRes.data) setComments(commentRes.data);
+
+    // Always load organisations (admins see all, others see their own)
+    const orgRes = await supabase.from("organisations").select("*").order("name");
+    const allOrgs = orgRes.data || [];
+    setOrganisations(allOrgs);
+
+    // Active agency IDs (for filtering properties/jobs)
+    const activeAgencyIds = allOrgs.filter(o => o.is_active !== false).map(o => o.id);
+
+    if (isAdmin) {
+      // Admins: load all properties/jobs across all active agencies, plus own org data
+      const [propRes, jobRes, docRes, auditRes, engRes, commentRes] = await Promise.all([
+        supabase.from("properties").select("*").in("agency_id", activeAgencyIds.length ? activeAgencyIds : ["none"]).order("ref"),
+        supabase.from("jobs").select("*").in("organisation_id", activeAgencyIds.length ? [...activeAgencyIds, orgId] : [orgId]).order("created_at", { ascending: false }),
+        supabase.from("documents").select("*").in("organisation_id", activeAgencyIds.length ? [...activeAgencyIds, orgId] : [orgId]).order("uploaded_at", { ascending: false }),
+        supabase.from("audit_log").select("*").eq("organisation_id", orgId).order("created_at", { ascending: false }).limit(500),
+        supabase.from("profiles").select("id, full_name, role, email, organisation_id").order("full_name"),
+        supabase.from("job_comments").select("*").order("created_at", { ascending: true }),
+      ]);
+      if (propRes.data) setProperties(propRes.data);
+      if (jobRes.data) setJobs(jobRes.data);
+      if (docRes.data) setDocuments(docRes.data);
+      if (auditRes.data) setAudit(auditRes.data);
+      if (engRes.data) setEngineers(engRes.data);
+      if (commentRes.data) setComments(commentRes.data);
+    } else {
+      // Non-admins: scoped to their own organisation only
+      const [propRes, jobRes, docRes, auditRes, engRes, commentRes] = await Promise.all([
+        supabase.from("properties").select("*").eq("agency_id", orgId).order("ref"),
+        supabase.from("jobs").select("*").eq("organisation_id", orgId).order("created_at", { ascending: false }),
+        supabase.from("documents").select("*").eq("organisation_id", orgId).order("uploaded_at", { ascending: false }),
+        supabase.from("audit_log").select("*").eq("organisation_id", orgId).order("created_at", { ascending: false }).limit(500),
+        supabase.from("profiles").select("id, full_name, role, email, organisation_id").eq("organisation_id", orgId).in("role", ["engineer", "junior", "supervisor", "agent", "admin"]),
+        supabase.from("job_comments").select("*").eq("organisation_id", orgId).order("created_at", { ascending: true }),
+      ]);
+      if (propRes.data) setProperties(propRes.data);
+      if (jobRes.data) setJobs(jobRes.data);
+      if (docRes.data) setDocuments(docRes.data);
+      if (auditRes.data) setAudit(auditRes.data);
+      if (engRes.data) setEngineers(engRes.data);
+      if (commentRes.data) setComments(commentRes.data);
+    }
     setLoading(false);
   }, []);
 
@@ -324,10 +355,17 @@ function DataProvider({ children, userProfile }) {
   }, [userProfile]);
 
   const addJob = useCallback(async (job) => {
+    // organisation_id must be set — derive from the property's agency_id if not explicitly provided
+    let orgIdForJob = job.organisationId || null;
+    if (!orgIdForJob && job.propertyId) {
+      const { data: propRow } = await supabase.from("properties").select("agency_id").eq("id", job.propertyId).single();
+      orgIdForJob = propRow?.agency_id || userProfile.organisation_id;
+    }
     const { data, error } = await supabase.from("jobs").insert({
       property_id: job.propertyId, type: job.type, status: job.status || "Pending",
       engineer_id: job.engineerId || null, scheduled_date: job.date || null,
       notes: job.notes || null, eicr_data: job.eicrData || null,
+      organisation_id: orgIdForJob,
       created_by: userProfile.id,
     }).select().single();
     if (data) setJobs(prev => [data, ...prev]);
@@ -373,7 +411,25 @@ function DataProvider({ children, userProfile }) {
     return { data, error };
   }, []);
 
-  const ctx = { properties, jobs, documents, audit, engineers, comments, loading, addProperty, updateProperty, deleteProperty, addJob, updateJob, deleteJob, addDoc, addAudit, addComment, uploadFile, fetchAll };
+  const addOrg = useCallback(async (org) => {
+    const { data, error } = await supabase.from("organisations").insert({
+      name: org.name.trim(),
+      contact_email: org.email?.trim() || null,
+      phone: org.phone?.trim() || null,
+      address: org.address?.trim() || null,
+      is_active: true,
+    }).select().single();
+    if (data) setOrganisations(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+    return { data, error };
+  }, []);
+
+  const updateOrg = useCallback(async (id, updates) => {
+    const { data, error } = await supabase.from("organisations").update(updates).eq("id", id).select().single();
+    if (data) setOrganisations(prev => prev.map(o => o.id === id ? data : o));
+    return { data, error };
+  }, []);
+
+  const ctx = { properties, jobs, documents, audit, engineers, comments, organisations, loading, addProperty, updateProperty, deleteProperty, addJob, updateJob, deleteJob, addDoc, addAudit, addComment, uploadFile, fetchAll, addOrg, updateOrg, ohmniumOrgId: userProfile.organisation_id };
 
   return <DataContext.Provider value={ctx}>{children}</DataContext.Provider>;
 }
@@ -411,38 +467,157 @@ function BottomNav({ active, setActive, role, jobs, authId }) {
 // ─────────────────────────────────────────────
 // TEAM / USER MANAGEMENT (admin only)
 // ─────────────────────────────────────────────
-function InviteUserModal({ open, onClose }) {
+// ─── Add Agency Modal ───
+function AddAgencyModal({ open, onClose }) {
+  const { addOrg, addAudit } = useContext(DataContext);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+
+  const reset = () => { setName(""); setEmail(""); setPhone(""); setAddress(""); setError(""); setDone(false); };
+
+  const submit = async () => {
+    if (!name.trim()) { setError("Agency name is required"); return; }
+    setSaving(true); setError("");
+    const { data, error: err } = await addOrg({ name, email, phone, address });
+    if (err) { setError(err.message); setSaving(false); return; }
+    await addAudit({ action: `Client agency added: ${name.trim()}` });
+    setSaving(false); setDone(true);
+  };
+
+  return (
+    <Modal open={open} onClose={() => { reset(); onClose(); }} title="Add Client Agency">
+      {done ? (
+        <div style={{ textAlign: "center", padding: "10px 0" }}>
+          <Icon name="checkCircle" size={36} color={C.green} />
+          <div style={{ fontFamily: font, fontSize: 14, color: C.white, fontWeight: 600, marginTop: 12 }}>Agency added</div>
+          <div style={{ fontFamily: font, fontSize: 12, color: C.textMuted, marginTop: 6 }}>You can now invite agents and assign them to this agency.</div>
+          <button onClick={() => { reset(); onClose("added"); }} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 10, padding: "10px 24px", cursor: "pointer", minHeight: 44, marginTop: 20 }}>Done</button>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <Input label="Agency Name *" value={name} onChange={setName} placeholder="e.g. Kellett Lettings" />
+          <Input label="Contact Email" type="email" value={email} onChange={setEmail} placeholder="hello@kellettlettings.co.uk" />
+          <Input label="Phone Number" value={phone} onChange={setPhone} placeholder="e.g. 020 7123 4567" />
+          <Input label="Address" value={address} onChange={setAddress} placeholder="e.g. 12 High Street, London EC1A 1BB" />
+          {error && <div style={{ fontFamily: font, fontSize: 12, color: C.red, background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 8, padding: "8px 12px" }}>{error}</div>}
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
+            <button onClick={() => { reset(); onClose(); }} style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44 }}>Cancel</button>
+            <button onClick={submit} disabled={saving || !name.trim()} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: name.trim() ? C.accent : C.textDim, border: "none", borderRadius: 10, padding: "10px 20px", cursor: name.trim() ? "pointer" : "not-allowed", minHeight: 44, opacity: saving ? 0.7 : 1 }}>{saving ? "Saving…" : "Add Agency"}</button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+// ─── Edit Agency Modal ───
+function EditAgencyModal({ open, onClose, agency }) {
+  const { updateOrg, addAudit } = useContext(DataContext);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [isActive, setIsActive] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (agency) {
+      setName(agency.name || ""); setEmail(agency.contact_email || "");
+      setPhone(agency.phone || ""); setAddress(agency.address || "");
+      setIsActive(agency.is_active !== false);
+    }
+  }, [agency]);
+
+  const submit = async () => {
+    if (!name.trim()) { setError("Agency name is required"); return; }
+    setSaving(true); setError("");
+    const { error: err } = await updateOrg(agency.id, {
+      name: name.trim(), contact_email: email.trim() || null,
+      phone: phone.trim() || null, address: address.trim() || null,
+      is_active: isActive,
+    });
+    if (err) { setError(err.message); setSaving(false); return; }
+    await addAudit({ action: `Client agency updated: ${name.trim()}${!isActive ? " (set inactive)" : ""}` });
+    setSaving(false); onClose("updated");
+  };
+
+  return (
+    <Modal open={open} onClose={() => onClose()} title="Edit Agency">
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <Input label="Agency Name *" value={name} onChange={setName} placeholder="e.g. Kellett Lettings" />
+        <Input label="Contact Email" type="email" value={email} onChange={setEmail} placeholder="hello@kellettlettings.co.uk" />
+        <Input label="Phone Number" value={phone} onChange={setPhone} placeholder="e.g. 020 7123 4567" />
+        <Input label="Address" value={address} onChange={setAddress} placeholder="e.g. 12 High Street, London EC1A 1BB" />
+        {/* Active / Inactive toggle */}
+        <div style={{ background: C.surfaceAlt, borderRadius: 10, padding: "12px 14px", border: `1px solid ${C.border}` }}>
+          <div style={{ fontFamily: font, fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>Agency Status</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => setIsActive(true)} style={{ flex: 1, fontFamily: font, fontSize: 13, fontWeight: isActive ? 600 : 400, color: isActive ? C.white : C.textMuted, background: isActive ? C.green : C.card, border: `1px solid ${isActive ? C.green : C.border}`, borderRadius: 8, padding: "10px 0", cursor: "pointer", minHeight: 44 }}>
+              ✓ Active
+            </button>
+            <button onClick={() => setIsActive(false)} style={{ flex: 1, fontFamily: font, fontSize: 13, fontWeight: !isActive ? 600 : 400, color: !isActive ? C.white : C.textMuted, background: !isActive ? C.red : C.card, border: `1px solid ${!isActive ? C.red : C.border}`, borderRadius: 8, padding: "10px 0", cursor: "pointer", minHeight: 44 }}>
+              ✕ Inactive
+            </button>
+          </div>
+          {!isActive && <div style={{ fontFamily: font, fontSize: 11, color: C.red, marginTop: 8 }}>⚠ Inactive agencies are hidden from all property and job lists.</div>}
+        </div>
+        {error && <div style={{ fontFamily: font, fontSize: 12, color: C.red, background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 8, padding: "8px 12px" }}>{error}</div>}
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
+          <button onClick={() => onClose()} style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44 }}>Cancel</button>
+          <button onClick={submit} disabled={saving} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44, opacity: saving ? 0.7 : 1 }}>{saving ? "Saving…" : "Save Changes"}</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function InviteUserModal({ open, onClose, defaultRole = "engineer", defaultOrgId = null }) {
   const auth = useContext(AuthContext);
+  const { organisations, ohmniumOrgId } = useContext(DataContext);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
-  const [role, setRole] = useState("engineer");
+  const [role, setRole] = useState(defaultRole);
+  const [agencyOrgId, setAgencyOrgId] = useState(defaultOrgId || "");
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => { if (open) { setRole(defaultRole); setAgencyOrgId(defaultOrgId || ""); } }, [open, defaultRole, defaultOrgId]);
+
+  const isAgentRole = role === "agent";
+  const assignedOrgId = isAgentRole ? agencyOrgId : ohmniumOrgId;
+  const assignedOrgName = isAgentRole
+    ? (organisations.find(o => o.id === agencyOrgId)?.name || "— select agency —")
+    : "Ohmnium Electrical Ltd";
+
+  const agencyOrgs = organisations.filter(o => o.id !== ohmniumOrgId && o.is_active !== false);
+
   const submit = async () => {
     if (!email.trim() || !name.trim()) { setError("Name and email are required"); return; }
+    if (isAgentRole && !agencyOrgId) { setError("Please select the agency this agent belongs to"); return; }
     setSaving(true); setError("");
-    // Create user via Supabase Admin API — requires service role key
-    // In production this should be a Supabase Edge Function. For now we use signUp
-    // which sends a confirmation email and the user sets their own password.
+    const orgToAssign = isAgentRole ? agencyOrgId : ohmniumOrgId;
     const { data, error: signupError } = await supabase.auth.admin.createUser({
-      email: email.trim(),
-      email_confirm: true,
-      user_metadata: { full_name: name.trim(), role, organisation_id: auth.orgId },
+      email: email.trim(), email_confirm: true,
+      user_metadata: { full_name: name.trim(), role, organisation_id: orgToAssign },
     });
     if (signupError) {
-      // admin.createUser requires service role — fall back to a magic link invite
       const { error: inviteError } = await supabase.auth.signInWithOtp({
         email: email.trim(),
-        options: { data: { full_name: name.trim(), role, organisation_id: auth.orgId } },
+        options: { data: { full_name: name.trim(), role, organisation_id: orgToAssign } },
       });
       if (inviteError) { setError(inviteError.message); setSaving(false); return; }
     }
     setSaving(false); setDone(true);
   };
 
-  const reset = () => { setEmail(""); setName(""); setRole("engineer"); setDone(false); setError(""); };
+  const reset = () => { setEmail(""); setName(""); setRole(defaultRole); setAgencyOrgId(defaultOrgId || ""); setDone(false); setError(""); };
 
   return (
     <Modal open={open} onClose={() => { reset(); onClose(); }} title="Invite Team Member">
@@ -450,7 +625,8 @@ function InviteUserModal({ open, onClose }) {
         <div style={{ textAlign: "center", padding: "10px 0" }}>
           <Icon name="checkCircle" size={36} color={C.green} />
           <div style={{ fontFamily: font, fontSize: 14, color: C.white, fontWeight: 600, marginTop: 12 }}>Invite sent</div>
-          <div style={{ fontFamily: font, fontSize: 12, color: C.textMuted, marginTop: 6 }}>An email has been sent to <strong>{email}</strong> with a link to set their password and access the portal.</div>
+          <div style={{ fontFamily: font, fontSize: 12, color: C.textMuted, marginTop: 6 }}>An email has been sent to <strong>{email}</strong> with a link to set their password.</div>
+          <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 4 }}>Assigned to: <strong style={{ color: C.accent }}>{assignedOrgName}</strong></div>
           <button onClick={() => { reset(); onClose(); }} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 10, padding: "10px 24px", cursor: "pointer", minHeight: 44, marginTop: 20 }}>Done</button>
         </div>
       ) : (
@@ -458,19 +634,41 @@ function InviteUserModal({ open, onClose }) {
           <Input label="Full Name" value={name} onChange={setName} placeholder="e.g. James Mitchell" />
           <Input label="Email Address" type="email" value={email} onChange={setEmail} placeholder="james@example.com" />
           <Select label="Role" value={role} onChange={setRole} options={[
-            { value: "agent", label: "Agent — can manage properties & request jobs" },
+            { value: "agent", label: "Agent — manages properties & requests jobs" },
             { value: "engineer", label: "Engineer — can run EICR forms" },
             { value: "junior", label: "Junior Engineer — submits for sign-off" },
             { value: "supervisor", label: "Supervisor — signs off junior EICRs" },
             { value: "admin", label: "Admin — full access" },
           ]} />
+
+          {/* Organisation assignment — changes based on role */}
+          {isAgentRole ? (
+            <div>
+              <Select label="Client Agency *" value={agencyOrgId} onChange={setAgencyOrgId}
+                options={[{ value: "", label: "— Select agency —" }, ...agencyOrgs.map(o => ({ value: o.id, label: o.name }))]} />
+              {agencyOrgs.length === 0 && (
+                <div style={{ fontFamily: font, fontSize: 11, color: C.amber, marginTop: 6 }}>⚠ No client agencies exist yet. Add one in the Client Agencies tab first.</div>
+              )}
+            </div>
+          ) : (
+            <div style={{ background: C.accentGlow, border: `1px solid ${C.borderLight}`, borderRadius: 10, padding: "10px 14px" }}>
+              <div style={{ fontFamily: font, fontSize: 11, color: C.accent }}>🏢 This person will be added to <strong>Ohmnium Electrical Ltd</strong></div>
+            </div>
+          )}
+
+          {isAgentRole && agencyOrgId && (
+            <div style={{ background: C.greenBg, border: `1px solid ${C.greenBorder}`, borderRadius: 10, padding: "10px 14px" }}>
+              <div style={{ fontFamily: font, fontSize: 11, color: C.green }}>✓ This agent will be added to <strong>{organisations.find(o => o.id === agencyOrgId)?.name}</strong> and will only see that agency's properties and jobs.</div>
+            </div>
+          )}
+
           <div style={{ background: C.accentGlow, border: `1px solid ${C.borderLight}`, borderRadius: 10, padding: "10px 14px" }}>
             <div style={{ fontFamily: font, fontSize: 11, color: C.accent }}>ℹ️ The person will receive an email with a login link. They'll set their own password on first sign-in.</div>
           </div>
           {error && <div style={{ fontFamily: font, fontSize: 12, color: C.red, background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 8, padding: "8px 12px" }}>{error}</div>}
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
             <button onClick={() => { reset(); onClose(); }} style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44 }}>Cancel</button>
-            <button onClick={submit} disabled={saving || !email || !name} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: (email && name) ? C.accent : C.textDim, border: "none", borderRadius: 10, padding: "10px 20px", cursor: (email && name) ? "pointer" : "not-allowed", minHeight: 44, opacity: saving ? 0.7 : 1 }}>{saving ? "Sending…" : "Send Invite"}</button>
+            <button onClick={submit} disabled={saving || !email || !name || (isAgentRole && !agencyOrgId)} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: (email && name && (!isAgentRole || agencyOrgId)) ? C.accent : C.textDim, border: "none", borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44, opacity: saving ? 0.7 : 1 }}>{saving ? "Sending…" : "Send Invite"}</button>
           </div>
         </div>
       )}
@@ -479,44 +677,145 @@ function InviteUserModal({ open, onClose }) {
 }
 
 function TeamPage() {
-  const { engineers } = useContext(DataContext);
+  const { engineers, organisations, ohmniumOrgId } = useContext(DataContext);
   const { w } = useWindowSize();
   const mob = w < BP.mobile;
+  const [tab, setTab] = useState("ohmnium");
   const [showInvite, setShowInvite] = useState(false);
+  const [inviteRole, setInviteRole] = useState("engineer");
+  const [inviteOrgId, setInviteOrgId] = useState(null);
+  const [showAddAgency, setShowAddAgency] = useState(false);
+  const [editAgency, setEditAgency] = useState(null);
   const [toast, setToast] = useState(null);
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
   const roleLabel = (r) => ({ admin: "Admin", agent: "Agent", engineer: "Engineer", junior: "Junior Engineer", supervisor: "Supervisor" }[r] || r);
   const roleColor = (r) => ({ admin: C.white, agent: C.accent, engineer: C.green, junior: C.purple, supervisor: C.amber }[r] || C.textMuted);
 
+  // Split members: Ohmnium staff vs agents
+  const ohmniumMembers = engineers.filter(e => e.organisation_id === ohmniumOrgId || ["admin","engineer","junior","supervisor"].includes(e.role));
+  const agentMembers = engineers.filter(e => e.role === "agent");
+
+  // Agency orgs (all except Ohmnium's own)
+  const agencyOrgs = organisations.filter(o => o.id !== ohmniumOrgId);
+
+  const openInviteOhmnium = () => { setInviteRole("engineer"); setInviteOrgId(null); setShowInvite(true); };
+  const openInviteAgent = (orgId) => { setInviteRole("agent"); setInviteOrgId(orgId); setShowInvite(true); };
+
   return (
     <div>
       <Toast message={toast} show={!!toast} />
-      <InviteUserModal open={showInvite} onClose={() => { setShowInvite(false); showToast("Invite sent"); }} />
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
-        <button onClick={() => setShowInvite(true)} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 8, padding: "10px 18px", cursor: "pointer", minHeight: 40 }}>
-          <Icon name="plus" size={14} color={C.white} /> Invite Member
-        </button>
-      </div>
-      <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden" }}>
-        {engineers.length === 0 && (
-          <div style={{ padding: 40, textAlign: "center" }}><span style={{ fontFamily: font, fontSize: 13, color: C.textDim }}>No team members yet — invite your first engineer</span></div>
-        )}
-        {engineers.map((member, i) => (
-          <div key={member.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: i < engineers.length - 1 ? `1px solid ${C.border}` : "none", gap: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <div style={{ width: 40, height: 40, borderRadius: "50%", background: `${roleColor(member.role)}22`, display: "grid", placeItems: "center", flexShrink: 0 }}>
-                <span style={{ fontFamily: font, fontSize: 14, fontWeight: 700, color: roleColor(member.role) }}>{(member.full_name || "?")[0].toUpperCase()}</span>
-              </div>
-              <div>
-                <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{member.full_name}</div>
-                <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 2 }}>{member.email || ""}</div>
-              </div>
-            </div>
-            <span style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: roleColor(member.role), background: `${roleColor(member.role)}18`, padding: "4px 12px", borderRadius: 20, whiteSpace: "nowrap" }}>{roleLabel(member.role)}</span>
-          </div>
+      <InviteUserModal open={showInvite} defaultRole={inviteRole} defaultOrgId={inviteOrgId} onClose={() => { setShowInvite(false); showToast("Invite sent"); }} />
+      <AddAgencyModal open={showAddAgency} onClose={(r) => { setShowAddAgency(false); if (r === "added") showToast("Agency added"); }} />
+      <EditAgencyModal open={!!editAgency} agency={editAgency} onClose={(r) => { setEditAgency(null); if (r === "updated") showToast("Agency updated"); }} />
+
+      {/* Tab bar */}
+      <div style={{ display: "flex", gap: 4, marginBottom: 20, background: C.card, borderRadius: 10, padding: 4, border: `1px solid ${C.border}` }}>
+        {[{ id: "ohmnium", label: "Ohmnium Team" }, { id: "agencies", label: "Client Agencies" }].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: 1, fontFamily: font, fontSize: 13, fontWeight: tab === t.id ? 600 : 400, color: tab === t.id ? C.white : C.textMuted, background: tab === t.id ? C.accent : "transparent", border: "none", borderRadius: 7, padding: "10px 0", cursor: "pointer", minHeight: 40 }}>{t.label}</button>
         ))}
       </div>
+
+      {/* ── Ohmnium Team tab ── */}
+      {tab === "ohmnium" && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
+            <button onClick={openInviteOhmnium} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 8, padding: "10px 18px", cursor: "pointer", minHeight: 40 }}>
+              <Icon name="plus" size={14} color={C.white} /> Invite Team Member
+            </button>
+          </div>
+          <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+            {ohmniumMembers.length === 0 && (
+              <div style={{ padding: 40, textAlign: "center" }}><span style={{ fontFamily: font, fontSize: 13, color: C.textDim }}>No team members yet — invite your first engineer</span></div>
+            )}
+            {ohmniumMembers.map((member, i) => (
+              <div key={member.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: i < ohmniumMembers.length - 1 ? `1px solid ${C.border}` : "none", gap: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: "50%", background: `${roleColor(member.role)}22`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                    <span style={{ fontFamily: font, fontSize: 14, fontWeight: 700, color: roleColor(member.role) }}>{(member.full_name || "?")[0].toUpperCase()}</span>
+                  </div>
+                  <div>
+                    <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{member.full_name}</div>
+                    <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 2 }}>{member.email || ""}</div>
+                  </div>
+                </div>
+                <span style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: roleColor(member.role), background: `${roleColor(member.role)}18`, padding: "4px 12px", borderRadius: 20, whiteSpace: "nowrap" }}>{roleLabel(member.role)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Client Agencies tab ── */}
+      {tab === "agencies" && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
+            <button onClick={() => setShowAddAgency(true)} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 8, padding: "10px 18px", cursor: "pointer", minHeight: 40 }}>
+              <Icon name="plus" size={14} color={C.white} /> Add Agency
+            </button>
+          </div>
+          {agencyOrgs.length === 0 && (
+            <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, padding: 40, textAlign: "center" }}>
+              <Icon name="home" size={36} color={C.textDim} />
+              <div style={{ fontFamily: font, fontSize: 14, color: C.white, fontWeight: 600, marginTop: 16 }}>No client agencies yet</div>
+              <div style={{ fontFamily: font, fontSize: 12, color: C.textDim, marginTop: 6 }}>Add an agency first, then invite their agents.</div>
+            </div>
+          )}
+          {agencyOrgs.map((agency, i) => {
+            const agencyAgents = agentMembers.filter(a => a.organisation_id === agency.id);
+            const isActive = agency.is_active !== false;
+            return (
+              <div key={agency.id} style={{ background: C.card, borderRadius: 14, border: `1px solid ${isActive ? C.border : C.redBorder}`, marginBottom: 12, overflow: "hidden", opacity: isActive ? 1 : 0.7 }}>
+                {/* Agency header */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", gap: 12, flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, minWidth: 0 }}>
+                    <div style={{ width: 42, height: 42, borderRadius: 10, background: isActive ? C.accentGlow : C.redBg, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                      <Icon name="home" size={20} color={isActive ? C.accent : C.red} />
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontFamily: font, fontSize: 14, color: C.white, fontWeight: 600 }}>{agency.name}</span>
+                        <span style={{ fontFamily: font, fontSize: 10, fontWeight: 700, color: isActive ? C.green : C.red, background: isActive ? C.greenBg : C.redBg, border: `1px solid ${isActive ? C.greenBorder : C.redBorder}`, padding: "2px 8px", borderRadius: 10 }}>{isActive ? "ACTIVE" : "INACTIVE"}</span>
+                      </div>
+                      <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 2 }}>
+                        {[agency.contact_email, agency.phone, agency.address].filter(Boolean).join(" · ") || "No contact details"}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                    <button onClick={() => setEditAgency(agency)} style={{ fontFamily: font, fontSize: 11, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>Edit</button>
+                    {isActive && <button onClick={() => openInviteAgent(agency.id)} style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>+ Invite Agent</button>}
+                  </div>
+                </div>
+                {/* Agents in this agency */}
+                {agencyAgents.length > 0 && (
+                  <div style={{ borderTop: `1px solid ${C.border}` }}>
+                    {agencyAgents.map((agent, j) => (
+                      <div key={agent.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 20px 12px 76px", borderBottom: j < agencyAgents.length - 1 ? `1px solid ${C.border}` : "none", gap: 10 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <div style={{ width: 32, height: 32, borderRadius: "50%", background: `${C.accent}22`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                            <span style={{ fontFamily: font, fontSize: 12, fontWeight: 700, color: C.accent }}>{(agent.full_name || "?")[0].toUpperCase()}</span>
+                          </div>
+                          <div>
+                            <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{agent.full_name}</div>
+                            <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 1 }}>{agent.email || ""}</div>
+                          </div>
+                        </div>
+                        <span style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: C.accent, background: `${C.accent}18`, padding: "4px 12px", borderRadius: 20 }}>Agent</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {agencyAgents.length === 0 && isActive && (
+                  <div style={{ borderTop: `1px solid ${C.border}`, padding: "12px 20px 12px 76px" }}>
+                    <span style={{ fontFamily: font, fontSize: 12, color: C.textDim }}>No agents invited yet</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -615,6 +914,8 @@ function MorePage({ setActive, role, onLogout }) {
   const [showEditName, setShowEditName] = useState(false);
   const moreItems = [
     ...(["engineer", "junior", "supervisor"].includes(role) ? [{ id: "eicr", label: "EICR Form", icon: "clipboard", desc: "BS 7671 inspection form" }] : []),
+    ...(["engineer", "junior", "supervisor"].includes(role) ? [{ id: "pat", label: "PAT Testing Form", icon: "zap", desc: "Portable appliance test record" }] : []),
+    ...(["engineer", "junior", "supervisor"].includes(role) ? [{ id: "smoke", label: "Smoke Alarm Form", icon: "alert", desc: "Alarm inspection record" }] : []),
     ...(["supervisor", "admin"].includes(role) ? [{ id: "signoff", label: "Sign-Off Queue", icon: "checkCircle", desc: "Review junior submissions" }] : []),
     { id: "audit", label: "Audit Trail", icon: "activity", desc: "Full activity history" },
     ...(["admin"].includes(role) ? [{ id: "team", label: "Team Management", icon: "user", desc: "Invite engineers and agents" }] : []),
@@ -653,6 +954,8 @@ function Sidebar({ active, setActive, role, userProfile, onLogout }) {
     { id: "properties", label: "Properties", icon: "home" },
     { id: "jobs", label: "Jobs", icon: "briefcase" },
     ...(["engineer", "junior", "supervisor"].includes(role) ? [{ id: "eicr", label: "EICR Form", icon: "clipboard" }] : []),
+    ...(["engineer", "junior", "supervisor"].includes(role) ? [{ id: "pat", label: "PAT Form", icon: "zap" }] : []),
+    ...(["engineer", "junior", "supervisor"].includes(role) ? [{ id: "smoke", label: "Smoke Form", icon: "alert" }] : []),
     ...(["supervisor", "admin"].includes(role) ? [{ id: "signoff", label: "Sign-Off Queue", icon: "checkCircle" }] : []),
     { id: "documents", label: "Documents", icon: "file" },
     { id: "audit", label: "Audit Trail", icon: "activity" },
@@ -681,7 +984,7 @@ function Sidebar({ active, setActive, role, userProfile, onLogout }) {
       <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}` }}>
         <button onClick={onLogout} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.card, display: "grid", placeItems: "center" }}><Icon name="logout" size={16} color={C.textMuted} /></div>
-          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v15.0 — Supabase</div></div>
+          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v18.0 — Supabase</div></div>
         </button>
       </div>
     </div>
@@ -1030,7 +1333,7 @@ function AddPropertyModal({ open, onClose }) {
 }
 
 function PropertiesPage({ onRequestJob, onSelectProperty }) {
-  const { properties, loading } = useContext(DataContext);
+  const { properties, loading, organisations } = useContext(DataContext);
   const auth = useContext(AuthContext);
   const { w } = useWindowSize();
   const mob = w < BP.mobile;
@@ -1039,14 +1342,17 @@ function PropertiesPage({ onRequestJob, onSelectProperty }) {
   const [showAdd, setShowAdd] = useState(false);
   const [showCSV, setShowCSV] = useState(false);
   const [toast, setToast] = useState(null);
+  const [agencyFilter, setAgencyFilter] = useState("all");
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
   const role = auth.role;
 
+  const activeAgencies = organisations.filter(o => o.is_active !== false);
   const statusOrder = { red: 0, amber: 1, green: 2 };
 
   const filtered = properties.filter(p => {
     const st = overallStatus(p);
     if (filter !== "all" && st !== filter) return false;
+    if (role === "admin" && agencyFilter !== "all" && p.agency_id !== agencyFilter) return false;
     if (search && !p.address.toLowerCase().includes(search.toLowerCase()) && !(p.tenant_name || "").toLowerCase().includes(search.toLowerCase()) && !(p.ref || "").toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   }).sort((a, b) => {
@@ -1068,8 +1374,14 @@ function PropertiesPage({ onRequestJob, onSelectProperty }) {
       <AddPropertyModal open={showAdd} onClose={(r) => { setShowAdd(false); if (r === "added") showToast("Property added"); }} />
       <CSVImportModal open={showCSV} onClose={(r) => { setShowCSV(false); if (r === "imported") showToast("Import complete"); }} />
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
-        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
           {[{ id: "all", label: "All" }, { id: "green", label: "OK" }, { id: "amber", label: "Soon" }, { id: "red", label: "Overdue" }].map(f => (<button key={f.id} onClick={() => setFilter(f.id)} style={{ fontFamily: font, fontSize: 11, fontWeight: filter === f.id ? 600 : 400, color: filter === f.id ? C.white : C.textMuted, background: filter === f.id ? (f.id === "all" ? C.accent : statusColor(f.id)) : C.card, border: `1px solid ${filter === f.id ? "transparent" : C.border}`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>{f.label}</button>))}
+          {role === "admin" && activeAgencies.length > 0 && (
+            <select value={agencyFilter} onChange={e => setAgencyFilter(e.target.value)} style={{ fontFamily: font, fontSize: 11, color: agencyFilter !== "all" ? C.purple : C.textMuted, background: agencyFilter !== "all" ? `${C.purple}18` : C.card, border: `1px solid ${agencyFilter !== "all" ? C.purple : C.border}`, borderRadius: 8, padding: "8px 12px", cursor: "pointer", minHeight: 36, outline: "none" }}>
+              <option value="all">All Agencies</option>
+              {activeAgencies.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          )}
         </div>
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
           {[{ id: "ref", label: "Default" }, { id: "status", label: "Status" }, { id: "expiry", label: "Expiry" }, { id: "tenant", label: "A–Z" }].map(s => (<button key={s.id} onClick={() => setSort(s.id)} style={{ fontFamily: font, fontSize: 11, fontWeight: sort === s.id ? 600 : 400, color: sort === s.id ? C.accent : C.textMuted, background: "transparent", border: `1px solid ${sort === s.id ? C.accent : "transparent"}`, borderRadius: 8, padding: "8px 10px", cursor: "pointer", minHeight: 36 }}>{s.label}</button>))}
@@ -1101,6 +1413,7 @@ function PropertiesPage({ onRequestJob, onSelectProperty }) {
                 <div>
                   <div style={{ fontFamily: font, fontSize: 12, color: C.textMuted }}>{p.tenant_name}</div>
                   <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 2 }}>Exp: {formatDate(p.expiry_date)} · {p.ref}</div>
+                  {role === "admin" && (() => { const agency = organisations.find(o => o.id === p.agency_id); return agency ? <span style={{ fontFamily: font, fontSize: 10, fontWeight: 600, color: C.purple, background: `${C.purple}18`, border: `1px solid ${C.purple}30`, borderRadius: 6, padding: "2px 8px", display: "inline-block", marginTop: 4 }}>{agency.name}</span> : null; })()}
                 </div>
                 <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>
                   {["agent", "admin"].includes(role) && (
@@ -1121,22 +1434,26 @@ function PropertiesPage({ onRequestJob, onSelectProperty }) {
 // JOBS PAGE
 // ─────────────────────────────────────────────
 function JobsPage({ onNavigateEicr }) {
-  const { jobs, properties, engineers, updateJob, addJob, addAudit } = useContext(DataContext);
+  const { jobs, properties, engineers, updateJob, addJob, addAudit, organisations } = useContext(DataContext);
   const auth = useContext(AuthContext);
   const { w } = useWindowSize();
   const mob = w < BP.mobile;
   const role = auth.role;
   const [sf, setSf] = useState("all");
   const [search, setSearch] = useState("");
+  const [agencyFilter, setAgencyFilter] = useState("all");
   const [assignModal, setAssignModal] = useState(null);
   const [editModal, setEditModal] = useState(null);
   const [toast, setToast] = useState(null);
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
+  const activeAgencies = organisations.filter(o => o.is_active !== false);
+
   const filtered = jobs.filter(j => {
     if (sf === "all" && j.status === "Cancelled") return false;
     if (sf !== "all" && j.status !== sf) return false;
     if (["engineer", "junior"].includes(role)) return j.engineer_id === auth.id;
+    if (role === "admin" && agencyFilter !== "all" && j.organisation_id !== agencyFilter) return false;
     if (search) {
       const prop = properties.find(p => p.id === j.property_id);
       const q = search.toLowerCase();
@@ -1170,6 +1487,12 @@ function JobsPage({ onNavigateEicr }) {
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search jobs…" style={{ fontFamily: font, fontSize: 12, color: C.text, background: "transparent", border: "none", outline: "none", width: "100%", minHeight: 28 }} />
           </div>
         )}
+        {role === "admin" && activeAgencies.length > 0 && (
+          <select value={agencyFilter} onChange={e => setAgencyFilter(e.target.value)} style={{ fontFamily: font, fontSize: 11, color: agencyFilter !== "all" ? C.purple : C.textMuted, background: agencyFilter !== "all" ? `${C.purple}18` : C.card, border: `1px solid ${agencyFilter !== "all" ? C.purple : C.border}`, borderRadius: 8, padding: "8px 12px", cursor: "pointer", minHeight: 36, outline: "none" }}>
+            <option value="all">All Agencies</option>
+            {activeAgencies.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+        )}
       </div>
       {filtered.map(job => {
         const prop = properties.find(pp => pp.id === job.property_id);
@@ -1181,10 +1504,11 @@ function JobsPage({ onNavigateEicr }) {
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ fontFamily: font, fontSize: 14, color: C.white, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 8 }}>{job.type} — {prop?.address?.split(",")[0] || "—"}{job.type === "EICR" && <span style={{ fontFamily: font, fontSize: 9, fontWeight: 700, color: C.accent, background: C.accentGlow, padding: "2px 8px", borderRadius: 4, letterSpacing: 0.5, textTransform: "uppercase", flexShrink: 0 }}>Form Required</span>}</div>
                 <div style={{ fontFamily: font, fontSize: 12, color: C.textMuted, marginTop: 3 }}>{job.notes || "No notes"}</div>
-                <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 4, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 4, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
                   <span>{eng?.full_name || "Unassigned"}</span>
                   <span>{job.scheduled_date ? formatDate(job.scheduled_date) : "Not scheduled"}</span>
                   <span>{job.ref}</span>
+                  {role === "admin" && (() => { const agency = organisations.find(o => o.id === job.organisation_id); return agency ? <span style={{ fontFamily: font, fontSize: 10, fontWeight: 600, color: C.purple, background: `${C.purple}18`, border: `1px solid ${C.purple}30`, borderRadius: 6, padding: "2px 8px" }}>{agency.name}</span> : null; })()}
                 </div>
               </div>
             </div>
@@ -1746,6 +2070,12 @@ function EICRPage() {
 
   const set = (key, val) => setForm(prev => ({ ...prev, [key]: val }));
 
+  const blankCircuit = () => ({ ref: "", description: "", deviceType: "", rating: "", rcd: "N", zs: "", result: "Pass" });
+  const [circuits, setCircuits] = useState([blankCircuit()]);
+  const addCircuit = () => setCircuits(prev => [...prev, blankCircuit()]);
+  const removeCircuit = (i) => setCircuits(prev => prev.filter((_, idx) => idx !== i));
+  const setCircuit = (i, field, val) => setCircuits(prev => prev.map((c, idx) => idx === i ? { ...c, [field]: val } : c));
+
   const selectedJob = myJobs.find(j => j.id === selectedJobId);
   const selectedProp = selectedJob ? properties.find(p => p.id === selectedJob.property_id) : null;
 
@@ -1756,17 +2086,20 @@ function EICRPage() {
     const prop = job ? properties.find(p => p.id === job.property_id) : null;
     // If a rejected or draft EICR exists, restore the full form
     if (job?.eicr_data && (job.eicr_data.isDraft || job.eicr_data.rejectionReason)) {
-      const { isDraft, submittedAt, submittedBy, rejectionReason, rejectedBy, rejectedAt, ...savedFields } = job.eicr_data;
+      const { isDraft, submittedAt, submittedBy, rejectionReason, rejectedBy, rejectedAt, circuits: savedCircuits, ...savedFields } = job.eicr_data;
       setForm(prev => ({ ...prev, ...savedFields }));
+      if (savedCircuits && savedCircuits.length > 0) setCircuits(savedCircuits);
+      else setCircuits([blankCircuit()]);
     } else {
       if (prop) setForm(prev => ({ ...prev, clientAddress: prop.address, clientName: prop.tenant_name || "" }));
+      setCircuits([blankCircuit()]);
     }
   };
 
   const submit = async (asDraft = false) => {
     if (!selectedJobId) { showToast("Please select a job first", "error"); return; }
     setSaving(true);
-    const eicrData = { ...form, submittedAt: new Date().toISOString(), submittedBy: auth.id, isDraft: asDraft };
+    const eicrData = { ...form, circuits, submittedAt: new Date().toISOString(), submittedBy: auth.id, isDraft: asDraft };
     const newStatus = asDraft ? "In Progress" : (auth.role === "junior" ? "Awaiting Sign-Off" : "Completed");
     await updateJob(selectedJobId, { status: newStatus, eicrData });
     await addAudit({ action: `EICR ${asDraft ? "draft saved" : auth.role === "junior" ? "submitted for sign-off" : "completed"} — ${selectedProp?.address?.split(",")[0]} — Outcome: ${form.outcome}` });
@@ -1775,11 +2108,35 @@ function EICRPage() {
     if (!asDraft) setSelectedJobId("");
   };
 
-  const Field = ({ label, value, onChange, type = "text", placeholder = "", half = false }) => (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4, gridColumn: half && !mob ? "auto" : "auto" }}>
+  const inputBase = { fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, width: "100%", boxSizing: "border-box" };
+
+  const Field = ({ label, value, onChange, type = "text", placeholder = "", hint = "" }) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</label>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40 }} />
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={inputBase} />
+      {hint && <span style={{ fontFamily: font, fontSize: 10, color: C.textDim, lineHeight: 1.4 }}>{hint}</span>}
+    </div>
+  );
+
+  const DropField = ({ label, value, onChange, options, hint = "" }) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</label>
+      <select value={value} onChange={e => onChange(e.target.value)} style={{ ...inputBase, appearance: "none", WebkitAppearance: "none", backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", paddingRight: 32 }}>
+        {options.map(o => <option key={o} value={o}>{o || "— Select —"}</option>)}
+      </select>
+      {hint && <span style={{ fontFamily: font, fontSize: 10, color: C.textDim, lineHeight: 1.4 }}>{hint}</span>}
+    </div>
+  );
+
+  const FreeField = ({ label, value, onChange, placeholder = "", rows = 3, hint = "" }) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4, gridColumn: "1 / -1" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</label>
+        <span style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 700, color: C.amber, background: `${C.amber}20`, border: `1px solid ${C.amber}40`, borderRadius: 4, padding: "1px 6px" }}>FREE TEXT</span>
+      </div>
+      <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={rows}
+        style={{ ...inputBase, minHeight: rows * 26, resize: "vertical" }} />
+      {hint && <span style={{ fontFamily: font, fontSize: 10, color: C.textDim, lineHeight: 1.4 }}>{hint}</span>}
     </div>
   );
 
@@ -1824,56 +2181,128 @@ function EICRPage() {
       </div>
 
       <Section title="Section A — Details of the Client and Installation">
-        <Field label="Client / Occupier Name" value={form.clientName} onChange={v => set("clientName", v)} />
-        <Field label="Purpose of Report" value={form.purpose} onChange={v => set("purpose", v)} />
+        <Field label="Client / Occupier Name" value={form.clientName} onChange={v => set("clientName", v)} hint="The name of the tenant or property owner who occupies the installation." />
+        <DropField label="Purpose of Report" value={form.purpose} onChange={v => set("purpose", v)} hint="Select the reason this EICR is being carried out."
+          options={["", "Periodic", "On Completion of New Installation", "Change of Occupancy", "Further Investigation", "Routine Check", "Other"]} />
         <div style={{ gridColumn: "1 / -1" }}>
-          <Field label="Address of Installation" value={form.clientAddress} onChange={v => set("clientAddress", v)} placeholder="Full installation address" />
+          <Field label="Address of Installation" value={form.clientAddress} onChange={v => set("clientAddress", v)} placeholder="Full installation address" hint="Pre-filled from the property record. Edit if the inspection address differs." />
         </div>
-        <Field label="Description of Premises" value={form.description} onChange={v => set("description", v)} placeholder="e.g. Residential flat" />
-        <Field label="Estimated Age of Installation" value={form.estimatedAge} onChange={v => set("estimatedAge", v)} placeholder="e.g. 15 years" />
-        <Field label="Evidence of Additions or Alterations" value={form.alterations} onChange={v => set("alterations", v)} placeholder="Yes / No / Unknown" />
-        <Field label="Date of Last Inspection" value={form.lastInspectionDate} onChange={v => set("lastInspectionDate", v)} type="date" />
+        <DropField label="Description of Premises" value={form.description} onChange={v => set("description", v)} hint="Select the type of property. Choose 'Other' if none match."
+          options={["", "Residential flat", "Residential house — mid-terrace", "Residential house — semi-detached", "Residential house — detached", "HMO", "Commercial premises", "Industrial premises", "Mixed use", "Other"]} />
+        <Field label="Estimated Age of Installation" value={form.estimatedAge} onChange={v => set("estimatedAge", v)} placeholder="e.g. 15 years" hint="Approximate age of the fixed wiring in years. Check the consumer unit date stamp or ask the occupier." />
+        <DropField label="Evidence of Additions or Alterations" value={form.alterations} onChange={v => set("alterations", v)} hint="Has the installation been modified since it was first installed? Check for mismatched cables or non-standard circuits."
+          options={["", "Yes", "No", "Unknown"]} />
+        <Field label="Date of Last Inspection" value={form.lastInspectionDate} onChange={v => set("lastInspectionDate", v)} type="date" hint="The date on any existing EICR certificate, or the sticker on the consumer unit." />
       </Section>
 
       <Section title="Section B — Extent and Limitations">
-        <div style={{ gridColumn: "1 / -1" }}>
-          <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Extent of Inspection</label>
-          <textarea value={form.extent} onChange={e => set("extent", e.target.value)}
-            style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", outline: "none", minHeight: 80, resize: "vertical", width: "100%", marginTop: 4, boxSizing: "border-box" }} />
-        </div>
-        <div style={{ gridColumn: "1 / -1" }}>
-          <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Limitations</label>
-          <textarea value={form.limitations || ""} onChange={e => set("limitations", e.target.value)} placeholder="Record any limitations to the inspection…"
-            style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", outline: "none", minHeight: 80, resize: "vertical", width: "100%", marginTop: 4, boxSizing: "border-box" }} />
-        </div>
+        <FreeField label="Extent of Inspection" value={form.extent} onChange={v => set("extent", v)} rows={3} hint="Describe what was inspected. The default text covers the full installation — edit if partial only." />
+        <FreeField label="Limitations" value={form.limitations || ""} onChange={v => set("limitations", v)} placeholder="Record any limitations to the inspection…" rows={3} hint="Record anything that prevented a full inspection. Leave blank if none." />
       </Section>
 
       <Section title="Section C — Supply Characteristics">
-        <Field label="Nominal Voltage (V)" value={form.supplyVoltage} onChange={v => set("supplyVoltage", v)} placeholder="230" />
-        <Field label="Frequency (Hz)" value={form.frequency} onChange={v => set("frequency", v)} placeholder="50" />
-        <Field label="Type of Earthing System" value={form.typeOfEarthingSystem} onChange={v => set("typeOfEarthingSystem", v)} placeholder="TN-S / TN-C-S / TT" />
-        <Field label="Earth Fault Loop Impedance Ze (Ω)" value={form.earthFaultLoop} onChange={v => set("earthFaultLoop", v)} placeholder="e.g. 0.35" />
-        <Field label="Prospective Short-Circuit Current (kA)" value={form.prospectiveFaultCurrent} onChange={v => set("prospectiveFaultCurrent", v)} placeholder="e.g. 0.8" />
-        <Field label="Max Demand (A)" value={form.maxDemand} onChange={v => set("maxDemand", v)} placeholder="e.g. 60" />
+        <DropField label="Nominal Voltage (V)" value={form.supplyVoltage} onChange={v => set("supplyVoltage", v)} hint="Standard UK single-phase supply is 230V. Three-phase is 400V."
+          options={["230", "400", "110", "Other"]} />
+        <DropField label="Frequency (Hz)" value={form.frequency} onChange={v => set("frequency", v)} hint="UK standard is 50Hz."
+          options={["50", "60"]} />
+        <DropField label="Type of Earthing System" value={form.typeOfEarthingSystem} onChange={v => set("typeOfEarthingSystem", v)} hint="TN-C-S (PME) is most common in UK domestic. TT is common in rural properties. Check the meter tails."
+          options={["", "TN-S", "TN-C-S (PME)", "TT", "IT", "Unknown"]} />
+        <Field label="Earth Fault Loop Impedance Ze (Ω)" value={form.earthFaultLoop} onChange={v => set("earthFaultLoop", v)} placeholder="e.g. 0.35" hint="Measure at the origin (main terminals). Typical TN-C-S: 0.20–0.35Ω. TT: 21–200Ω." />
+        <Field label="Prospective Short-Circuit Current (kA)" value={form.prospectiveFaultCurrent} onChange={v => set("prospectiveFaultCurrent", v)} placeholder="e.g. 0.8" hint="Measured or calculated at the origin. Most domestic: 0.5–3kA." />
+        <Field label="Max Demand (A)" value={form.maxDemand} onChange={v => set("maxDemand", v)} placeholder="e.g. 60" hint="Estimated maximum current demand. Typical domestic: 40–100A." />
       </Section>
 
       <Section title="Section D — Distribution Board">
-        <Field label="Consumer Unit / DB Make" value={form.dbMake} onChange={v => set("dbMake", v)} placeholder="e.g. Hager, Schneider" />
-        <Field label="Location" value={form.dbLocation} onChange={v => set("dbLocation", v)} placeholder="e.g. Under stair cupboard" />
-        <Field label="Type" value={form.dbType} onChange={v => set("dbType", v)} placeholder="e.g. Split load, dual RCD" />
-        <Field label="Number of Circuits" value={form.numberOfCircuits} onChange={v => set("numberOfCircuits", v)} placeholder="e.g. 12" />
-        <Field label="Main Switch Rating (A)" value={form.mainSwitchRating} onChange={v => set("mainSwitchRating", v)} placeholder="e.g. 100" />
-        <Field label="Main Switch Type" value={form.mainSwitchType} onChange={v => set("mainSwitchType", v)} placeholder="e.g. DP isolator" />
-        <Field label="RCD Type" value={form.rcdType} onChange={v => set("rcdType", v)} placeholder="e.g. Type A, RCBO" />
-        <Field label="RCD Rating (mA)" value={form.rcdRating} onChange={v => set("rcdRating", v)} placeholder="e.g. 30" />
-        <Field label="RCD Trip Time (ms)" value={form.rcdTripTime} onChange={v => set("rcdTripTime", v)} placeholder="e.g. 28" />
+        <DropField label="Consumer Unit / DB Make" value={form.dbMake} onChange={v => set("dbMake", v)} hint="Check the brand marked on the consumer unit door."
+          options={["", "Hager", "Schneider / Merlin Gerin", "Wylex", "MK Electric", "ABB", "Legrand", "Eaton / MEM", "Crabtree", "BG Electrical", "Contactum", "Unknown", "Other"]} />
+        <Field label="Location" value={form.dbLocation} onChange={v => set("dbLocation", v)} placeholder="e.g. Under stair cupboard" hint="Where the consumer unit is physically located in the property." />
+        <DropField label="Consumer Unit Type" value={form.dbType} onChange={v => set("dbType", v)} hint="Select the type that best describes the consumer unit configuration."
+          options={["", "Split load — dual RCD", "High integrity — dual RCD + RCBOs", "RCBO throughout", "Single RCD", "Rewireable fuse board", "Cartridge fuse board", "Other"]} />
+        <Field label="Number of Circuits" value={form.numberOfCircuits} onChange={v => set("numberOfCircuits", v)} placeholder="e.g. 12" hint="Count each way in the consumer unit including spare ways." />
+        <Field label="Main Switch Rating (A)" value={form.mainSwitchRating} onChange={v => set("mainSwitchRating", v)} placeholder="e.g. 100" hint="The ampere rating on the main switch. Typical: 60A, 80A, or 100A." />
+        <DropField label="Main Switch Type" value={form.mainSwitchType} onChange={v => set("mainSwitchType", v)} hint=""
+          options={["", "DP isolator", "DP MCB", "DP RCD", "SP isolator", "Other"]} />
+        <DropField label="RCD Type" value={form.rcdType} onChange={v => set("rcdType", v)} hint=""
+          options={["", "Type AC", "Type A", "Type B", "Type F", "RCBO (Type AC)", "RCBO (Type A)", "No RCD fitted", "Other"]} />
+        <DropField label="RCD Rating (mA)" value={form.rcdRating} onChange={v => set("rcdRating", v)} hint=""
+          options={["", "10", "30", "100", "300", "500"]} />
+        <Field label="RCD Trip Time (ms)" value={form.rcdTripTime} onChange={v => set("rcdTripTime", v)} placeholder="e.g. 28" hint="Measured trip time. Must be ≤300ms for 30mA RCDs (BS 7671 requires ≤40ms at I∆n)." />
+
+        {/* Circuit Schedule */}
+        <div style={{ gridColumn: "1 / -1", marginTop: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <div>
+              <div style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.white }}>Circuit Schedule</div>
+              <div style={{ fontFamily: font, fontSize: 10, color: C.textDim, marginTop: 2 }}>Record each circuit in the consumer unit. Add a row per way.</div>
+            </div>
+            <button onClick={addCircuit} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: font, fontSize: 11, fontWeight: 600, color: C.accent, background: C.accentGlow, border: `1px solid rgba(59,130,246,.25)`, borderRadius: 8, padding: "7px 12px", cursor: "pointer", minHeight: 34, whiteSpace: "nowrap" }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Circuit
+            </button>
+          </div>
+          <div style={{ overflowX: "auto", borderRadius: 10, border: `1px solid ${C.border}` }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 640 }}>
+              <thead>
+                <tr style={{ background: C.surfaceAlt }}>
+                  {["Circuit Ref", "Description", "Device Type", "Rating (A)", "RCD", "Zs (Ω)", "Result", ""].map((h, i) => (
+                    <th key={i} style={{ fontFamily: font, fontSize: 9, fontWeight: 700, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, padding: "9px 10px", textAlign: "left", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {circuits.map((c, i) => (
+                  <tr key={i} style={{ borderBottom: i < circuits.length - 1 ? `1px solid ${C.border}` : "none", background: i % 2 === 0 ? "transparent" : `${C.surface}60` }}>
+                    <td style={{ padding: "6px 8px" }}>
+                      <input value={c.ref} onChange={e => setCircuit(i, "ref", e.target.value)} placeholder={`C${i + 1}`} style={{ fontFamily: fontMono, fontSize: 12, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "5px 8px", outline: "none", width: 48 }} />
+                    </td>
+                    <td style={{ padding: "6px 8px" }}>
+                      <input value={c.description} onChange={e => setCircuit(i, "description", e.target.value)} placeholder="e.g. Upstairs sockets" style={{ fontFamily: font, fontSize: 12, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "5px 8px", outline: "none", width: "100%", minWidth: 120 }} />
+                    </td>
+                    <td style={{ padding: "6px 8px" }}>
+                      <select value={c.deviceType} onChange={e => setCircuit(i, "deviceType", e.target.value)} style={{ fontFamily: font, fontSize: 11, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "5px 8px", outline: "none", minWidth: 80 }}>
+                        {["", "MCB", "RCBO", "RCD", "Fuse"].map(o => <option key={o} value={o}>{o || "—"}</option>)}
+                      </select>
+                    </td>
+                    <td style={{ padding: "6px 8px" }}>
+                      <input value={c.rating} onChange={e => setCircuit(i, "rating", e.target.value)} placeholder="e.g. 32" style={{ fontFamily: fontMono, fontSize: 12, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "5px 8px", outline: "none", width: 52 }} />
+                    </td>
+                    <td style={{ padding: "6px 8px" }}>
+                      <select value={c.rcd} onChange={e => setCircuit(i, "rcd", e.target.value)} style={{ fontFamily: font, fontSize: 11, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "5px 8px", outline: "none" }}>
+                        <option value="Y">Y</option>
+                        <option value="N">N</option>
+                      </select>
+                    </td>
+                    <td style={{ padding: "6px 8px" }}>
+                      <input value={c.zs} onChange={e => setCircuit(i, "zs", e.target.value)} placeholder="e.g. 0.48" style={{ fontFamily: fontMono, fontSize: 12, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "5px 8px", outline: "none", width: 64 }} />
+                    </td>
+                    <td style={{ padding: "6px 8px" }}>
+                      <select value={c.result} onChange={e => setCircuit(i, "result", e.target.value)} style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: c.result === "Pass" ? C.green : c.result === "Fail" ? C.red : C.amber, background: c.result === "Pass" ? C.greenBg : c.result === "Fail" ? C.redBg : C.amberBg, border: `1px solid ${c.result === "Pass" ? C.green : c.result === "Fail" ? C.red : C.amber}30`, borderRadius: 6, padding: "5px 8px", outline: "none" }}>
+                        <option value="Pass">Pass</option>
+                        <option value="Fail">Fail</option>
+                        <option value="N/T">N/T</option>
+                      </select>
+                    </td>
+                    <td style={{ padding: "6px 8px", textAlign: "center" }}>
+                      {circuits.length > 1 && (
+                        <button onClick={() => removeCircuit(i)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textDim, padding: 4, display: "flex", alignItems: "center" }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ fontFamily: font, fontSize: 10, color: C.textDim, marginTop: 6 }}>N/T = Not Tested. Zs = measured earth fault loop impedance at the furthest point of the circuit.</div>
+        </div>
       </Section>
 
       <Section title="Section E — Inspection Dates">
-        <Field label="Inspector Name" value={form.inspector} onChange={v => set("inspector", v)} />
-        <Field label="Employer / Company" value={form.company} onChange={v => set("company", v)} placeholder="Ohmnium Electrical" />
-        <Field label="Inspection Start Date" value={form.startDate} onChange={v => set("startDate", v)} type="date" />
-        <Field label="Inspection End Date" value={form.endDate} onChange={v => set("endDate", v)} type="date" />
+        <Field label="Inspector Name" value={form.inspector} onChange={v => set("inspector", v)} hint="Pre-filled from your profile." />
+        <Field label="Employer / Company" value={form.company} onChange={v => set("company", v)} placeholder="Ohmnium Electrical" hint="Pre-filled as Ohmnium Electrical." />
+        <Field label="Inspection Start Date" value={form.startDate} onChange={v => set("startDate", v)} type="date" hint="Usually the same day for domestic properties." />
+        <Field label="Inspection End Date" value={form.endDate} onChange={v => set("endDate", v)} type="date" hint="Usually the same day for domestic properties." />
       </Section>
 
       <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
@@ -2048,6 +2477,426 @@ function EICRPage() {
 }
 
 // ─────────────────────────────────────────────
+// PAT TESTING PAGE
+// ─────────────────────────────────────────────
+function PATPage() {
+  const { jobs, properties, updateJob, addAudit, fetchAll } = useContext(DataContext);
+  const auth = useContext(AuthContext);
+  const mob = useMobile();
+  const [selectedJobId, setSelectedJobId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState(null);
+  const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
+
+  const myJobs = jobs.filter(j =>
+    ["Scheduled", "In Progress"].includes(j.status) &&
+    ["PAT"].includes(j.type) &&
+    (auth.role === "engineer" || auth.role === "junior" ? j.engineer_id === auth.id : true)
+  );
+  const selectedJob = jobs.find(j => j.id === selectedJobId);
+  const selectedProp = selectedJob ? properties.find(p => p.id === selectedJob.property_id) : null;
+
+  const blankAppliance = () => ({
+    id: Date.now() + Math.random(),
+    description: "", makeModel: "", assetNumber: "", location: "",
+    cableCondition: "", plugCondition: "", fuseRatingCorrect: "", physicalDamage: "",
+    earthContinuity: "", earthContinuityOhm: "", insulationResistance: "", insulationResistanceMOhm: "", polarityCheck: "",
+    result: "", notes: ""
+  });
+
+  const [appliances, setAppliances] = useState([blankAppliance()]);
+  const [testedBy, setTestedBy] = useState("");
+  const [testDate, setTestDate] = useState(new Date().toISOString().slice(0, 10));
+  const [overallResult, setOverallResult] = useState("");
+
+  const handleJobSelect = (id) => {
+    setSelectedJobId(id);
+    const job = jobs.find(j => j.id === id);
+    if (job?.eicr_data?.pat_data) {
+      const d = job.eicr_data.pat_data;
+      setAppliances(d.appliances || [blankAppliance()]);
+      setTestedBy(d.testedBy || auth.fullName || "");
+      setTestDate(d.testDate || new Date().toISOString().slice(0, 10));
+      setOverallResult(d.overallResult || "");
+    } else {
+      setAppliances([blankAppliance()]);
+      setTestedBy(auth.fullName || "");
+      setTestDate(new Date().toISOString().slice(0, 10));
+      setOverallResult("");
+    }
+  };
+
+  const updateAppliance = (id, field, value) => {
+    setAppliances(prev => prev.map(a => a.id === id ? { ...a, [field]: value } : a));
+  };
+  const addAppliance = () => setAppliances(prev => [...prev, blankAppliance()]);
+  const removeAppliance = (id) => setAppliances(prev => prev.filter(a => a.id !== id));
+
+  const submit = async (asDraft = false) => {
+    if (!selectedJobId) { showToast("Please select a job first", "error"); return; }
+    setSaving(true);
+    const pat_data = { appliances, testedBy, testDate, overallResult, isDraft: asDraft, submittedAt: new Date().toISOString() };
+    const newStatus = asDraft ? "In Progress" : (auth.role === "junior" ? "Awaiting Sign-Off" : "Completed");
+    await updateJob(selectedJobId, { status: newStatus, eicrData: { pat_data } });
+    await addAudit({ action: `PAT ${asDraft ? "draft saved" : auth.role === "junior" ? "submitted for sign-off" : "completed"} — ${selectedProp?.address?.split(",")[0]} — ${appliances.length} appliance(s) — ${overallResult}` });
+    showToast(asDraft ? "Draft saved" : auth.role === "junior" ? "Submitted for Supervisor sign-off" : "PAT record completed");
+    setSaving(false);
+    if (!asDraft) setSelectedJobId("");
+    await fetchAll();
+  };
+
+  const inputBase = { fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", width: "100%", boxSizing: "border-box", minHeight: 38 };
+  const selBase = { ...inputBase, appearance: "none", WebkitAppearance: "none", backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: 28 };
+
+  const F = ({ label, value, onChange, placeholder = "" }) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+      <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</label>
+      <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={inputBase} />
+    </div>
+  );
+  const D = ({ label, value, onChange, options }) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+      <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</label>
+      <select value={value} onChange={e => onChange(e.target.value)} style={selBase}>
+        {options.map(o => <option key={o} value={o}>{o || "— Select —"}</option>)}
+      </select>
+    </div>
+  );
+
+  return (
+    <div>
+      {toast && <Toast message={toast.msg} type={toast.type} show />}
+
+      {/* Job selector */}
+      <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
+        <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, margin: "0 0 16px", textTransform: "uppercase", letterSpacing: 0.5 }}>Select PAT Job</h4>
+        {myJobs.length === 0 ? (
+          <div style={{ fontFamily: font, fontSize: 13, color: C.textDim }}>No active PAT jobs assigned to you.</div>
+        ) : (
+          <Select label="Job" value={selectedJobId} onChange={handleJobSelect}
+            options={[{ value: "", label: "— Select a job —" }, ...myJobs.map(j => {
+              const p = properties.find(pp => pp.id === j.property_id);
+              return { value: j.id, label: `${j.ref} · PAT — ${p?.address?.split(",")[0] || "Unknown"}` };
+            })]} />
+        )}
+      </div>
+
+      {/* Appliances */}
+      {selectedJobId && (
+        <>
+          {appliances.map((app, idx) => (
+            <div key={app.id} style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, margin: 0, textTransform: "uppercase", letterSpacing: 0.5 }}>Appliance {idx + 1}</h4>
+                {appliances.length > 1 && (
+                  <button onClick={() => removeAppliance(app.id)} style={{ fontFamily: font, fontSize: 11, color: C.red, background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 8, padding: "4px 12px", cursor: "pointer" }}>Remove</button>
+                )}
+              </div>
+
+              {/* Details */}
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontFamily: font, fontSize: 10, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Appliance Details</div>
+                <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap: 10 }}>
+                  <F label="Description" value={app.description} onChange={v => updateAppliance(app.id, "description", v)} placeholder="e.g. Kettle, Toaster, Lamp" />
+                  <F label="Make / Model" value={app.makeModel} onChange={v => updateAppliance(app.id, "makeModel", v)} placeholder="e.g. Breville VKJ318" />
+                  <F label="Asset Number" value={app.assetNumber} onChange={v => updateAppliance(app.id, "assetNumber", v)} placeholder="e.g. PAT-001" />
+                  <F label="Location in Property" value={app.location} onChange={v => updateAppliance(app.id, "location", v)} placeholder="e.g. Kitchen" />
+                </div>
+              </div>
+
+              {/* Visual inspection */}
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontFamily: font, fontSize: 10, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Visual Inspection</div>
+                <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap: 10 }}>
+                  <D label="Cable Condition" value={app.cableCondition} onChange={v => updateAppliance(app.id, "cableCondition", v)} options={["", "Pass", "Fail"]} />
+                  <D label="Plug Condition" value={app.plugCondition} onChange={v => updateAppliance(app.id, "plugCondition", v)} options={["", "Pass", "Fail"]} />
+                  <D label="Fuse Rating Correct" value={app.fuseRatingCorrect} onChange={v => updateAppliance(app.id, "fuseRatingCorrect", v)} options={["", "Yes", "No"]} />
+                  <D label="Physical Damage" value={app.physicalDamage} onChange={v => updateAppliance(app.id, "physicalDamage", v)} options={["", "None", "Present"]} />
+                </div>
+              </div>
+
+              {/* Electrical tests */}
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontFamily: font, fontSize: 10, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Electrical Tests</div>
+                <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr 1fr 1fr 1fr", gap: 10 }}>
+                  <D label="Earth Continuity" value={app.earthContinuity} onChange={v => updateAppliance(app.id, "earthContinuity", v)} options={["", "Pass", "Fail"]} />
+                  <F label="Measured (Ω)" value={app.earthContinuityOhm} onChange={v => updateAppliance(app.id, "earthContinuityOhm", v)} placeholder="e.g. 0.08" />
+                  <D label="Insulation Resistance" value={app.insulationResistance} onChange={v => updateAppliance(app.id, "insulationResistance", v)} options={["", "Pass", "Fail"]} />
+                  <F label="Measured (MΩ)" value={app.insulationResistanceMOhm} onChange={v => updateAppliance(app.id, "insulationResistanceMOhm", v)} placeholder="e.g. 2.5" />
+                  <D label="Polarity Check" value={app.polarityCheck} onChange={v => updateAppliance(app.id, "polarityCheck", v)} options={["", "Pass", "Fail"]} />
+                </div>
+              </div>
+
+              {/* Result */}
+              <div>
+                <div style={{ fontFamily: font, fontSize: 10, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Appliance Result</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+                  {["Pass", "Fail", "Advisory"].map(r => {
+                    const col = r === "Pass" ? C.green : r === "Fail" ? C.red : C.amber;
+                    return (
+                      <button key={r} onClick={() => updateAppliance(app.id, "result", r)}
+                        style={{ fontFamily: font, fontSize: 12, fontWeight: app.result === r ? 600 : 400, color: app.result === r ? C.white : C.textMuted, background: app.result === r ? col : C.surfaceAlt, border: `1px solid ${app.result === r ? "transparent" : C.border}`, borderRadius: 8, padding: "8px 16px", cursor: "pointer" }}>
+                        {r}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Notes</label>
+                  <textarea value={app.notes} onChange={e => updateAppliance(app.id, "notes", e.target.value)} placeholder="Any additional notes for this appliance…" rows={2}
+                    style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", resize: "vertical", width: "100%", boxSizing: "border-box" }} />
+                </div>
+              </div>
+            </div>
+          ))}
+
+          <button onClick={addAppliance} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, background: C.accentGlow, border: `1px solid rgba(59,130,246,.3)`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", marginBottom: 16, width: "100%", minHeight: 44 }}>
+            + Add Appliance
+          </button>
+
+          {/* Overall result + sign-off */}
+          <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
+            <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, margin: "0 0 16px", textTransform: "uppercase", letterSpacing: 0.5 }}>Overall Result &amp; Sign-Off</h4>
+            <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap: 12, marginBottom: 16 }}>
+              <F label="Tested By" value={testedBy} onChange={setTestedBy} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Test Date</label>
+                <input type="date" value={testDate} onChange={e => setTestDate(e.target.value)} style={{ ...inputBase }} />
+              </div>
+            </div>
+            <div style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Overall Outcome</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {["All Pass", "Advisory Items", "Fail — Remedial Required"].map(r => {
+                const col = r === "All Pass" ? C.green : r.startsWith("Fail") ? C.red : C.amber;
+                return (
+                  <button key={r} onClick={() => setOverallResult(r)}
+                    style={{ fontFamily: font, fontSize: 12, fontWeight: overallResult === r ? 600 : 400, color: overallResult === r ? C.white : C.textMuted, background: overallResult === r ? col : C.surfaceAlt, border: `1px solid ${overallResult === r ? "transparent" : C.border}`, borderRadius: 8, padding: "8px 16px", cursor: "pointer" }}>
+                    {r}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+            {auth.role === "junior" && (
+              <div style={{ flex: 1, fontFamily: font, fontSize: 11, color: C.purple, background: C.purpleBg, border: "1px solid rgba(139,92,246,.3)", borderRadius: 8, padding: "8px 12px" }}>
+                ℹ️ As a Junior Engineer, your PAT records are sent to a Supervisor for sign-off.
+              </div>
+            )}
+            <button onClick={() => submit(true)} disabled={saving} style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44 }}>Save Draft</button>
+            <button onClick={() => submit(false)} disabled={saving} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 10, padding: "10px 24px", cursor: "pointer", minHeight: 44 }}>
+              {saving ? "Saving…" : auth.role === "junior" ? "Submit for Sign-Off" : "Complete PAT Record"}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// SMOKE ALARM INSPECTION PAGE
+// ─────────────────────────────────────────────
+function SmokeAlarmPage() {
+  const { jobs, properties, updateJob, addAudit, fetchAll } = useContext(DataContext);
+  const auth = useContext(AuthContext);
+  const mob = useMobile();
+  const [selectedJobId, setSelectedJobId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState(null);
+  const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
+
+  const myJobs = jobs.filter(j =>
+    ["Scheduled", "In Progress"].includes(j.status) &&
+    ["Smoke Alarm"].includes(j.type) &&
+    (auth.role === "engineer" || auth.role === "junior" ? j.engineer_id === auth.id : true)
+  );
+  const selectedJob = jobs.find(j => j.id === selectedJobId);
+  const selectedProp = selectedJob ? properties.find(p => p.id === selectedJob.property_id) : null;
+
+  const blankAlarm = () => ({
+    id: Date.now() + Math.random(),
+    location: "",
+    type: "",
+    power: "",
+    testResult: "",
+    batteryCondition: "",
+    alarmAge: "",
+  });
+
+  const [alarms, setAlarms] = useState([blankAlarm()]);
+  const [interlinked, setInterlinked] = useState("");
+  const [overallResult, setOverallResult] = useState("");
+  const [notes, setNotes] = useState("");
+  const [testedBy, setTestedBy] = useState("");
+  const [testDate, setTestDate] = useState(new Date().toISOString().slice(0, 10));
+
+  const handleJobSelect = (id) => {
+    setSelectedJobId(id);
+    const job = jobs.find(j => j.id === id);
+    if (job?.eicr_data?.smoke_data) {
+      const d = job.eicr_data.smoke_data;
+      setAlarms(d.alarms || [blankAlarm()]);
+      setInterlinked(d.interlinked || "");
+      setOverallResult(d.overallResult || "");
+      setNotes(d.notes || "");
+      setTestedBy(d.testedBy || auth.fullName || "");
+      setTestDate(d.testDate || new Date().toISOString().slice(0, 10));
+    } else {
+      setAlarms([blankAlarm()]);
+      setInterlinked("");
+      setOverallResult("");
+      setNotes("");
+      setTestedBy(auth.fullName || "");
+      setTestDate(new Date().toISOString().slice(0, 10));
+    }
+  };
+
+  const updateAlarm = (id, field, value) => setAlarms(prev => prev.map(a => a.id === id ? { ...a, [field]: value } : a));
+  const addAlarm = () => setAlarms(prev => [...prev, blankAlarm()]);
+  const removeAlarm = (id) => setAlarms(prev => prev.filter(a => a.id !== id));
+
+  const submit = async (asDraft = false) => {
+    if (!selectedJobId) { showToast("Please select a job first", "error"); return; }
+    setSaving(true);
+    const smoke_data = { alarms, interlinked, overallResult, notes, testedBy, testDate, isDraft: asDraft, submittedAt: new Date().toISOString() };
+    const newStatus = asDraft ? "In Progress" : (auth.role === "junior" ? "Awaiting Sign-Off" : "Completed");
+    await updateJob(selectedJobId, { status: newStatus, eicrData: { smoke_data } });
+    await addAudit({ action: `Smoke Alarm inspection ${asDraft ? "draft saved" : auth.role === "junior" ? "submitted for sign-off" : "completed"} — ${selectedProp?.address?.split(",")[0]} — ${alarms.length} alarm(s) — ${overallResult}` });
+    showToast(asDraft ? "Draft saved" : auth.role === "junior" ? "Submitted for Supervisor sign-off" : "Smoke Alarm inspection completed");
+    setSaving(false);
+    if (!asDraft) setSelectedJobId("");
+    await fetchAll();
+  };
+
+  const inputBase = { fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", width: "100%", boxSizing: "border-box", minHeight: 38 };
+  const selBase = { ...inputBase, appearance: "none", WebkitAppearance: "none", backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: 28 };
+
+  const F = ({ label, value, onChange, placeholder = "" }) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+      <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</label>
+      <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={inputBase} />
+    </div>
+  );
+  const D = ({ label, value, onChange, options }) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+      <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</label>
+      <select value={value} onChange={e => onChange(e.target.value)} style={selBase}>
+        {options.map(o => <option key={o} value={o}>{o || "— Select —"}</option>)}
+      </select>
+    </div>
+  );
+
+  return (
+    <div>
+      {toast && <Toast message={toast.msg} type={toast.type} show />}
+
+      {/* Job selector */}
+      <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
+        <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, margin: "0 0 16px", textTransform: "uppercase", letterSpacing: 0.5 }}>Select Smoke Alarm Job</h4>
+        {myJobs.length === 0 ? (
+          <div style={{ fontFamily: font, fontSize: 13, color: C.textDim }}>No active Smoke Alarm jobs assigned to you.</div>
+        ) : (
+          <Select label="Job" value={selectedJobId} onChange={handleJobSelect}
+            options={[{ value: "", label: "— Select a job —" }, ...myJobs.map(j => {
+              const p = properties.find(pp => pp.id === j.property_id);
+              return { value: j.id, label: `${j.ref} · Smoke Alarm — ${p?.address?.split(",")[0] || "Unknown"}` };
+            })]} />
+        )}
+        {selectedProp && (
+          <div style={{ marginTop: 12, fontFamily: font, fontSize: 12, color: C.textDim }}>
+            {selectedProp.address} {selectedProp.tenant_name ? `· Tenant: ${selectedProp.tenant_name}` : ""}
+          </div>
+        )}
+      </div>
+
+      {selectedJobId && (
+        <>
+          {/* Regulation info banner */}
+          <div style={{ background: C.amberBg, border: `1px solid ${C.amberBorder}`, borderRadius: 10, padding: "10px 16px", marginBottom: 16, fontFamily: font, fontSize: 11, color: C.amber, lineHeight: 1.5 }}>
+            ⚠ Smoke and Carbon Monoxide Alarm Regulations 2022 — landlords must have working smoke alarms on each storey and a CO alarm in every room with a solid fuel appliance.
+          </div>
+
+          {/* Alarm rows */}
+          {alarms.map((alarm, idx) => (
+            <div key={alarm.id} style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, margin: 0, textTransform: "uppercase", letterSpacing: 0.5 }}>Alarm {idx + 1}</h4>
+                {alarms.length > 1 && (
+                  <button onClick={() => removeAlarm(alarm.id)} style={{ fontFamily: font, fontSize: 11, color: C.red, background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 8, padding: "4px 12px", cursor: "pointer" }}>Remove</button>
+                )}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr 1fr", gap: 10 }}>
+                <F label="Location" value={alarm.location} onChange={v => updateAlarm(alarm.id, "location", v)} placeholder="e.g. Landing, Kitchen" />
+                <D label="Alarm Type" value={alarm.type} onChange={v => updateAlarm(alarm.id, "type", v)}
+                  options={["", "Optical", "Ionisation", "Heat", "Combined CO", "CO only"]} />
+                <D label="Power Source" value={alarm.power} onChange={v => updateAlarm(alarm.id, "power", v)}
+                  options={["", "Mains", "Battery", "Mains + Battery backup"]} />
+                <D label="Test Result" value={alarm.testResult} onChange={v => updateAlarm(alarm.id, "testResult", v)}
+                  options={["", "Pass", "Fail", "Not tested"]} />
+                <D label="Battery Condition" value={alarm.batteryCondition} onChange={v => updateAlarm(alarm.id, "batteryCondition", v)}
+                  options={["", "Good", "Replaced", "N/A"]} />
+                <F label="Alarm Age (if known)" value={alarm.alarmAge} onChange={v => updateAlarm(alarm.id, "alarmAge", v)} placeholder="e.g. 3 years" />
+              </div>
+            </div>
+          ))}
+
+          <button onClick={addAlarm} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, background: C.accentGlow, border: `1px solid rgba(59,130,246,.3)`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", marginBottom: 16, width: "100%", minHeight: 44 }}>
+            + Add Alarm
+          </button>
+
+          {/* Interconnection + overall */}
+          <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
+            <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, margin: "0 0 16px", textTransform: "uppercase", letterSpacing: 0.5 }}>Outcome &amp; Sign-Off</h4>
+            <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap: 12, marginBottom: 16 }}>
+              <D label="Alarms Interlinked?" value={interlinked} onChange={setInterlinked} options={["", "Yes", "No"]} />
+              <div />
+              <F label="Tested By" value={testedBy} onChange={setTestedBy} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Test Date</label>
+                <input type="date" value={testDate} onChange={e => setTestDate(e.target.value)} style={inputBase} />
+              </div>
+            </div>
+
+            <div style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Overall Result</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+              {["All Satisfactory", "Remedial Required"].map(r => {
+                const col = r === "All Satisfactory" ? C.green : C.red;
+                return (
+                  <button key={r} onClick={() => setOverallResult(r)}
+                    style={{ fontFamily: font, fontSize: 12, fontWeight: overallResult === r ? 600 : 400, color: overallResult === r ? C.white : C.textMuted, background: overallResult === r ? col : C.surfaceAlt, border: `1px solid ${overallResult === r ? "transparent" : C.border}`, borderRadius: 8, padding: "8px 16px", cursor: "pointer" }}>
+                    {r}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+              <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Notes</label>
+              <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any additional notes or observations…" rows={3}
+                style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", resize: "vertical", width: "100%", boxSizing: "border-box" }} />
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+            {auth.role === "junior" && (
+              <div style={{ flex: 1, fontFamily: font, fontSize: 11, color: C.purple, background: C.purpleBg, border: "1px solid rgba(139,92,246,.3)", borderRadius: 8, padding: "8px 12px" }}>
+                ℹ️ As a Junior Engineer, your smoke alarm inspections are sent to a Supervisor for sign-off.
+              </div>
+            )}
+            <button onClick={() => submit(true)} disabled={saving} style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44 }}>Save Draft</button>
+            <button onClick={() => submit(false)} disabled={saving} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 10, padding: "10px 24px", cursor: "pointer", minHeight: 44 }}>
+              {saving ? "Saving…" : auth.role === "junior" ? "Submit for Sign-Off" : "Complete Inspection"}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
 // SIGN-OFF QUEUE PAGE
 // ─────────────────────────────────────────────
 function SignOffPage() {
@@ -2061,21 +2910,57 @@ function SignOffPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [rejecting, setRejecting] = useState(false);
   const [reviewedJobs, setReviewedJobs] = useState({});
+  const [queueFilter, setQueueFilter] = useState("all");
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
 
-  const queue = jobs.filter(j => j.status === "Awaiting Sign-Off");
+  const allQueue = jobs.filter(j => j.status === "Awaiting Sign-Off");
+  const queue = queueFilter === "all" ? allQueue : allQueue.filter(j => j.type === queueFilter);
+
+  const eicrCount = allQueue.filter(j => j.type === "EICR").length;
+  const patCount = allQueue.filter(j => j.type === "PAT").length;
+  const smokeCount = allQueue.filter(j => j.type === "Smoke Alarm").length;
+
+  const getJobLabel = (job) => {
+    if (job.type === "PAT") return "PAT";
+    if (job.type === "Smoke Alarm") return "Smoke";
+    return "EICR";
+  };
+  const getJobIcon = (job) => {
+    if (job.type === "PAT") return "check";
+    if (job.type === "Smoke Alarm") return "activity";
+    return "clipboard";
+  };
+  const getJobColor = (job) => {
+    if (job.type === "PAT") return C.green;
+    if (job.type === "Smoke Alarm") return C.amber;
+    return C.purple;
+  };
+  const getJobBg = (job) => {
+    if (job.type === "PAT") return C.greenBg;
+    if (job.type === "Smoke Alarm") return C.amberBg;
+    return C.purpleBg;
+  };
 
   const approve = async (job) => {
     await updateJob(job.id, { status: "Completed" });
     const prop = properties.find(p => p.id === job.property_id);
-    await addAudit({ action: `EICR signed off by ${auth.fullName} — ${prop?.address?.split(",")[0]} — Outcome: ${job.eicr_data?.outcome || "—"}` });
-    if (job.eicr_data?.outcome === "Unsatisfactory") {
-      await addJob({ propertyId: job.property_id, type: "Remedial", status: "Pending", notes: `Auto-created from unsatisfactory EICR — ${job.ref}` });
-      await addAudit({ action: `Remedial job auto-created from unsatisfactory EICR (${job.ref})`, userName: "System", userRole: "Auto" });
+    if (job.type === "EICR") {
+      await addAudit({ action: `EICR signed off by ${auth.fullName} — ${prop?.address?.split(",")[0]} — Outcome: ${job.eicr_data?.outcome || "—"}` });
+      if (job.eicr_data?.outcome === "Unsatisfactory") {
+        await addJob({ propertyId: job.property_id, type: "Remedial", status: "Pending", notes: `Auto-created from unsatisfactory EICR — ${job.ref}` });
+        await addAudit({ action: `Remedial job auto-created from unsatisfactory EICR (${job.ref})`, userName: "System", userRole: "Auto" });
+      }
+    } else if (job.type === "PAT") {
+      const patData = job.eicr_data?.pat_data || {};
+      await addAudit({ action: `PAT record signed off by ${auth.fullName} — ${prop?.address?.split(",")[0]} — Result: ${patData.overallResult || "—"}` });
+    } else if (job.type === "Smoke Alarm") {
+      const smokeData = job.eicr_data?.smoke_data || {};
+      await addAudit({ action: `Smoke Alarm inspection signed off by ${auth.fullName} — ${prop?.address?.split(",")[0]} — Result: ${smokeData.overallResult || "—"}` });
     }
     await fetchAll();
     setSelectedJob(null);
-    showToast("EICR signed off" + (job.eicr_data?.outcome === "Unsatisfactory" ? " · Remedial job created" : ""));
+    const extras = job.type === "EICR" && job.eicr_data?.outcome === "Unsatisfactory" ? " · Remedial job created" : "";
+    showToast(`${job.type === "EICR" ? "EICR" : job.type === "PAT" ? "PAT record" : "Smoke inspection"} signed off${extras}`);
   };
 
   const confirmReject = async () => {
@@ -2083,10 +2968,10 @@ function SignOffPage() {
     setRejecting(true);
     const reason = rejectReason.trim() || "No reason given";
     const prop = properties.find(p => p.id === rejectJob.property_id);
-    // Store rejection reason in eicr_data so engineer sees it
     const updatedEicrData = { ...(rejectJob.eicr_data || {}), rejectionReason: reason, rejectedBy: auth.fullName, rejectedAt: new Date().toISOString() };
     await updateJob(rejectJob.id, { status: "In Progress", eicrData: updatedEicrData });
-    await addAudit({ action: `EICR rejected by ${auth.fullName} — ${prop?.address?.split(",")[0]} — Reason: ${reason}` });
+    const typeLabel = rejectJob.type === "PAT" ? "PAT record" : rejectJob.type === "Smoke Alarm" ? "Smoke inspection" : "EICR";
+    await addAudit({ action: `${typeLabel} rejected by ${auth.fullName} — ${prop?.address?.split(",")[0]} — Reason: ${reason}` });
     await fetchAll();
     setSelectedJob(null); setRejectJob(null); setRejectReason(""); setRejecting(false);
     showToast("Returned to engineer for correction", "warning");
@@ -2097,15 +2982,15 @@ function SignOffPage() {
       {toast && <Toast message={toast.msg} type={toast.type} show />}
 
       {/* Rejection reason modal */}
-      <Modal open={!!rejectJob} onClose={() => { setRejectJob(null); setRejectReason(""); }} title="Reject EICR">
+      <Modal open={!!rejectJob} onClose={() => { setRejectJob(null); setRejectReason(""); }} title={`Reject ${rejectJob?.type === "PAT" ? "PAT Record" : rejectJob?.type === "Smoke Alarm" ? "Smoke Inspection" : "EICR"}`}>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 10, padding: 14 }}>
             <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{properties.find(p => p.id === rejectJob?.property_id)?.address?.split(",")[0]}</div>
-            <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 3 }}>This EICR will be returned to the engineer with your feedback.</div>
+            <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 3 }}>This submission will be returned to the engineer with your feedback.</div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Reason for rejection</label>
-            <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="e.g. Missing circuit schedule, observations incomplete, wrong earthing system recorded…"
+            <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="e.g. Incomplete data, missing test results, incorrect readings recorded…"
               style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", outline: "none", minHeight: 90, resize: "vertical" }} />
           </div>
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
@@ -2115,29 +3000,53 @@ function SignOffPage() {
         </div>
       </Modal>
 
+      {/* Queue filter tabs */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
+        {[
+          { id: "all", label: "All", count: allQueue.length, color: C.purple },
+          { id: "EICR", label: "EICR", count: eicrCount, color: C.accent },
+          { id: "PAT", label: "PAT", count: patCount, color: C.green },
+          { id: "Smoke Alarm", label: "Smoke", count: smokeCount, color: C.amber },
+        ].map(f => (
+          <button key={f.id} onClick={() => setQueueFilter(f.id)} style={{ fontFamily: font, fontSize: 12, fontWeight: queueFilter === f.id ? 600 : 400, color: queueFilter === f.id ? C.white : C.textMuted, background: queueFilter === f.id ? f.color : C.card, border: `1px solid ${queueFilter === f.id ? "transparent" : C.border}`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36, display: "flex", alignItems: "center", gap: 6 }}>
+            {f.label}
+            {f.count > 0 && <span style={{ fontSize: 10, fontWeight: 700, background: queueFilter === f.id ? "rgba(255,255,255,0.25)" : f.color, color: C.white, borderRadius: 10, padding: "1px 6px" }}>{f.count}</span>}
+          </button>
+        ))}
+      </div>
+
       {queue.length === 0 ? (
         <div style={{ background: C.card, borderRadius: 14, padding: 60, border: `1px solid ${C.border}`, textAlign: "center" }}>
           <Icon name="checkCircle" size={40} color={C.green} />
           <div style={{ fontFamily: font, fontSize: 14, color: C.white, fontWeight: 600, marginTop: 16 }}>Queue is clear</div>
-          <div style={{ fontFamily: font, fontSize: 12, color: C.textDim, marginTop: 6 }}>No EICRs awaiting sign-off</div>
+          <div style={{ fontFamily: font, fontSize: 12, color: C.textDim, marginTop: 6 }}>No submissions awaiting sign-off{queueFilter !== "all" ? ` for ${queueFilter}` : ""}</div>
         </div>
       ) : queue.map(job => {
         const prop = properties.find(p => p.id === job.property_id);
         const eng = engineers.find(e => e.id === job.engineer_id);
         const eicr = job.eicr_data || {};
+        const patData = eicr.pat_data || {};
+        const smokeData = eicr.smoke_data || {};
         const isOpen = selectedJob?.id === job.id;
+        const jobColor = getJobColor(job);
+        const jobBg = getJobBg(job);
         return (
           <div key={job.id} style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, marginBottom: 12, overflow: "hidden" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: mob ? "16px" : "20px 24px", gap: 12, flexWrap: "wrap" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, minWidth: 0 }}>
-                <div style={{ width: 42, height: 42, borderRadius: 10, background: C.purpleBg, display: "grid", placeItems: "center", flexShrink: 0 }}>
-                  <Icon name="clipboard" size={20} color={C.purple} />
+                <div style={{ width: 42, height: 42, borderRadius: 10, background: jobBg, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                  <Icon name={getJobIcon(job)} size={20} color={jobColor} />
                 </div>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: font, fontSize: 14, color: C.white, fontWeight: 500 }}>{prop?.address?.split(",")[0] || "—"}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontFamily: font, fontSize: 9, fontWeight: 700, color: jobColor, background: jobBg, padding: "2px 7px", borderRadius: 4, letterSpacing: 0.5, textTransform: "uppercase" }}>{getJobLabel(job)}</span>
+                    <span style={{ fontFamily: font, fontSize: 14, color: C.white, fontWeight: 500 }}>{prop?.address?.split(",")[0] || "—"}</span>
+                  </div>
                   <div style={{ fontFamily: font, fontSize: 12, color: C.textMuted, marginTop: 3 }}>
                     {eng?.full_name || "—"} · {job.ref}
-                    {eicr.outcome && <span style={{ marginLeft: 10, color: eicr.outcome === "Satisfactory" ? C.green : eicr.outcome === "Unsatisfactory" ? C.red : C.amber, fontWeight: 600 }}>{eicr.outcome}</span>}
+                    {job.type === "EICR" && eicr.outcome && <span style={{ marginLeft: 10, color: eicr.outcome === "Satisfactory" ? C.green : eicr.outcome === "Unsatisfactory" ? C.red : C.amber, fontWeight: 600 }}>{eicr.outcome}</span>}
+                    {job.type === "PAT" && patData.overallResult && <span style={{ marginLeft: 10, color: patData.overallResult === "All Pass" ? C.green : C.red, fontWeight: 600 }}>{patData.overallResult}</span>}
+                    {job.type === "Smoke Alarm" && smokeData.overallResult && <span style={{ marginLeft: 10, color: smokeData.overallResult === "All Satisfactory" ? C.green : C.red, fontWeight: 600 }}>{smokeData.overallResult}</span>}
                   </div>
                 </div>
               </div>
@@ -2147,23 +3056,93 @@ function SignOffPage() {
                 <button onClick={() => reviewedJobs[job.id] && approve(job)} title={reviewedJobs[job.id] ? "" : "Open Review first"} style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.white, background: reviewedJobs[job.id] ? C.green : C.textDim, border: "none", borderRadius: 8, padding: "8px 16px", cursor: reviewedJobs[job.id] ? "pointer" : "not-allowed", minHeight: 36, opacity: reviewedJobs[job.id] ? 1 : 0.5 }}>Approve</button>
               </div>
             </div>
-            {isOpen && eicr && (
+            {isOpen && (
               <div style={{ padding: mob ? "0 16px 16px" : "0 24px 24px", borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
-                <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "repeat(3,1fr)", gap: 14 }}>
-                  {[
-                    ["Client / Occupier", eicr.clientName], ["Address", eicr.clientAddress], ["Purpose", eicr.purpose],
-                    ["Earthing System", eicr.typeOfEarthingSystem], ["Supply Voltage", eicr.supplyVoltage ? eicr.supplyVoltage + "V" : ""], ["Earth Fault Loop Ze", eicr.earthFaultLoop ? eicr.earthFaultLoop + " Ω" : ""],
-                    ["DB Make", eicr.dbMake], ["DB Location", eicr.dbLocation], ["Number of Circuits", eicr.numberOfCircuits],
-                    ["Inspector", eicr.inspector], ["Inspection Date", eicr.startDate ? formatDate(eicr.startDate) : ""], ["Outcome", eicr.outcome],
-                  ].map(([label, val], i) => val ? (
-                    <div key={i} style={{ background: C.surfaceAlt, borderRadius: 8, padding: "10px 12px" }}>
-                      <div style={{ fontFamily: font, fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>{label}</div>
-                      <div style={{ fontFamily: font, fontSize: 12, color: label === "Outcome" ? (val === "Satisfactory" ? C.green : val === "Unsatisfactory" ? C.red : C.amber) : C.white, fontWeight: label === "Outcome" ? 600 : 400 }}>{val}</div>
+                {/* EICR Review Panel */}
+                {job.type === "EICR" && (
+                  <>
+                    <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "repeat(3,1fr)", gap: 14 }}>
+                      {[
+                        ["Client / Occupier", eicr.clientName], ["Address", eicr.clientAddress], ["Purpose", eicr.purpose],
+                        ["Earthing System", eicr.typeOfEarthingSystem], ["Supply Voltage", eicr.supplyVoltage ? eicr.supplyVoltage + "V" : ""], ["Earth Fault Loop Ze", eicr.earthFaultLoop ? eicr.earthFaultLoop + " Ω" : ""],
+                        ["DB Make", eicr.dbMake], ["DB Location", eicr.dbLocation], ["Number of Circuits", eicr.numberOfCircuits],
+                        ["Inspector", eicr.inspector], ["Inspection Date", eicr.startDate ? formatDate(eicr.startDate) : ""], ["Outcome", eicr.outcome],
+                      ].map(([label, val], i) => val ? (
+                        <div key={i} style={{ background: C.surfaceAlt, borderRadius: 8, padding: "10px 12px" }}>
+                          <div style={{ fontFamily: font, fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>{label}</div>
+                          <div style={{ fontFamily: font, fontSize: 12, color: label === "Outcome" ? (val === "Satisfactory" ? C.green : val === "Unsatisfactory" ? C.red : C.amber) : C.white, fontWeight: label === "Outcome" ? 600 : 400 }}>{val}</div>
+                        </div>
+                      ) : null)}
                     </div>
-                  ) : null)}
-                </div>
-                {eicr.observations && <div style={{ marginTop: 14, background: C.surfaceAlt, borderRadius: 8, padding: "12px 14px" }}><div style={{ fontFamily: font, fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Observations</div><div style={{ fontFamily: font, fontSize: 12, color: C.text, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{eicr.observations}</div></div>}
-                {eicr.recommendations && <div style={{ marginTop: 10, background: C.surfaceAlt, borderRadius: 8, padding: "12px 14px" }}><div style={{ fontFamily: font, fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Recommendations</div><div style={{ fontFamily: font, fontSize: 12, color: C.text, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{eicr.recommendations}</div></div>}
+                    {eicr.observations && <div style={{ marginTop: 14, background: C.surfaceAlt, borderRadius: 8, padding: "12px 14px" }}><div style={{ fontFamily: font, fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Observations</div><div style={{ fontFamily: font, fontSize: 12, color: C.text, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{eicr.observations}</div></div>}
+                    {eicr.recommendations && <div style={{ marginTop: 10, background: C.surfaceAlt, borderRadius: 8, padding: "12px 14px" }}><div style={{ fontFamily: font, fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Recommendations</div><div style={{ fontFamily: font, fontSize: 12, color: C.text, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{eicr.recommendations}</div></div>}
+                  </>
+                )}
+                {/* PAT Review Panel */}
+                {job.type === "PAT" && (
+                  <>
+                    <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "repeat(3,1fr)", gap: 14, marginBottom: 14 }}>
+                      {[
+                        ["Tested By", patData.testedBy], ["Test Date", patData.testDate ? formatDate(patData.testDate) : ""], ["Appliances", patData.appliances?.length ? String(patData.appliances.length) : ""],
+                        ["Overall Result", patData.overallResult],
+                      ].map(([label, val], i) => val ? (
+                        <div key={i} style={{ background: C.surfaceAlt, borderRadius: 8, padding: "10px 12px" }}>
+                          <div style={{ fontFamily: font, fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>{label}</div>
+                          <div style={{ fontFamily: font, fontSize: 12, color: label === "Overall Result" ? (val === "All Pass" ? C.green : val === "Advisory Items" ? C.amber : C.red) : C.white, fontWeight: label === "Overall Result" ? 600 : 400 }}>{val}</div>
+                        </div>
+                      ) : null)}
+                    </div>
+                    {patData.appliances?.length > 0 && (
+                      <div>
+                        <div style={{ fontFamily: font, fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Appliances ({patData.appliances.length})</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          {patData.appliances.map((a, i) => (
+                            <div key={i} style={{ background: C.surfaceAlt, borderRadius: 8, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                              <div>
+                                <div style={{ fontFamily: font, fontSize: 12, color: C.white, fontWeight: 500 }}>{a.description || `Appliance ${i + 1}`}</div>
+                                <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 2 }}>{[a.makeModel, a.assetNumber, a.location].filter(Boolean).join(" · ")}</div>
+                              </div>
+                              <span style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: a.result === "Pass" ? C.green : a.result === "Advisory" ? C.amber : C.red, background: a.result === "Pass" ? C.greenBg : a.result === "Advisory" ? C.amberBg : C.redBg, padding: "3px 10px", borderRadius: 20, flexShrink: 0 }}>{a.result || "—"}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+                {/* Smoke Alarm Review Panel */}
+                {job.type === "Smoke Alarm" && (
+                  <>
+                    <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "repeat(3,1fr)", gap: 14, marginBottom: 14 }}>
+                      {[
+                        ["Tested By", smokeData.testedBy], ["Test Date", smokeData.testDate ? formatDate(smokeData.testDate) : ""], ["Alarms Tested", smokeData.alarms?.length ? String(smokeData.alarms.length) : ""],
+                        ["Interlinked", smokeData.interlinked], ["Overall Result", smokeData.overallResult],
+                      ].map(([label, val], i) => val ? (
+                        <div key={i} style={{ background: C.surfaceAlt, borderRadius: 8, padding: "10px 12px" }}>
+                          <div style={{ fontFamily: font, fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>{label}</div>
+                          <div style={{ fontFamily: font, fontSize: 12, color: label === "Overall Result" ? (val === "All Satisfactory" ? C.green : C.red) : C.white, fontWeight: label === "Overall Result" ? 600 : 400 }}>{val}</div>
+                        </div>
+                      ) : null)}
+                    </div>
+                    {smokeData.alarms?.length > 0 && (
+                      <div>
+                        <div style={{ fontFamily: font, fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Alarms ({smokeData.alarms.length})</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          {smokeData.alarms.map((a, i) => (
+                            <div key={i} style={{ background: C.surfaceAlt, borderRadius: 8, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                              <div>
+                                <div style={{ fontFamily: font, fontSize: 12, color: C.white, fontWeight: 500 }}>{a.location || `Alarm ${i + 1}`}</div>
+                                <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 2 }}>{[a.type, a.powerSource].filter(Boolean).join(" · ")}</div>
+                              </div>
+                              <span style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: a.testResult === "Pass" ? C.green : a.testResult === "Fail" ? C.red : C.textDim, background: a.testResult === "Pass" ? C.greenBg : a.testResult === "Fail" ? C.redBg : C.surfaceAlt, padding: "3px 10px", borderRadius: 20, flexShrink: 0 }}>{a.testResult || "—"}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {smokeData.notes && <div style={{ marginTop: 14, background: C.surfaceAlt, borderRadius: 8, padding: "12px 14px" }}><div style={{ fontFamily: font, fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Notes</div><div style={{ fontFamily: font, fontSize: 12, color: C.text, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{smokeData.notes}</div></div>}
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -2505,7 +3484,7 @@ function PortalApp({ session, userProfile, onLogout }) {
   const role = userProfile.role;
 
   useEffect(() => {
-    if (["eicr"].includes(page) && !["engineer", "junior", "supervisor"].includes(role)) setPage("dashboard");
+    if (["eicr", "pat", "smoke"].includes(page) && !["engineer", "junior", "supervisor"].includes(role)) setPage("dashboard");
     if (page === "signoff" && !["supervisor", "admin"].includes(role)) setPage("dashboard");
   }, [role]);
 
@@ -2521,6 +3500,8 @@ function PortalApp({ session, userProfile, onLogout }) {
       case "propertyDetail": return <PropertyDetailPage propertyId={selectedPropertyId} onBack={() => setPage("properties")} onRequestJob={requestJob} />;
       case "jobs": return <JobsPage onNavigateEicr={() => setPage("eicr")} />;
       case "eicr": return <EICRPage />;
+      case "pat": return <PATPage />;
+      case "smoke": return <SmokeAlarmPage />;
       case "signoff": return <SignOffPage />;
       case "documents": return <DocumentsPage />;
       case "audit": return <AuditPage />;
