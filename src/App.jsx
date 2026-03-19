@@ -277,6 +277,7 @@ function DataProvider({ children, userProfile }) {
       if (docRes.data) setDocuments(docRes.data);
       if (auditRes.data) setAudit(auditRes.data);
       if (engRes.data) setEngineers(engRes.data);
+      console.log("ADMIN profiles fetch — data:", JSON.stringify(engRes.data), "error:", JSON.stringify(engRes.error));
       if (commentRes.data) setComments(commentRes.data);
     } else {
       // Non-admins: scoped to their own organisation only
