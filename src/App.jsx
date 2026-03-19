@@ -1452,12 +1452,12 @@ function JobsPage({ onNavigateEicr }) {
   const filtered = jobs.filter(j => {
     if (sf === "all" && j.status === "Cancelled") return false;
     if (sf !== "all" && j.status !== sf) return false;
-    if (["engineer", "junior"].includes(role)) return j.engineer_id === auth.id;
+    if (["engineer", "junior"].includes(role) && j.engineer_id !== auth.id) return false;
     if (role === "admin" && agencyFilter !== "all" && j.organisation_id !== agencyFilter) return false;
     if (search) {
       const prop = properties.find(p => p.id === j.property_id);
       const q = search.toLowerCase();
-      return (prop?.address || "").toLowerCase().includes(q) || (j.ref || "").toLowerCase().includes(q) || (j.type || "").toLowerCase().includes(q) || (prop?.tenant_name || "").toLowerCase().includes(q);
+      if (!(prop?.address || "").toLowerCase().includes(q) && !(j.ref || "").toLowerCase().includes(q) && !(j.type || "").toLowerCase().includes(q) && !(prop?.tenant_name || "").toLowerCase().includes(q)) return false;
     }
     return true;
   });
