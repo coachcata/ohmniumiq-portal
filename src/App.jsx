@@ -269,7 +269,7 @@ function DataProvider({ children, userProfile }) {
         supabase.from("jobs").select("*").in("organisation_id", activeAgencyIds.length ? [...activeAgencyIds, orgId] : [orgId]).order("created_at", { ascending: false }),
         supabase.from("documents").select("*").in("organisation_id", activeAgencyIds.length ? [...activeAgencyIds, orgId] : [orgId]).order("uploaded_at", { ascending: false }),
         supabase.from("audit_log").select("*").eq("organisation_id", orgId).order("created_at", { ascending: false }).limit(500),
-        supabase.from("profiles").select("id, full_name, role, email, organisation_id").eq("organisation_id", orgId).order("full_name"),
+        supabase.from("profiles").select("id, full_name, role, email, organisation_id").in("organisation_id", activeAgencyIds.length ? [...activeAgencyIds, orgId] : [orgId]).order("full_name"),
         supabase.from("job_comments").select("*").order("created_at", { ascending: true }),
       ]);
       if (propRes.data) setProperties(propRes.data);
@@ -296,7 +296,7 @@ function DataProvider({ children, userProfile }) {
       if (commentRes.data) setComments(commentRes.data);
     }
     setLoading(false);
-  }, []);
+  }, [userProfile, isAdmin]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -391,6 +391,7 @@ function DataProvider({ children, userProfile }) {
       job_id: doc.jobId, property_id: doc.propertyId, type: doc.type,
       file_path: doc.filePath || null, file_name: doc.fileName || null,
       expiry_date: doc.expiry || null, uploaded_by: userProfile.id,
+      organisation_id: doc.organisationId || userProfile.organisation_id,
     }).select().single();
     if (data) setDocuments(prev => [data, ...prev]);
     return { data, error };
@@ -402,6 +403,7 @@ function DataProvider({ children, userProfile }) {
       user_id: entry.userId || userProfile.id,
       user_name: entry.userName || userProfile.full_name,
       user_role: entry.userRole || userProfile.role,
+      organisation_id: userProfile.organisation_id,
     }).select().single();
     if (data) setAudit(prev => [data, ...prev]);
     return { data, error };
@@ -694,8 +696,8 @@ function TeamPage() {
   const roleColor = (r) => ({ admin: C.white, agent: C.accent, engineer: C.green, junior: C.purple, supervisor: C.amber }[r] || C.textMuted);
 
   // Split members: Ohmnium staff vs agents
-  const ohmniumMembers = engineers.filter(e => e.organisation_id === ohmniumOrgId || ["admin","engineer","junior","supervisor"].includes(e.role));
-  const agentMembers = engineers.filter(e => e.role === "agent");
+  const ohmniumMembers = engineers.filter(e => e.organisation_id === ohmniumOrgId);
+  const agentMembers = engineers.filter(e => e.role === "agent" && e.organisation_id !== ohmniumOrgId);
 
   // Agency orgs (all except Ohmnium's own)
   const agencyOrgs = organisations.filter(o => o.id !== ohmniumOrgId);
@@ -1090,7 +1092,7 @@ function DashboardPage({ onNavigateProperty }) {
         {pendingSignOff.length > 0 && (
           <div style={{ background: C.purpleBg, border: "1px solid rgba(139,92,246,.3)", borderRadius: 12, padding: "14px 20px", display: "flex", alignItems: "center", gap: 12 }}>
             <Icon name="clipboard" size={20} color={C.purple} />
-            <span style={{ fontFamily: font, fontSize: 13, color: C.text }}><strong>{pendingSignOff.length} EICR{pendingSignOff.length > 1 ? "s" : ""}</strong> awaiting supervisor sign-off</span>
+            <span style={{ fontFamily: font, fontSize: 13, color: C.text }}><strong>{pendingSignOff.length} submission{pendingSignOff.length > 1 ? "s" : ""}</strong> awaiting supervisor sign-off</span>
           </div>
         )}
         {myJobs.length === 0 && (
@@ -1144,7 +1146,7 @@ function DashboardPage({ onNavigateProperty }) {
           </div>
         ))}
       </div>
-      {awaiting > 0 && <div style={{ background: C.purpleBg, border: "1px solid rgba(139,92,246,.3)", borderRadius: 12, padding: "14px 20px", marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}><Icon name="checkCircle" size={20} color={C.purple} /><span style={{ fontFamily: font, fontSize: 13, color: C.text }}><strong>{awaiting} EICR{awaiting > 1 ? "s" : ""}</strong> awaiting sign-off</span></div>}
+      {awaiting > 0 && <div style={{ background: C.purpleBg, border: "1px solid rgba(139,92,246,.3)", borderRadius: 12, padding: "14px 20px", marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}><Icon name="checkCircle" size={20} color={C.purple} /><span style={{ fontFamily: font, fontSize: 13, color: C.text }}><strong>{awaiting} submission{awaiting > 1 ? "s" : ""}</strong> awaiting sign-off</span></div>}
 
       {/* Expiring + Overdue properties — clickable */}
       {(expiringSoon.length > 0 || overdue.length > 0) && (
