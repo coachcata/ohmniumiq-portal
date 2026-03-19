@@ -277,13 +277,39 @@ function DataProvider({ children, userProfile }) {
       if (docRes.data) setDocuments(docRes.data);
       if (auditRes.data) setAudit(auditRes.data);
       if (engRes.data) setEngineers(engRes.data);
-      console.log("ADMIN profiles fetch — data:", JSON.stringify(engRes.data), "error:", JSON.stringify(engRes.error));
       if (commentRes.data) setComments(commentRes.data);
     } else {
       // Non-admins: scoped to their own organisation only
+      const isOhmniumStaff = ["engineer", "junior", "supervisor"].includes(userProfile.role);
+
+      if (isOhmniumStaff) {
+        // Fetch jobs first so we know which property IDs to load
+        const jobQuery = userProfile.role === "supervisor"
+          ? supabase.from("jobs").select("*").in("status", ["Pending", "Scheduled", "In Progress", "Awaiting Sign-Off", "Completed", "Cancelled"]).order("created_at", { ascending: false })
+          : supabase.from("jobs").select("*").eq("engineer_id", userProfile.id).order("created_at", { ascending: false });
+        const jobRes = await jobQuery;
+        const myJobs = jobRes.data || [];
+        if (myJobs.length) setJobs(myJobs);
+
+        // Load properties only for the property IDs in those jobs
+        const propIds = [...new Set(myJobs.map(j => j.property_id).filter(Boolean))];
+        const [propRes, docRes, auditRes, engRes, commentRes] = await Promise.all([
+          propIds.length ? supabase.from("properties").select("*").in("id", propIds) : Promise.resolve({ data: [] }),
+          supabase.from("documents").select("*").eq("organisation_id", orgId).order("uploaded_at", { ascending: false }),
+          supabase.from("audit_log").select("*").eq("organisation_id", orgId).order("created_at", { ascending: false }).limit(500),
+          supabase.from("profiles").select("id, full_name, role, organisation_id").eq("organisation_id", orgId).in("role", ["engineer", "junior", "supervisor", "agent", "admin"]),
+          supabase.from("job_comments").select("*").eq("organisation_id", orgId).order("created_at", { ascending: true }),
+        ]);
+        if (propRes.data) setProperties(propRes.data);
+        if (docRes.data) setDocuments(docRes.data);
+        if (auditRes.data) setAudit(auditRes.data);
+        if (engRes.data) setEngineers(engRes.data);
+        if (commentRes.data) setComments(commentRes.data);
+      } else {
+        // Agents: scoped to their own agency
       const [propRes, jobRes, docRes, auditRes, engRes, commentRes] = await Promise.all([
-        supabase.from("properties").select("*").eq("agency_id", orgId).order("ref"),
-        supabase.from("jobs").select("*").eq("organisation_id", orgId).order("created_at", { ascending: false }),
+          supabase.from("properties").select("*").eq("agency_id", orgId).order("ref"),
+          supabase.from("jobs").select("*").eq("organisation_id", orgId).order("created_at", { ascending: false }),
         supabase.from("documents").select("*").eq("organisation_id", orgId).order("uploaded_at", { ascending: false }),
         supabase.from("audit_log").select("*").eq("organisation_id", orgId).order("created_at", { ascending: false }).limit(500),
         supabase.from("profiles").select("id, full_name, role, organisation_id").eq("organisation_id", orgId).in("role", ["engineer", "junior", "supervisor", "agent", "admin"]),
@@ -294,8 +320,9 @@ function DataProvider({ children, userProfile }) {
       if (docRes.data) setDocuments(docRes.data);
       if (auditRes.data) setAudit(auditRes.data);
       if (engRes.data) setEngineers(engRes.data);
-      if (commentRes.data) setComments(commentRes.data);
-    }
+        if (commentRes.data) setComments(commentRes.data);
+      } // closes else (agents)
+    } // closes else (non-admin)
     setLoading(false);
   }, [userProfile, isAdmin]);
 
@@ -370,7 +397,6 @@ function DataProvider({ children, userProfile }) {
       created_by: userProfile.id,
     }).select().single();
     if (data) setJobs(prev => [data, ...prev]);
-    if (error) console.error("addJob Supabase error:", JSON.stringify(error));
     return { data, error };
   }, [userProfile]);
 
@@ -708,14 +734,6 @@ function TeamPage() {
 
   return (
     <div>
-      {/* TEMP DEBUG — remove after fix */}
-      <div style={{ background: "#1a1a2e", border: "1px solid #f59e0b", borderRadius: 10, padding: 14, marginBottom: 16, fontFamily: "monospace", fontSize: 11, color: "#f59e0b" }}>
-        <div>engineers array length: {engineers.length}</div>
-        <div>ohmniumOrgId: {ohmniumOrgId || "UNDEFINED"}</div>
-        <div>ohmniumMembers: {ohmniumMembers.length}</div>
-        <div>agentMembers: {agentMembers.length}</div>
-        {engineers.map(e => <div key={e.id}>{e.full_name} | {e.role} | {e.organisation_id}</div>)}
-      </div>
       <Toast message={toast} show={!!toast} />
       <InviteUserModal open={showInvite} defaultRole={inviteRole} defaultOrgId={inviteOrgId} onClose={() => { setShowInvite(false); showToast("Invite sent"); }} />
       <AddAgencyModal open={showAddAgency} onClose={(r) => { setShowAddAgency(false); if (r === "added") showToast("Agency added"); }} />
@@ -748,7 +766,7 @@ function TeamPage() {
                   </div>
                   <div>
                     <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{member.full_name}</div>
-                    <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 2 }}>{member.email || ""}</div>
+                    <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 2 }}>{member.role === "junior" ? "Junior Engineer" : member.role.charAt(0).toUpperCase() + member.role.slice(1)}</div>
                   </div>
                 </div>
                 <span style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: roleColor(member.role), background: `${roleColor(member.role)}18`, padding: "4px 12px", borderRadius: 20, whiteSpace: "nowrap" }}>{roleLabel(member.role)}</span>
@@ -1529,8 +1547,10 @@ function JobsPage({ onNavigateEicr }) {
               {role === "admin" && job.status === "Pending" && <button onClick={() => setAssignModal(job)} style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>Assign</button>}
               {role === "admin" && ["Scheduled", "In Progress"].includes(job.status) && <button onClick={() => setAssignModal(job)} style={{ fontFamily: font, fontSize: 11, color: C.amber, background: C.amberBg, border: `1px solid ${C.amberBorder}`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>Reschedule</button>}
               {["engineer", "junior"].includes(role) && job.status === "Scheduled" && <button onClick={() => advanceStatus(job)} style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>Start</button>}
-              {["engineer", "junior"].includes(role) && job.status === "In Progress" && job.type !== "EICR" && <button onClick={() => advanceStatus(job)} style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: C.white, background: C.green, border: "none", borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>Complete</button>}
+              {["engineer", "junior"].includes(role) && job.status === "In Progress" && !["EICR", "PAT", "Smoke Alarm"].includes(job.type) && <button onClick={() => advanceStatus(job)} style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: C.white, background: C.green, border: "none", borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>Complete</button>}
               {["engineer", "junior"].includes(role) && job.status === "In Progress" && job.type === "EICR" && <button onClick={() => onNavigateEicr && onNavigateEicr()} style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>Open EICR Form</button>}
+              {["engineer", "junior"].includes(role) && job.status === "In Progress" && job.type === "PAT" && <button onClick={() => onNavigateEicr && onNavigateEicr("pat")} style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: C.white, background: C.green, border: "none", borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>Open PAT Form</button>}
+              {["engineer", "junior"].includes(role) && job.status === "In Progress" && job.type === "Smoke Alarm" && <button onClick={() => onNavigateEicr && onNavigateEicr("smoke")} style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: C.white, background: C.amber, border: "none", borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>Open Smoke Form</button>}
               <span style={{ fontFamily: font, fontSize: 10, fontWeight: 600, color: jobStatusColor(job.status), background: jobStatusBg(job.status), padding: "5px 14px", borderRadius: 20 }}>{job.status}</span>
             </div>
           </div>
@@ -3515,7 +3535,7 @@ function PortalApp({ session, userProfile, onLogout }) {
       case "dashboard": return <DashboardPage onNavigateProperty={navigateToProperty} />;
       case "properties": return <PropertiesPage onRequestJob={requestJob} onSelectProperty={navigateToProperty} />;
       case "propertyDetail": return <PropertyDetailPage propertyId={selectedPropertyId} onBack={() => setPage("properties")} onRequestJob={requestJob} />;
-      case "jobs": return <JobsPage onNavigateEicr={() => setPage("eicr")} />;
+      case "jobs": return <JobsPage onNavigateEicr={(page) => setPage(page || "eicr")} />;
       case "eicr": return <EICRPage />;
       case "pat": return <PATPage />;
       case "smoke": return <SmokeAlarmPage />;
