@@ -1505,6 +1505,12 @@ function JobsPage({ onNavigateEicr }) {
   return (
     <div>
       <Toast message={toast} show={!!toast} />
+      {/* TEMP DEBUG */}
+      <div style={{ background: "#1a1a2e", border: "1px solid #f59e0b", borderRadius: 10, padding: 12, marginBottom: 16, fontFamily: "monospace", fontSize: 11, color: "#f59e0b" }}>
+        <div>role: {role} | jobs in context: {jobs.length} | filtered: {filtered.length} | sf: {sf}</div>
+        <div>auth.id: {auth.id}</div>
+        {jobs.slice(0, 3).map(j => <div key={j.id}>{j.type} | {j.status} | eng: {j.engineer_id || "null"} | org: {j.organisation_id}</div>)}
+      </div>
       <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
           {["all", "Pending", "Scheduled", "In Progress", "Awaiting Sign-Off", "Completed", "Cancelled"].map(s => (
