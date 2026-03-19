@@ -708,6 +708,14 @@ function TeamPage() {
 
   return (
     <div>
+      {/* TEMP DEBUG — remove after fix */}
+      <div style={{ background: "#1a1a2e", border: "1px solid #f59e0b", borderRadius: 10, padding: 14, marginBottom: 16, fontFamily: "monospace", fontSize: 11, color: "#f59e0b" }}>
+        <div>engineers array length: {engineers.length}</div>
+        <div>ohmniumOrgId: {ohmniumOrgId || "UNDEFINED"}</div>
+        <div>ohmniumMembers: {ohmniumMembers.length}</div>
+        <div>agentMembers: {agentMembers.length}</div>
+        {engineers.map(e => <div key={e.id}>{e.full_name} | {e.role} | {e.organisation_id}</div>)}
+      </div>
       <Toast message={toast} show={!!toast} />
       <InviteUserModal open={showInvite} defaultRole={inviteRole} defaultOrgId={inviteOrgId} onClose={() => { setShowInvite(false); showToast("Invite sent"); }} />
       <AddAgencyModal open={showAddAgency} onClose={(r) => { setShowAddAgency(false); if (r === "added") showToast("Agency added"); }} />
