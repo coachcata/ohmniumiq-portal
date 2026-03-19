@@ -265,9 +265,9 @@ function DataProvider({ children, userProfile }) {
     if (isAdmin) {
       // Admins: load all properties/jobs across all active agencies, plus own org data
       const [propRes, jobRes, docRes, auditRes, engRes, commentRes] = await Promise.all([
-        supabase.from("properties").select("*").in("agency_id", activeAgencyIds.length ? activeAgencyIds : ["none"]).order("ref"),
-        supabase.from("jobs").select("*").in("organisation_id", activeAgencyIds.length ? [...activeAgencyIds, orgId] : [orgId]).order("created_at", { ascending: false }),
-        supabase.from("documents").select("*").in("organisation_id", activeAgencyIds.length ? [...activeAgencyIds, orgId] : [orgId]).order("uploaded_at", { ascending: false }),
+        supabase.from("properties").select("*").order("ref"),
+        supabase.from("jobs").select("*").order("created_at", { ascending: false }),
+        supabase.from("documents").select("*").order("uploaded_at", { ascending: false }),
         supabase.from("audit_log").select("*").eq("organisation_id", orgId).order("created_at", { ascending: false }).limit(500),
         supabase.from("profiles").select("id, full_name, role, organisation_id").order("full_name"),
         supabase.from("job_comments").select("*").order("created_at", { ascending: true }),
@@ -283,13 +283,13 @@ function DataProvider({ children, userProfile }) {
       const isOhmniumStaff = ["engineer", "junior", "supervisor"].includes(userProfile.role);
 
       if (isOhmniumStaff) {
-        // Fetch jobs first so we know which property IDs to load
+        // Fetch jobs assigned to this engineer, or all jobs for supervisor
         const jobQuery = userProfile.role === "supervisor"
-          ? supabase.from("jobs").select("*").in("status", ["Pending", "Scheduled", "In Progress", "Awaiting Sign-Off", "Completed", "Cancelled"]).order("created_at", { ascending: false })
+          ? supabase.from("jobs").select("*").order("created_at", { ascending: false })
           : supabase.from("jobs").select("*").eq("engineer_id", userProfile.id).order("created_at", { ascending: false });
         const jobRes = await jobQuery;
         const myJobs = jobRes.data || [];
-        if (myJobs.length) setJobs(myJobs);
+        setJobs(myJobs);
 
         // Load properties only for the property IDs in those jobs
         const propIds = [...new Set(myJobs.map(j => j.property_id).filter(Boolean))];
@@ -307,19 +307,19 @@ function DataProvider({ children, userProfile }) {
         if (commentRes.data) setComments(commentRes.data);
       } else {
         // Agents: scoped to their own agency
-      const [propRes, jobRes, docRes, auditRes, engRes, commentRes] = await Promise.all([
+        const [propRes, jobRes, docRes, auditRes, engRes, commentRes] = await Promise.all([
           supabase.from("properties").select("*").eq("agency_id", orgId).order("ref"),
           supabase.from("jobs").select("*").eq("organisation_id", orgId).order("created_at", { ascending: false }),
-        supabase.from("documents").select("*").eq("organisation_id", orgId).order("uploaded_at", { ascending: false }),
-        supabase.from("audit_log").select("*").eq("organisation_id", orgId).order("created_at", { ascending: false }).limit(500),
-        supabase.from("profiles").select("id, full_name, role, organisation_id").eq("organisation_id", orgId).in("role", ["engineer", "junior", "supervisor", "agent", "admin"]),
-        supabase.from("job_comments").select("*").eq("organisation_id", orgId).order("created_at", { ascending: true }),
-      ]);
-      if (propRes.data) setProperties(propRes.data);
-      if (jobRes.data) setJobs(jobRes.data);
-      if (docRes.data) setDocuments(docRes.data);
-      if (auditRes.data) setAudit(auditRes.data);
-      if (engRes.data) setEngineers(engRes.data);
+          supabase.from("documents").select("*").eq("organisation_id", orgId).order("uploaded_at", { ascending: false }),
+          supabase.from("audit_log").select("*").eq("organisation_id", orgId).order("created_at", { ascending: false }).limit(500),
+          supabase.from("profiles").select("id, full_name, role, organisation_id").order("full_name"),
+          supabase.from("job_comments").select("*").eq("organisation_id", orgId).order("created_at", { ascending: true }),
+        ]);
+        if (propRes.data) setProperties(propRes.data);
+        if (jobRes.data) setJobs(jobRes.data);
+        if (docRes.data) setDocuments(docRes.data);
+        if (auditRes.data) setAudit(auditRes.data);
+        if (engRes.data) setEngineers(engRes.data);
         if (commentRes.data) setComments(commentRes.data);
       } // closes else (agents)
     } // closes else (non-admin)
