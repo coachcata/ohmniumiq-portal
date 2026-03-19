@@ -269,7 +269,7 @@ function DataProvider({ children, userProfile }) {
         supabase.from("jobs").select("*").in("organisation_id", activeAgencyIds.length ? [...activeAgencyIds, orgId] : [orgId]).order("created_at", { ascending: false }),
         supabase.from("documents").select("*").in("organisation_id", activeAgencyIds.length ? [...activeAgencyIds, orgId] : [orgId]).order("uploaded_at", { ascending: false }),
         supabase.from("audit_log").select("*").eq("organisation_id", orgId).order("created_at", { ascending: false }).limit(500),
-        supabase.from("profiles").select("id, full_name, role, email, organisation_id").in("organisation_id", activeAgencyIds.length ? [...activeAgencyIds, orgId] : [orgId]).order("full_name"),
+        supabase.from("profiles").select("id, full_name, role, organisation_id").order("full_name"),
         supabase.from("job_comments").select("*").order("created_at", { ascending: true }),
       ]);
       if (propRes.data) setProperties(propRes.data);
@@ -285,7 +285,7 @@ function DataProvider({ children, userProfile }) {
         supabase.from("jobs").select("*").eq("organisation_id", orgId).order("created_at", { ascending: false }),
         supabase.from("documents").select("*").eq("organisation_id", orgId).order("uploaded_at", { ascending: false }),
         supabase.from("audit_log").select("*").eq("organisation_id", orgId).order("created_at", { ascending: false }).limit(500),
-        supabase.from("profiles").select("id, full_name, role, email, organisation_id").eq("organisation_id", orgId).in("role", ["engineer", "junior", "supervisor", "agent", "admin"]),
+        supabase.from("profiles").select("id, full_name, role, organisation_id").eq("organisation_id", orgId).in("role", ["engineer", "junior", "supervisor", "agent", "admin"]),
         supabase.from("job_comments").select("*").eq("organisation_id", orgId).order("created_at", { ascending: true }),
       ]);
       if (propRes.data) setProperties(propRes.data);
