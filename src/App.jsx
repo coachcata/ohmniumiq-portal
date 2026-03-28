@@ -1,5 +1,7 @@
-import { useState, useEffect, useCallback, createContext, useContext } from "react";
+import { useState, useEffect, useCallback, useRef, createContext, useContext } from "react";
 import { createClient } from "@supabase/supabase-js";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 // ─── Supabase Client ───
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://wrftwkfqkarkmqebhclf.supabase.co";
@@ -227,7 +229,7 @@ function LoginPage() {
             </>
           )}
         </div>
-        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v16.0</p>
+        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v17.0</p>
       </div>
     </div>
   );
@@ -371,6 +373,7 @@ function DataProvider({ children, userProfile }) {
 
   const uploadFile = useCallback(async (file, path) => {
     const { data, error } = await supabase.storage.from("certificates").upload(path, file);
+    if (error) console.error("Storage upload error:", error.message, { path });
     return { data, error };
   }, []);
 
@@ -686,7 +689,7 @@ function Sidebar({ active, setActive, role, userProfile, onLogout }) {
       <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}` }}>
         <button onClick={onLogout} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.card, display: "grid", placeItems: "center" }}><Icon name="logout" size={16} color={C.textMuted} /></div>
-          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v16.0 — Supabase</div></div>
+          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v17.0 — Supabase</div></div>
         </button>
       </div>
     </div>
@@ -1226,6 +1229,246 @@ function RequestJobModal({ open, onClose, property }) {
   );
 }
 
+// ─── Certificate PDF Renderer (Hidden) ───
+function CertificateRenderer({ job, property, certRef }) {
+  if (!job) return null;
+  const eicr = job.eicr_data || {};
+  const isEICR = job.type === "EICR" || eicr.formType === "EICR" || (!eicr.formType && job.type === "EICR");
+  const isEIC = eicr.formType === "EIC" || job.type === "EIC";
+
+  const cellS = { border: "1px solid #aaa", padding: "4px 6px", fontSize: 9, color: "#111", fontFamily: "Arial, sans-serif" };
+  const headS = { ...cellS, fontWeight: 700, background: "#e8edf2", fontSize: 8, textTransform: "uppercase", letterSpacing: 0.3 };
+  const secHead = { fontFamily: "Arial, sans-serif", fontSize: 11, fontWeight: 700, color: "#1a1a1a", margin: "10px 0 6px", padding: "4px 0", borderBottom: "2px solid #2a4a8d" };
+
+  if (isEICR) return (
+    <div ref={certRef} style={{ width: 794, background: "#fff", padding: "30px 40px", boxSizing: "border-box" }}>
+      {/* PAGE 1 — Header & Summary */}
+      <div style={{ borderBottom: "3px solid #2a4a8d", paddingBottom: 10, marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <div style={{ fontFamily: "Arial, sans-serif", fontSize: 16, fontWeight: 700, color: "#2a4a8d", letterSpacing: 0.5 }}>ELECTRICAL INSTALLATION CONDITION REPORT</div>
+          <div style={{ fontFamily: "Arial, sans-serif", fontSize: 10, color: "#555", marginTop: 2 }}>In accordance with BS 7671 — IET Wiring Regulations 18th Edition</div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontFamily: "Arial, sans-serif", fontSize: 9, color: "#555" }}>Certificate No.</div>
+          <div style={{ fontFamily: "Arial, sans-serif", fontSize: 12, fontWeight: 700, color: "#1a1a1a" }}>{job.ref}</div>
+        </div>
+      </div>
+
+      {/* Section A — Details */}
+      <div style={secHead}>Section A — Details of the Client and Installation</div>
+      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14 }}>
+        <tbody>
+          <tr><td style={{ ...headS, width: "25%" }}>Client / Landlord</td><td style={cellS}>{eicr.clientName || eicr.landlordName || "—"}</td><td style={{ ...headS, width: "25%" }}>Occupier</td><td style={cellS}>{eicr.occupier || property?.tenant_name || "—"}</td></tr>
+          <tr><td style={headS}>Installation Address</td><td style={cellS} colSpan={3}>{eicr.clientAddress || eicr.installationAddress || property?.address || "—"}</td></tr>
+          <tr><td style={headS}>Purpose of Report</td><td style={cellS} colSpan={3}>{eicr.purpose || "Condition report on the electrical installation"}</td></tr>
+          <tr><td style={headS}>Description of Premises</td><td style={cellS}>{eicr.description || eicr.premisesType || "—"}</td><td style={headS}>Estimated Age</td><td style={cellS}>{eicr.estimatedAge || eicr.ageOfInstallation || "—"}</td></tr>
+          <tr><td style={headS}>Evidence of Alterations</td><td style={cellS}>{eicr.evidenceOfAlterations || "—"}</td><td style={headS}>Date of Last Inspection</td><td style={cellS}>{eicr.dateOfLastInspection || "—"}</td></tr>
+        </tbody>
+      </table>
+
+      {/* Section B — Extent & Limitations */}
+      <div style={secHead}>Section B — Extent and Limitations of the Inspection</div>
+      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14 }}>
+        <tbody>
+          <tr><td style={headS}>Extent of Installation Covered</td><td style={cellS}>{eicr.extentCovered || eicr.extent || "As agreed with client"}</td></tr>
+          <tr><td style={{ ...headS, width: "25%" }}>Limitations</td><td style={cellS}>{eicr.limitations || "None"}</td></tr>
+          <tr><td style={headS}>Agreed With</td><td style={cellS}>{eicr.agreedWith || eicr.clientName || "—"}</td></tr>
+          <tr><td style={headS}>Operational Limitations</td><td style={cellS}>{eicr.operationalLimitations || "None"}</td></tr>
+        </tbody>
+      </table>
+
+      {/* Section C — Supply Characteristics */}
+      <div style={secHead}>Section C — Supply Characteristics and Earthing Arrangements</div>
+      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14 }}>
+        <tbody>
+          <tr><td style={{ ...headS, width: "25%" }}>System Type / Earthing</td><td style={cellS}>{eicr.typeOfEarthingSystem || eicr.earthingSystem || "—"}</td><td style={{ ...headS, width: "25%" }}>Supply Conductors</td><td style={cellS}>{eicr.supplyType || eicr.numberOfLiveConnectors || "—"}</td></tr>
+          <tr><td style={headS}>Nominal Voltage (U)</td><td style={cellS}>{eicr.supplyVoltage || eicr.nominalVoltageEarth || "—"}{(eicr.supplyVoltage || eicr.nominalVoltageEarth) ? " V" : ""}</td><td style={headS}>Nominal Frequency</td><td style={cellS}>{eicr.frequency || "50"} Hz</td></tr>
+          <tr><td style={headS}>Earth Fault Loop Impedance Ze</td><td style={cellS}>{eicr.earthFaultLoop || eicr.externalEarthFaultLoop || "—"}{(eicr.earthFaultLoop || eicr.externalEarthFaultLoop) ? " Ω" : ""}</td><td style={headS}>Prospective Fault Current (Pscc)</td><td style={cellS}>{eicr.pscc || eicr.prospectiveFaultCurrent || "—"}{(eicr.pscc || eicr.prospectiveFaultCurrent) ? " kA" : ""}</td></tr>
+          <tr><td style={headS}>Maximum Demand</td><td style={cellS}>{eicr.maxDemand || "—"}{eicr.maxDemand ? " A" : ""}</td><td style={headS}>Supply Protective Device</td><td style={cellS}>{eicr.supplyProtectiveDevice || "—"}{eicr.supplyProtectiveDeviceRating ? ` · ${eicr.supplyProtectiveDeviceRating} A` : ""}</td></tr>
+        </tbody>
+      </table>
+
+      {/* Section D — Distribution Board */}
+      <div style={secHead}>Section D — Particulars of Installation at the Distribution Board</div>
+      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14 }}>
+        <tbody>
+          <tr><td style={{ ...headS, width: "25%" }}>DB Designation</td><td style={cellS}>{eicr.dbDesignation || "Main"}</td><td style={{ ...headS, width: "25%" }}>DB Location</td><td style={cellS}>{eicr.dbLocation || "—"}</td></tr>
+          <tr><td style={headS}>DB Make / Model</td><td style={cellS}>{eicr.dbMake || "—"}</td><td style={headS}>No. of Circuits</td><td style={cellS}>{eicr.numberOfCircuits || "—"}</td></tr>
+          <tr><td style={headS}>Main Switch Type</td><td style={cellS}>{eicr.mainSwitchType || "—"}</td><td style={headS}>Main Switch Rating</td><td style={cellS}>{eicr.mainSwitchRating || "—"}{eicr.mainSwitchRating ? " A" : ""}</td></tr>
+          <tr><td style={headS}>RCD Present</td><td style={cellS}>{eicr.rcdPresent || "—"}</td><td style={headS}>RCD Rating / Type</td><td style={cellS}>{eicr.rcdRating || "—"}{eicr.rcdRating ? " mA" : ""}{eicr.rcdType ? ` · ${eicr.rcdType}` : ""}</td></tr>
+        </tbody>
+      </table>
+
+      {/* Circuit Schedule (Page 3 content) */}
+      <div style={secHead}>Schedule of Circuit Details and Test Results</div>
+      {eicr.circuits && Array.isArray(eicr.circuits) && eicr.circuits.length > 0 ? (
+        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14, fontSize: 8 }}>
+          <thead>
+            <tr>{["Cct", "Description", "Type", "Ref", "Pts", "OCPD", "R1+R2 Ω", "Zs Ω", "IR MΩ", "Pol", "RCD ms", "Remarks"].map((h, i) => <th key={i} style={{ ...headS, fontSize: 7, padding: "3px 4px", textAlign: "left" }}>{h}</th>)}</tr>
+          </thead>
+          <tbody>
+            {eicr.circuits.map((c, i) => (
+              <tr key={i}>
+                {[c.circuitNo || i + 1, c.description, c.wiringType, c.refMethod, c.noOfPoints, `${c.ocpdType || ""} ${c.ocpdRating || ""}`.trim(), c.r1r2, c.zs, c.insResistance, c.polarity, c.rcdTime, c.remarks].map((v, j) => (
+                  <td key={j} style={{ ...cellS, fontSize: 8, padding: "3px 4px" }}>{v || "—"}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14 }}>
+          <thead><tr>{["Cct", "Description", "Type", "OCPD", "R1+R2 Ω", "Zs Ω", "IR MΩ", "Pol", "RCD ms", "Remarks"].map((h, i) => <th key={i} style={{ ...headS, fontSize: 7, padding: "3px 4px", textAlign: "left" }}>{h}</th>)}</tr></thead>
+          <tbody>{[1,2,3,4,5,6].map(n => <tr key={n}>{Array(10).fill(0).map((_, j) => <td key={j} style={{ ...cellS, fontSize: 8, padding: "3px 4px", height: 16 }}>{j === 0 ? n : ""}</td>)}</tr>)}</tbody>
+        </table>
+      )}
+
+      {/* Section E — Observations */}
+      <div style={secHead}>Section E — Observations and Recommendations</div>
+      {eicr.observations && (Array.isArray(eicr.observations) ? eicr.observations.filter(o => o.observation) : []).length > 0 ? (
+        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14 }}>
+          <thead><tr><th style={{ ...headS, width: 50 }}>Code</th><th style={headS}>Observation</th><th style={{ ...headS, width: 120 }}>Location</th></tr></thead>
+          <tbody>
+            {(Array.isArray(eicr.observations) ? eicr.observations : []).filter(o => o.observation).map((obs, i) => (
+              <tr key={i}><td style={{ ...cellS, textAlign: "center", fontWeight: 700, color: obs.code === "C1" ? "#dc2626" : obs.code === "C2" ? "#ea580c" : "#333" }}>{obs.code || "—"}</td><td style={cellS}>{obs.observation}</td><td style={cellS}>{obs.location || "—"}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <div style={{ fontFamily: "Arial, sans-serif", fontSize: 9, color: "#666", padding: "8px 0", marginBottom: 10 }}>No observations recorded.</div>
+      )}
+      {eicr.recommendations && <div style={{ fontFamily: "Arial, sans-serif", fontSize: 9, color: "#333", padding: "6px 8px", background: "#f5f5f5", borderRadius: 4, marginBottom: 14, lineHeight: 1.5 }}><strong>Recommendations:</strong> {eicr.recommendations}</div>}
+
+      {/* Section F — Overall Assessment */}
+      <div style={secHead}>Section F — Summary of the Condition of the Installation</div>
+      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14 }}>
+        <tbody>
+          <tr>
+            <td style={{ ...headS, width: "40%" }}>Overall Assessment</td>
+            <td style={{ ...cellS, fontSize: 12, fontWeight: 700, color: (eicr.outcome || eicr.overallAssessment) === "Satisfactory" ? "#15803d" : (eicr.outcome || eicr.overallAssessment) === "Unsatisfactory" ? "#dc2626" : "#d97706" }}>
+              {eicr.outcome || eicr.overallAssessment || "—"}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      {/* Declaration */}
+      <div style={secHead}>Declaration</div>
+      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14 }}>
+        <tbody>
+          <tr><td style={{ ...headS, width: "25%" }}>Inspector Name</td><td style={cellS}>{eicr.inspector || eicr.inspectorName || "—"}</td><td style={{ ...headS, width: "25%" }}>Company</td><td style={cellS}>{eicr.company || "Ohmnium Electrical"}</td></tr>
+          <tr><td style={headS}>Inspection Date</td><td style={cellS}>{eicr.startDate || eicr.inspectionDate || "—"}</td><td style={headS}>Next Inspection Due</td><td style={cellS}>{eicr.nextInspectionDate || "—"}</td></tr>
+          <tr><td style={headS}>Signature</td><td style={{ ...cellS, height: 30 }}></td><td style={headS}>Date Signed</td><td style={{ ...cellS, height: 30 }}></td></tr>
+        </tbody>
+      </table>
+
+      <div style={{ fontFamily: "Arial, sans-serif", fontSize: 8, color: "#888", textAlign: "center", marginTop: 20, borderTop: "1px solid #ddd", paddingTop: 8 }}>
+        Generated by OhmniumIQ Compliance Portal · Ohmnium Electrical Ltd · {new Date().toLocaleDateString("en-GB")}
+      </div>
+    </div>
+  );
+
+  // Default fallback for non-EICR job types — basic job summary cert
+  return (
+    <div ref={certRef} style={{ width: 794, background: "#fff", padding: "30px 40px", boxSizing: "border-box" }}>
+      <div style={{ borderBottom: "3px solid #2a4a8d", paddingBottom: 10, marginBottom: 14 }}>
+        <div style={{ fontFamily: "Arial, sans-serif", fontSize: 16, fontWeight: 700, color: "#2a4a8d" }}>{job.type.toUpperCase()} CERTIFICATE</div>
+        <div style={{ fontFamily: "Arial, sans-serif", fontSize: 10, color: "#555", marginTop: 2 }}>Ref: {job.ref}</div>
+      </div>
+      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14 }}>
+        <tbody>
+          <tr><td style={{ ...headS, width: "25%" }}>Property Address</td><td style={cellS} colSpan={3}>{property?.address || "—"}</td></tr>
+          <tr><td style={headS}>Tenant</td><td style={cellS}>{property?.tenant_name || "—"}</td><td style={headS}>Date</td><td style={cellS}>{job.scheduled_date || "—"}</td></tr>
+          <tr><td style={headS}>Job Type</td><td style={cellS}>{job.type}</td><td style={headS}>Status</td><td style={cellS}>{job.status}</td></tr>
+          {job.notes && <tr><td style={headS}>Notes</td><td style={cellS} colSpan={3}>{job.notes}</td></tr>}
+        </tbody>
+      </table>
+      <div style={{ fontFamily: "Arial, sans-serif", fontSize: 8, color: "#888", textAlign: "center", marginTop: 30, borderTop: "1px solid #ddd", paddingTop: 8 }}>
+        Generated by OhmniumIQ Compliance Portal · Ohmnium Electrical Ltd · {new Date().toLocaleDateString("en-GB")}
+      </div>
+    </div>
+  );
+}
+
+// ─── PDF Generation Hook ───
+function useGenerateCertificate() {
+  const { updateJob, addDoc, addAudit, uploadFile, fetchAll, properties, updateProperty } = useContext(DataContext);
+  const auth = useContext(AuthContext);
+  const certRef = useRef(null);
+  const [generatingJobId, setGeneratingJobId] = useState(null);
+  const [generating, setGenerating] = useState(false);
+
+  const generate = useCallback(async (job) => {
+    if (generating) return;
+    setGenerating(true);
+    setGeneratingJobId(job.id);
+    // Wait for React to render the hidden cert div
+    await new Promise(r => setTimeout(r, 300));
+    try {
+      if (!certRef.current) throw new Error("Certificate renderer not ready");
+      const canvas = await html2canvas(certRef.current, { scale: 2, useCORS: true, backgroundColor: "#ffffff", logging: false });
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pdfW = 210;
+      const pdfH = (canvas.height * pdfW) / canvas.width;
+      // Handle multi-page if content is taller than A4
+      const pageH = 297;
+      if (pdfH <= pageH) {
+        pdf.addImage(imgData, "PNG", 0, 0, pdfW, pdfH);
+      } else {
+        let yOff = 0;
+        let page = 0;
+        while (yOff < canvas.height) {
+          if (page > 0) pdf.addPage();
+          const sliceH = Math.min(canvas.height - yOff, (pageH / pdfW) * canvas.width);
+          const sliceCanvas = document.createElement("canvas");
+          sliceCanvas.width = canvas.width;
+          sliceCanvas.height = sliceH;
+          const sCtx = sliceCanvas.getContext("2d");
+          sCtx.drawImage(canvas, 0, yOff, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+          const sliceImg = sliceCanvas.toDataURL("image/png");
+          const slicePdfH = (sliceH * pdfW) / canvas.width;
+          pdf.addImage(sliceImg, "PNG", 0, 0, pdfW, slicePdfH);
+          yOff += sliceH;
+          page++;
+        }
+      }
+      const blob = pdf.output("blob");
+      const fileName = `${job.type}_${job.ref}_${Date.now()}.pdf`;
+      const filePath = `${auth.orgId}/${job.id}/${fileName}`;
+      const { error: uploadErr } = await uploadFile(blob, filePath);
+      if (uploadErr) throw new Error("Upload failed: " + uploadErr.message);
+      const prop = properties.find(p => p.id === job.property_id);
+      const certType = job.type === "EICR" ? "EICR" : job.type === "Smoke Alarm" ? "Smoke Alarm" : job.type === "PAT" ? "PAT" : job.type;
+      // Calculate expiry date
+      let expiryDate = null;
+      const today = new Date().toISOString().split("T")[0];
+      if (certType === "EICR") { const d = new Date(); d.setFullYear(d.getFullYear() + 5); expiryDate = d.toISOString().split("T")[0]; }
+      else if (certType === "Smoke Alarm") { const d = new Date(); d.setMonth(d.getMonth() + 6); expiryDate = d.toISOString().split("T")[0]; }
+      else if (certType === "PAT") { const d = new Date(); d.setFullYear(d.getFullYear() + 1); expiryDate = d.toISOString().split("T")[0]; }
+      await addDoc({ jobId: job.id, propertyId: job.property_id, type: certType, filePath, fileName, expiry: expiryDate });
+      await updateJob(job.id, { hasCert: true });
+      // Update property compliance dates
+      if (prop && expiryDate) {
+        if (certType === "EICR") await updateProperty(prop.id, { lastEicr: today, expiryDate });
+        else if (certType === "Smoke Alarm") await updateProperty(prop.id, { last_smoke: today, smoke_expiry: expiryDate });
+        else if (certType === "PAT") await updateProperty(prop.id, { last_pat: today, pat_expiry: expiryDate });
+      }
+      await addAudit({ action: `Certificate generated: ${certType} for ${prop?.address?.split(",")[0] || "—"} (${job.ref})` });
+      await fetchAll();
+      setGeneratingJobId(null);
+      setGenerating(false);
+      return { success: true };
+    } catch (e) {
+      setGeneratingJobId(null);
+      setGenerating(false);
+      return { success: false, error: e.message };
+    }
+  }, [generating, auth, uploadFile, addDoc, updateJob, updateProperty, addAudit, fetchAll, properties]);
+
+  return { generate, generating, generatingJobId, certRef, setGeneratingJobId };
+}
+
 // ─── Upload Certificate Modal ───
 function UploadCertModal({ open, onClose }) {
   const { jobs, properties, addDoc, updateProperty, updateJob, addJob, addAudit, uploadFile, fetchAll } = useContext(DataContext);
@@ -1457,20 +1700,28 @@ function DocumentsPage() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [toast, setToast] = useState(null);
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
+  const { generate, generating, generatingJobId, certRef } = useGenerateCertificate();
 
-  const pendingCerts = jobs.filter(j => j.status === "Completed" && !j.has_cert).length;
+  const pendingCertJobs = jobs.filter(j => j.status === "Completed" && !j.has_cert);
+  const pendingCerts = pendingCertJobs.length;
+  const pendingFormJobs = pendingCertJobs.filter(j => ["EICR", "Smoke Alarm", "PAT"].includes(j.type));
 
-  const getDownloadUrl = async (filePath) => {
-    if (!filePath) return null;
-    const { data } = await supabase.storage.from("certificates").createSignedUrl(filePath, 60);
-    return data?.signedUrl;
+  const handleGenerateAll = async () => {
+    for (const job of pendingFormJobs) {
+      showToast("Generating certificate for " + job.ref + "…");
+      const result = await generate(job);
+      if (!result.success) { showToast("Failed: " + (result.error || job.ref)); return; }
+    }
+    showToast("All certificates generated");
   };
 
   const handleDownload = async (doc) => {
     if (!doc.file_path) { showToast("No file stored for this certificate"); return; }
-    const url = await getDownloadUrl(doc.file_path);
-    if (url) window.open(url, "_blank");
-    else showToast("Could not retrieve file");
+    try {
+      const { data, error } = await supabase.storage.from("certificates").createSignedUrl(doc.file_path, 60);
+      if (error || !data?.signedUrl) { showToast("Could not retrieve file — please contact support"); console.error("Signed URL error:", error); return; }
+      window.open(data.signedUrl, "_blank");
+    } catch (e) { showToast("Download failed — check your connection"); console.error("Download error:", e); }
   };
 
   const filtered = documents.filter(d => {
@@ -1495,7 +1746,10 @@ function DocumentsPage() {
             <Icon name="alert" size={18} color={C.amber} />
             <span style={{ fontFamily: font, fontSize: 13, color: C.text }}><strong>{pendingCerts} completed job{pendingCerts > 1 ? "s" : ""}</strong> awaiting certificate upload</span>
           </div>
-          <button onClick={() => setShowUpload(true)} style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.white, background: C.amber, border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", minHeight: 36 }}>Upload Now</button>
+          <div style={{ display: "flex", gap: 8 }}>
+            {pendingFormJobs.length > 0 && <button onClick={handleGenerateAll} disabled={generating} style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.white, background: generating ? C.textDim : C.accent, border: "none", borderRadius: 8, padding: "8px 16px", cursor: generating ? "not-allowed" : "pointer", minHeight: 36 }}>{generating ? "Generating…" : `Generate ${pendingFormJobs.length > 1 ? `(${pendingFormJobs.length})` : "Cert"}`}</button>}
+            <button onClick={() => setShowUpload(true)} style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.white, background: C.amber, border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", minHeight: 36 }}>Upload</button>
+          </div>
         </div>
       )}
       <div style={{ background: C.card, borderRadius: 14, padding: mob ? 18 : 28, border: `1px solid ${C.border}` }}>
@@ -1550,6 +1804,8 @@ function DocumentsPage() {
           );
         })}
       </div>
+      {/* Hidden certificate renderer for PDF generation */}
+      {generatingJobId && (() => { const gJob = jobs.find(j => j.id === generatingJobId); return gJob ? <div style={{ position: "fixed", left: -9999, top: 0 }}><CertificateRenderer job={gJob} property={properties.find(p => p.id === gJob.property_id)} certRef={certRef} /></div> : null; })()}
     </div>
   );
 }
@@ -3722,6 +3978,14 @@ function PropertyDetailPage({ propertyId, onBack, onRequestJob }) {
   const [activeJobComments, setActiveJobComments] = useState(null);
   const [toast, setToast] = useState(null);
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
+  const { generate, generating, generatingJobId, certRef } = useGenerateCertificate();
+
+  const handleGenerateCert = async (job) => {
+    showToast("Generating certificate…", "info");
+    const result = await generate(job);
+    if (result.success) showToast("Certificate generated and uploaded");
+    else showToast(result.error || "Failed to generate certificate", "error");
+  };
 
   const property = properties.find(p => p.id === propertyId);
   if (!property) return null;
@@ -3741,9 +4005,11 @@ function PropertyDetailPage({ propertyId, onBack, onRequestJob }) {
 
   const handleDownload = async (doc) => {
     if (!doc.file_path) { showToast("No file stored", "error"); return; }
-    const { data } = await supabase.storage.from("certificates").createSignedUrl(doc.file_path, 60);
-    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
-    else showToast("Could not retrieve file", "error");
+    try {
+      const { data, error } = await supabase.storage.from("certificates").createSignedUrl(doc.file_path, 60);
+      if (error || !data?.signedUrl) { showToast("Could not retrieve file — please contact support", "error"); console.error("Signed URL error:", error); return; }
+      window.open(data.signedUrl, "_blank");
+    } catch (e) { showToast("Download failed — check your connection", "error"); console.error("Download error:", e); }
   };
 
   const submitComment = async (jobId) => {
@@ -3854,6 +4120,9 @@ function PropertyDetailPage({ propertyId, onBack, onRequestJob }) {
                   {["admin"].includes(auth.role) && ["Pending", "Scheduled"].includes(job.status) && (
                     <button onClick={() => handleCancelJob(job)} style={{ fontFamily: font, fontSize: 11, color: C.red, background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 6, padding: "5px 10px", cursor: "pointer", minHeight: 30 }}>Cancel</button>
                   )}
+                  {job.status === "Completed" && !job.has_cert && (
+                    <button onClick={() => handleGenerateCert(job)} disabled={generating} style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: C.white, background: generatingJobId === job.id ? C.textDim : C.accent, border: "none", borderRadius: 6, padding: "5px 10px", cursor: generating ? "not-allowed" : "pointer", minHeight: 30, opacity: generating ? 0.7 : 1 }}>{generatingJobId === job.id ? "Generating…" : "Generate Cert"}</button>
+                  )}
                   <span style={{ fontFamily: font, fontSize: 10, fontWeight: 600, color: jobStatusColor(job.status), background: jobStatusBg(job.status), padding: "4px 10px", borderRadius: 20, whiteSpace: "nowrap" }}>{job.status}</span>
                 </div>
               </div>
@@ -3920,6 +4189,8 @@ function PropertyDetailPage({ propertyId, onBack, onRequestJob }) {
           );
         })}
       </div>
+      {/* Hidden certificate renderer for PDF generation */}
+      {generatingJobId && (() => { const gJob = jobs.find(j => j.id === generatingJobId); return gJob ? <div style={{ position: "fixed", left: -9999, top: 0 }}><CertificateRenderer job={gJob} property={properties.find(p => p.id === gJob.property_id)} certRef={certRef} /></div> : null; })()}
     </div>
   );
 }
