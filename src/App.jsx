@@ -227,7 +227,7 @@ function LoginPage() {
             </>
           )}
         </div>
-        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v15.0</p>
+        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v16.0</p>
       </div>
     </div>
   );
@@ -327,7 +327,7 @@ function DataProvider({ children, userProfile }) {
       property_id: job.propertyId, type: job.type, status: job.status || "Pending",
       engineer_id: job.engineerId || null, scheduled_date: job.date || null,
       notes: job.notes || null, eicr_data: job.eicrData || null,
-      created_by: userProfile.id,
+      created_by: userProfile.id, organisation_id: userProfile.organisation_id,
     }).select().single();
     if (data) setJobs(prev => [data, ...prev]);
     return { data, error };
@@ -351,6 +351,7 @@ function DataProvider({ children, userProfile }) {
       job_id: doc.jobId, property_id: doc.propertyId, type: doc.type,
       file_path: doc.filePath || null, file_name: doc.fileName || null,
       expiry_date: doc.expiry || null, uploaded_by: userProfile.id,
+      organisation_id: userProfile.organisation_id,
     }).select().single();
     if (data) setDocuments(prev => [data, ...prev]);
     return { data, error };
@@ -362,6 +363,7 @@ function DataProvider({ children, userProfile }) {
       user_id: entry.userId || userProfile.id,
       user_name: entry.userName || userProfile.full_name,
       user_role: entry.userRole || userProfile.role,
+      organisation_id: userProfile.organisation_id,
     }).select().single();
     if (data) setAudit(prev => [data, ...prev]);
     return { data, error };
@@ -684,7 +686,7 @@ function Sidebar({ active, setActive, role, userProfile, onLogout }) {
       <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}` }}>
         <button onClick={onLogout} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.card, display: "grid", placeItems: "center" }}><Icon name="logout" size={16} color={C.textMuted} /></div>
-          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v15.0 — Supabase</div></div>
+          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v16.0 — Supabase</div></div>
         </button>
       </div>
     </div>
@@ -1185,7 +1187,7 @@ function AssignModal({ open, job, onClose }) {
           <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{job.type} — {prop.address.split(",")[0]}</div>
           {isReassign && <div style={{ fontFamily: font, fontSize: 11, color: C.amber, marginTop: 4 }}>Currently: {engineers.find(e => e.id === job.engineer_id)?.full_name || "Unassigned"} · {job.scheduled_date ? formatDate(job.scheduled_date) : "No date"}</div>}
         </div>}
-        <Select label="Engineer" value={engId} onChange={setEngId} options={[{ value: "", label: "— Select —" }, ...engineers.map(e => ({ value: e.id, label: `${e.full_name} (${e.role === "junior" ? "Junior" : "Senior"})` }))]} />
+        <Select label="Engineer" value={engId} onChange={setEngId} options={[{ value: "", label: "— Select —" }, ...engineers.filter(e => ["engineer", "junior"].includes(e.role)).map(e => ({ value: e.id, label: `${e.full_name} (${e.role === "junior" ? "Junior" : "Senior"})` }))]} />
         <Input label="Scheduled Date" type="date" value={date} onChange={setDate} />
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
           <button onClick={() => onClose(null)} style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44 }}>Cancel</button>
@@ -3549,7 +3551,7 @@ function SignOffPage() {
         <div style={{ background: C.card, borderRadius: 14, padding: 60, border: `1px solid ${C.border}`, textAlign: "center" }}>
           <Icon name="checkCircle" size={40} color={C.green} />
           <div style={{ fontFamily: font, fontSize: 14, color: C.white, fontWeight: 600, marginTop: 16 }}>Queue is clear</div>
-          <div style={{ fontFamily: font, fontSize: 12, color: C.textDim, marginTop: 6 }}>No EICRs awaiting sign-off</div>
+          <div style={{ fontFamily: font, fontSize: 12, color: C.textDim, marginTop: 6 }}>No jobs awaiting sign-off</div>
         </div>
       ) : queue.map(job => {
         const prop = properties.find(p => p.id === job.property_id);
@@ -3577,8 +3579,9 @@ function SignOffPage() {
                 <button onClick={() => reviewedJobs[job.id] && approve(job)} title={reviewedJobs[job.id] ? "" : "Open Review first"} style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.white, background: reviewedJobs[job.id] ? C.green : C.textDim, border: "none", borderRadius: 8, padding: "8px 16px", cursor: reviewedJobs[job.id] ? "pointer" : "not-allowed", minHeight: 36, opacity: reviewedJobs[job.id] ? 1 : 0.5 }}>Approve</button>
               </div>
             </div>
-            {isOpen && eicr && (
+            {isOpen && (
               <div style={{ padding: mob ? "0 16px 16px" : "0 24px 24px", borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
+                {job.eicr_data ? (<>
                 <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "repeat(3,1fr)", gap: 14 }}>
                   {[
                     ["Client / Landlord", eicr.clientName || eicr.landlordName], ["Address", eicr.clientAddress || eicr.installationAddress], ["Purpose", eicr.purpose],
@@ -3611,6 +3614,25 @@ function SignOffPage() {
                   </div>
                 )}
                 {eicr.recommendations && <div style={{ marginTop: 10, background: C.surfaceAlt, borderRadius: 8, padding: "12px 14px" }}><div style={{ fontFamily: font, fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Recommendations</div><div style={{ fontFamily: font, fontSize: 12, color: C.text, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{eicr.recommendations}</div></div>}
+                </>) : (
+                <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "repeat(3,1fr)", gap: 14 }}>
+                  {[
+                    ["Job Type", job.type], ["Property", prop?.address || "—"], ["Tenant", prop?.tenant_name],
+                    ["Engineer", eng?.full_name], ["Scheduled Date", job.scheduled_date ? formatDate(job.scheduled_date) : ""], ["Reference", job.ref],
+                  ].map(([label, val], i) => val ? (
+                    <div key={i} style={{ background: C.surfaceAlt, borderRadius: 8, padding: "10px 12px" }}>
+                      <div style={{ fontFamily: font, fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>{label}</div>
+                      <div style={{ fontFamily: font, fontSize: 12, color: C.white }}>{val}</div>
+                    </div>
+                  ) : null)}
+                  {job.notes && (
+                    <div style={{ background: C.surfaceAlt, borderRadius: 8, padding: "10px 12px", gridColumn: mob ? "1" : "1 / -1" }}>
+                      <div style={{ fontFamily: font, fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>Notes</div>
+                      <div style={{ fontFamily: font, fontSize: 12, color: C.text, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{job.notes}</div>
+                    </div>
+                  )}
+                </div>
+                )}
               </div>
             )}
           </div>
