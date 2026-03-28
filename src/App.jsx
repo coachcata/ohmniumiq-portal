@@ -229,7 +229,7 @@ function LoginPage() {
             </>
           )}
         </div>
-        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v17.0</p>
+        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v17.1</p>
       </div>
     </div>
   );
@@ -689,7 +689,7 @@ function Sidebar({ active, setActive, role, userProfile, onLogout }) {
       <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}` }}>
         <button onClick={onLogout} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.card, display: "grid", placeItems: "center" }}><Icon name="logout" size={16} color={C.textMuted} /></div>
-          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v17.0 — Supabase</div></div>
+          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v17.1 — Supabase</div></div>
         </button>
       </div>
     </div>
@@ -965,9 +965,8 @@ function PropertiesPage({ onRequestJob, onSelectProperty }) {
   }).sort((a, b) => {
     if (sort === "status") return statusOrder[overallStatus(a)] - statusOrder[overallStatus(b)];
     if (sort === "expiry") {
-      const da = a.expiry_date ? new Date(a.expiry_date) : new Date("9999-01-01");
-      const db = b.expiry_date ? new Date(b.expiry_date) : new Date("9999-01-01");
-      return da - db;
+      const earliest = (p) => Math.min(p.expiry_date ? new Date(p.expiry_date).getTime() : Infinity, p.smoke_expiry ? new Date(p.smoke_expiry).getTime() : Infinity, p.pat_expiry ? new Date(p.pat_expiry).getTime() : Infinity);
+      return earliest(a) - earliest(b);
     }
     if (sort === "tenant") return (a.tenant_name || "").localeCompare(b.tenant_name || "");
     return 0; // default: database order (ref)
@@ -1048,7 +1047,7 @@ function JobsPage({ onNavigateEicr }) {
 
   const filtered = jobs.filter(j => {
     if (sf !== "all" && j.status !== sf) return false;
-    if (["engineer", "junior"].includes(role)) return j.engineer_id === auth.id;
+    if (["engineer", "junior"].includes(role) && j.engineer_id !== auth.id) return false;
     if (search) {
       const prop = properties.find(p => p.id === j.property_id);
       const q = search.toLowerCase();
@@ -1060,7 +1059,7 @@ function JobsPage({ onNavigateEicr }) {
   const advanceStatus = async (job) => {
     let ns = null;
     if (job.status === "Scheduled") ns = "In Progress";
-    else if (job.status === "In Progress") ns = "Completed";
+    else if (job.status === "In Progress") ns = role === "junior" ? "Awaiting Sign-Off" : "Completed";
     if (!ns) return;
     await updateJob(job.id, { status: ns });
     await addAudit({ action: `Job ${job.ref} status → ${ns}` });
@@ -1440,12 +1439,14 @@ function useGenerateCertificate() {
       if (uploadErr) throw new Error("Upload failed: " + uploadErr.message);
       const prop = properties.find(p => p.id === job.property_id);
       const certType = job.type === "EICR" ? "EICR" : job.type === "Smoke Alarm" ? "Smoke Alarm" : job.type === "PAT" ? "PAT" : job.type;
-      // Calculate expiry date
+      // Calculate expiry date from inspection date (or today as fallback)
       let expiryDate = null;
+      const eicr = job.eicr_data || {};
+      const baseDate = new Date(eicr.inspectionDate || eicr.startDate || job.scheduled_date || new Date());
       const today = new Date().toISOString().split("T")[0];
-      if (certType === "EICR") { const d = new Date(); d.setFullYear(d.getFullYear() + 5); expiryDate = d.toISOString().split("T")[0]; }
-      else if (certType === "Smoke Alarm") { const d = new Date(); d.setMonth(d.getMonth() + 6); expiryDate = d.toISOString().split("T")[0]; }
-      else if (certType === "PAT") { const d = new Date(); d.setFullYear(d.getFullYear() + 1); expiryDate = d.toISOString().split("T")[0]; }
+      if (certType === "EICR") { const d = new Date(baseDate); d.setFullYear(d.getFullYear() + 5); expiryDate = d.toISOString().split("T")[0]; }
+      else if (certType === "Smoke Alarm") { const d = new Date(baseDate); d.setMonth(d.getMonth() + 6); expiryDate = d.toISOString().split("T")[0]; }
+      else if (certType === "PAT") { const d = new Date(baseDate); d.setFullYear(d.getFullYear() + 1); expiryDate = d.toISOString().split("T")[0]; }
       await addDoc({ jobId: job.id, propertyId: job.property_id, type: certType, filePath, fileName, expiry: expiryDate });
       await updateJob(job.id, { hasCert: true });
       // Update property compliance dates
@@ -1878,7 +1879,7 @@ function EICRPage() {
 
   const myJobs = jobs.filter(j =>
     (j.engineer_id === auth.id || ["supervisor", "admin"].includes(auth.role)) &&
-    ["Scheduled", "In Progress"].includes(j.status)
+    j.status === "In Progress"
   );
 
   const [selectedJobId, setSelectedJobId] = useState("");
@@ -2492,7 +2493,7 @@ function DFPM25Page() {
 
   const myJobs = jobs.filter(j =>
     (j.engineer_id === auth.id || ["supervisor", "admin"].includes(auth.role)) &&
-    ["Scheduled", "In Progress"].includes(j.status) &&
+    j.status === "In Progress" &&
     (j.type === "Smoke Alarm" || j.type === "Fire Alarm")
   );
 
@@ -2842,7 +2843,7 @@ function EPM25Page() {
 
   const myJobs = jobs.filter(j =>
     (j.engineer_id === auth.id || ["supervisor", "admin"].includes(auth.role)) &&
-    ["Scheduled", "In Progress"].includes(j.status) &&
+    j.status === "In Progress" &&
     (j.type === "Emergency Lighting" || j.type === "Smoke Alarm")
   );
 
@@ -3274,7 +3275,7 @@ function EIC183CPage() {
 
   const myJobs = jobs.filter(j =>
     (j.engineer_id === auth.id || ["supervisor", "admin"].includes(auth.role)) &&
-    ["Scheduled", "In Progress"].includes(j.status) &&
+    j.status === "In Progress" &&
     (j.type === "Remedial" || j.type === "New Installation" || j.type === "Alteration")
   );
 
@@ -4229,7 +4230,8 @@ function PortalApp({ session, userProfile, onLogout }) {
   useEffect(() => {
     if (["eicr", "dfpm25", "epm25", "eic183c"].includes(page) && !["engineer", "junior", "supervisor"].includes(role)) setPage("dashboard");
     if (page === "signoff" && !["supervisor", "admin"].includes(role)) setPage("dashboard");
-  }, [role]);
+    if (page === "team" && role !== "admin") setPage("dashboard");
+  }, [role, page]);
 
   const navigateToProperty = (id) => { setSelectedPropertyId(id); setPage("propertyDetail"); };
   const requestJob = (p) => { setRequestJobProp(p); setShowRequestJob(true); };
