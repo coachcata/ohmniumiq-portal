@@ -229,7 +229,7 @@ function LoginPage() {
             </>
           )}
         </div>
-        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v17.2</p>
+        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v17.3</p>
       </div>
     </div>
   );
@@ -709,7 +709,7 @@ function Sidebar({ active, setActive, role, userProfile, onLogout }) {
       <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}` }}>
         <button onClick={onLogout} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.card, display: "grid", placeItems: "center" }}><Icon name="logout" size={16} color={C.textMuted} /></div>
-          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v17.2 — Supabase</div></div>
+          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v17.3 — Supabase</div></div>
         </button>
       </div>
     </div>
@@ -1909,6 +1909,62 @@ function AuditPage() {
 // ─────────────────────────────────────────────
 // EICR183C — ELECTRICAL INSTALLATION CONDITION REPORT (Full BS 7671)
 // ─────────────────────────────────────────────
+
+// EICR form sub-components — defined outside EICRPage to prevent re-mount on every keystroke
+function EICRField({ label, value, onChange, type = "text", placeholder = "", disabled = false }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</label>
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} disabled={disabled}
+        style={{ fontFamily: font, fontSize: 13, color: disabled ? C.textDim : C.text, background: disabled ? C.surface : C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, opacity: disabled ? 0.6 : 1 }} />
+    </div>
+  );
+}
+
+function EICRSection({ title, children, mob }) {
+  return (
+    <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
+      <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, margin: "0 0 16px", textTransform: "uppercase", letterSpacing: 0.5 }}>{title}</h4>
+      <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap: 12 }}>{children}</div>
+    </div>
+  );
+}
+
+function EICRInspectionItem({ id, label, value, onChange }) {
+  const opts = [
+    { key: "pass", label: "\u2713", bg: C.green }, { key: "C1", label: "C1", bg: "#dc2626" },
+    { key: "C2", label: "C2", bg: "#ea580c" }, { key: "C3", label: "C3", bg: C.amber },
+    { key: "FI", label: "FI", bg: C.purple }, { key: "na", label: "N/A", bg: C.textDim },
+  ];
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 0", borderBottom: `1px solid ${C.border}` }}>
+      <span style={{ fontFamily: font, fontSize: 10, color: C.accent, width: 36, flexShrink: 0 }}>{id}</span>
+      <div style={{ flex: 1, fontFamily: font, fontSize: 11, color: C.white, minWidth: 0 }}>{label}</div>
+      <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+        {opts.map(o => (
+          <button key={o.key} onClick={() => onChange(o.key)}
+            style={{ fontFamily: font, fontSize: 9, fontWeight: value === o.key ? 700 : 400, color: value === o.key ? C.white : C.textDim,
+              background: value === o.key ? o.bg : C.surfaceAlt, border: `1px solid ${value === o.key ? "transparent" : C.border}`,
+              borderRadius: 4, padding: "3px 5px", cursor: "pointer", minWidth: 24, minHeight: 24, lineHeight: 1 }}>
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EICRSISection({ id, title, children, isOpen, onToggle }) {
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <button onClick={onToggle} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "10px 12px", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, cursor: "pointer", textAlign: "left" }}>
+        <span style={{ fontFamily: font, fontSize: 12, fontWeight: 700, color: C.accent }}>{title}</span>
+        <span style={{ fontFamily: font, fontSize: 11, color: C.textDim }}>{isOpen ? "\u25be" : "\u25b8"}</span>
+      </button>
+      {isOpen && <div style={{ padding: "4px 0" }}>{children}</div>}
+    </div>
+  );
+}
 function EICRPage() {
   const { jobs, properties, updateJob, addAudit } = useContext(DataContext);
   const auth = useContext(AuthContext);
@@ -2082,62 +2138,9 @@ function EICRPage() {
     if (!asDraft) setSelectedJobId("");
   };
 
-  const Field = ({ label, value, onChange, type = "text", placeholder = "", disabled = false }) => (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</label>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} disabled={disabled}
-        style={{ fontFamily: font, fontSize: 13, color: disabled ? C.textDim : C.text, background: disabled ? C.surface : C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, opacity: disabled ? 0.6 : 1 }} />
-    </div>
-  );
-
-  const Section = ({ title, children }) => (
-    <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
-      <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, margin: "0 0 16px", textTransform: "uppercase", letterSpacing: 0.5 }}>{title}</h4>
-      <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap: 12 }}>{children}</div>
-    </div>
-  );
-
-  // Compact inspection item — pass / C1 / C2 / C3 / FI / N/A
-  const SI = ({ id, label, fieldKey }) => {
-    const val = form[fieldKey];
-    const opts = [
-      { key: "pass", label: "✓", bg: C.green }, { key: "C1", label: "C1", bg: "#dc2626" },
-      { key: "C2", label: "C2", bg: "#ea580c" }, { key: "C3", label: "C3", bg: C.amber },
-      { key: "FI", label: "FI", bg: C.purple }, { key: "na", label: "N/A", bg: C.textDim },
-    ];
-    return (
-      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 0", borderBottom: `1px solid ${C.border}` }}>
-        <span style={{ fontFamily: font, fontSize: 10, color: C.accent, width: 36, flexShrink: 0 }}>{id}</span>
-        <div style={{ flex: 1, fontFamily: font, fontSize: 11, color: C.white, minWidth: 0 }}>{label}</div>
-        <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
-          {opts.map(o => (
-            <button key={o.key} onClick={() => set(fieldKey, o.key)}
-              style={{ fontFamily: font, fontSize: 9, fontWeight: val === o.key ? 700 : 400, color: val === o.key ? C.white : C.textDim,
-                background: val === o.key ? o.bg : C.surfaceAlt, border: `1px solid ${val === o.key ? "transparent" : C.border}`,
-                borderRadius: 4, padding: "3px 5px", cursor: "pointer", minWidth: 24, minHeight: 24, lineHeight: 1 }}>
-              {o.label}
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  // Collapsible section for Part 9
+  // Collapsible section state for Part 9
   const [openSections, setOpenSections] = useState({});
   const toggleSection = (s) => setOpenSections(prev => ({ ...prev, [s]: !prev[s] }));
-  const SISection = ({ id, title, children }) => {
-    const isOpen = openSections[id] !== false; // default open
-    return (
-      <div style={{ marginBottom: 8 }}>
-        <button onClick={() => toggleSection(id)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "10px 12px", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, cursor: "pointer", textAlign: "left" }}>
-          <span style={{ fontFamily: font, fontSize: 12, fontWeight: 700, color: C.accent }}>{title}</span>
-          <span style={{ fontFamily: font, fontSize: 11, color: C.textDim }}>{isOpen ? "▾" : "▸"}</span>
-        </button>
-        {isOpen && <div style={{ padding: "4px 0" }}>{children}</div>}
-      </div>
-    );
-  };
 
   return (
     <div>
@@ -2174,26 +2177,26 @@ function EICRPage() {
       </div>
 
       {/* Part 1 — Contractor, Client, Installation */}
-      <Section title="Part 1 — Contractor Details">
-        <Field label="Registration No" value={form.regNo} onChange={v => set("regNo", v)} />
-        <Field label="Trading Title" value={form.tradingTitle} onChange={v => set("tradingTitle", v)} />
-        <div style={{ gridColumn: "1 / -1" }}><Field label="Address" value={form.contractorAddress} onChange={v => set("contractorAddress", v)} /></div>
-        <Field label="Postcode" value={form.contractorPostcode} onChange={v => set("contractorPostcode", v)} />
-      </Section>
+      <EICRSection mob={mob} title="Part 1 — Contractor Details">
+        <EICRField label="Registration No" value={form.regNo} onChange={v => set("regNo", v)} />
+        <EICRField label="Trading Title" value={form.tradingTitle} onChange={v => set("tradingTitle", v)} />
+        <div style={{ gridColumn: "1 / -1" }}><EICRField label="Address" value={form.contractorAddress} onChange={v => set("contractorAddress", v)} /></div>
+        <EICRField label="Postcode" value={form.contractorPostcode} onChange={v => set("contractorPostcode", v)} />
+      </EICRSection>
 
-      <Section title="Part 1 — Client Details (Landlord / Agent)">
-        <Field label="Landlord Name" value={form.landlordName} onChange={v => set("landlordName", v)} placeholder="Property owner" />
-        <Field label="Estate Agent" value={form.agentName} onChange={v => set("agentName", v)} placeholder="Managing agent" />
-        <Field label="CRN" value={form.clientRefNo} onChange={v => set("clientRefNo", v)} />
-        <Field label="Client Name" value={form.clientName} onChange={v => set("clientName", v)} />
-        <div style={{ gridColumn: "1 / -1" }}><Field label="Client Address" value={form.clientAddress} onChange={v => set("clientAddress", v)} /></div>
-        <Field label="Postcode" value={form.clientPostcode} onChange={v => set("clientPostcode", v)} />
-      </Section>
+      <EICRSection mob={mob} title="Part 1 — Client Details (Landlord / Agent)">
+        <EICRField label="Landlord Name" value={form.landlordName} onChange={v => set("landlordName", v)} placeholder="Property owner" />
+        <EICRField label="Estate Agent" value={form.agentName} onChange={v => set("agentName", v)} placeholder="Managing agent" />
+        <EICRField label="CRN" value={form.clientRefNo} onChange={v => set("clientRefNo", v)} />
+        <EICRField label="Client Name" value={form.clientName} onChange={v => set("clientName", v)} />
+        <div style={{ gridColumn: "1 / -1" }}><EICRField label="Client Address" value={form.clientAddress} onChange={v => set("clientAddress", v)} /></div>
+        <EICRField label="Postcode" value={form.clientPostcode} onChange={v => set("clientPostcode", v)} />
+      </EICRSection>
 
-      <Section title="Part 1 — Installation Details">
-        <div style={{ gridColumn: "1 / -1" }}><Field label="Installation Address" value={form.installationAddress} onChange={v => set("installationAddress", v)} /></div>
-        <Field label="Postcode" value={form.installationPostcode} onChange={v => set("installationPostcode", v)} />
-        <Field label="UPRN" value={form.uprn} onChange={v => set("uprn", v)} />
+      <EICRSection mob={mob} title="Part 1 — Installation Details">
+        <div style={{ gridColumn: "1 / -1" }}><EICRField label="Installation Address" value={form.installationAddress} onChange={v => set("installationAddress", v)} /></div>
+        <EICRField label="Postcode" value={form.installationPostcode} onChange={v => set("installationPostcode", v)} />
+        <EICRField label="UPRN" value={form.uprn} onChange={v => set("uprn", v)} />
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Occupied By</label>
           <div style={{ display: "flex", gap: 6 }}>
@@ -2202,16 +2205,16 @@ function EICRPage() {
             ))}
           </div>
         </div>
-      </Section>
+      </EICRSection>
 
       {/* Part 2 — Purpose */}
-      <Section title="Part 2 — Purpose of the Report">
+      <EICRSection mob={mob} title="Part 2 — Purpose of the Report">
         <div style={{ gridColumn: "1 / -1" }}>
           <textarea value={form.purpose} onChange={e => set("purpose", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", outline: "none", minHeight: 60, resize: "vertical", width: "100%", boxSizing: "border-box" }} />
         </div>
-        <Field label="Inspection Date" value={form.inspectionDate} onChange={v => set("inspectionDate", v)} type="date" />
-        <Field label="Previous Report Date" value={form.previousReportDate} onChange={v => set("previousReportDate", v)} type="date" />
-      </Section>
+        <EICRField label="Inspection Date" value={form.inspectionDate} onChange={v => set("inspectionDate", v)} type="date" />
+        <EICRField label="Previous Report Date" value={form.previousReportDate} onChange={v => set("previousReportDate", v)} type="date" />
+      </EICRSection>
 
       {/* Part 3 — Summary */}
       <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
@@ -2231,8 +2234,8 @@ function EICRPage() {
                 ))}
               </div>
             </div>
-            <Field label="Estimated Age (years)" value={form.estimatedAge} onChange={v => set("estimatedAge", v)} placeholder="e.g. 30" />
-            <Field label="Alterations Age (years)" value={form.alterationsAge} onChange={v => set("alterationsAge", v)} placeholder="e.g. 5" />
+            <EICRField label="Estimated Age (years)" value={form.estimatedAge} onChange={v => set("estimatedAge", v)} placeholder="e.g. 30" />
+            <EICRField label="Alterations Age (years)" value={form.alterationsAge} onChange={v => set("alterationsAge", v)} placeholder="e.g. 5" />
           </div>
           <div>
             <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Overall Assessment</label>
@@ -2252,14 +2255,14 @@ function EICRPage() {
       </div>
 
       {/* Part 4 — Declaration */}
-      <Section title="Part 4 — Declaration">
-        <Field label="Inspector Name" value={form.inspectorName} onChange={v => set("inspectorName", v)} />
-        <Field label="Inspector Date" value={form.inspectorDate} onChange={v => set("inspectorDate", v)} type="date" />
-        <Field label="Next Inspection By (Date)" value={form.nextInspectionDate} onChange={v => set("nextInspectionDate", v)} type="date" />
-        <div style={{ gridColumn: "1 / -1" }}><Field label="Reason for Recommendation" value={form.nextInspectionReason} onChange={v => set("nextInspectionReason", v)} /></div>
-        <Field label="Reviewed By (QS Name)" value={form.reviewerName} onChange={v => set("reviewerName", v)} />
-        <Field label="Reviewer Date" value={form.reviewerDate} onChange={v => set("reviewerDate", v)} type="date" />
-      </Section>
+      <EICRSection mob={mob} title="Part 4 — Declaration">
+        <EICRField label="Inspector Name" value={form.inspectorName} onChange={v => set("inspectorName", v)} />
+        <EICRField label="Inspector Date" value={form.inspectorDate} onChange={v => set("inspectorDate", v)} type="date" />
+        <EICRField label="Next Inspection By (Date)" value={form.nextInspectionDate} onChange={v => set("nextInspectionDate", v)} type="date" />
+        <div style={{ gridColumn: "1 / -1" }}><EICRField label="Reason for Recommendation" value={form.nextInspectionReason} onChange={v => set("nextInspectionReason", v)} /></div>
+        <EICRField label="Reviewed By (QS Name)" value={form.reviewerName} onChange={v => set("reviewerName", v)} />
+        <EICRField label="Reviewer Date" value={form.reviewerDate} onChange={v => set("reviewerDate", v)} type="date" />
+      </EICRSection>
 
       {/* Part 5 — Observations */}
       <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
@@ -2276,9 +2279,9 @@ function EICRPage() {
         {form.observations.map((obs, idx) => (
           <div key={idx} style={{ background: C.surfaceAlt, borderRadius: 10, padding: 12, marginBottom: 8 }}>
             <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "60px 60px 1fr 70px 1fr 32px", gap: 8, alignItems: "end" }}>
-              <Field label="Item" value={obs.itemNo} onChange={v => updateObs(idx, "itemNo", v)} placeholder="1" />
-              <Field label="Ref" value={obs.ref} onChange={v => updateObs(idx, "ref", v)} placeholder="4.6" />
-              <Field label="Observation" value={obs.observation} onChange={v => updateObs(idx, "observation", v)} placeholder="e.g. Fusebox made of combustible material" />
+              <EICRField label="Item" value={obs.itemNo} onChange={v => updateObs(idx, "itemNo", v)} placeholder="1" />
+              <EICRField label="Ref" value={obs.ref} onChange={v => updateObs(idx, "ref", v)} placeholder="4.6" />
+              <EICRField label="Observation" value={obs.observation} onChange={v => updateObs(idx, "observation", v)} placeholder="e.g. Fusebox made of combustible material" />
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase" }}>Code</label>
                 <div style={{ display: "flex", gap: 2 }}>
@@ -2287,7 +2290,7 @@ function EICRPage() {
                   ))}
                 </div>
               </div>
-              <Field label="Location" value={obs.location} onChange={v => updateObs(idx, "location", v)} placeholder="e.g. Fusebox" />
+              <EICRField label="Location" value={obs.location} onChange={v => updateObs(idx, "location", v)} placeholder="e.g. Fusebox" />
               {form.observations.length > 1 && <button onClick={() => removeObs(idx)} style={{ fontFamily: font, fontSize: 14, color: C.red, background: "transparent", border: "none", cursor: "pointer", minHeight: 40 }}>✕</button>}
             </div>
           </div>
@@ -2295,16 +2298,16 @@ function EICRPage() {
       </div>
 
       {/* Part 6 — Details and Limitations */}
-      <Section title="Part 6 — Details & Limitations">
-        <Field label="BS 7671: 2018 Amended To" value={form.bs7671AmendedTo} onChange={v => set("bs7671AmendedTo", v)} placeholder="2024" />
-        <Field label="Agreed With" value={form.agreedWith} onChange={v => set("agreedWith", v)} placeholder="CLIENT" />
+      <EICRSection mob={mob} title="Part 6 — Details & Limitations">
+        <EICRField label="BS 7671: 2018 Amended To" value={form.bs7671AmendedTo} onChange={v => set("bs7671AmendedTo", v)} placeholder="2024" />
+        <EICRField label="Agreed With" value={form.agreedWith} onChange={v => set("agreedWith", v)} placeholder="CLIENT" />
         <div style={{ gridColumn: "1 / -1" }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Details of Installation Covered</label>
           <textarea value={form.extentDetails} onChange={e => set("extentDetails", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", outline: "none", minHeight: 60, resize: "vertical", width: "100%", marginTop: 4, boxSizing: "border-box" }} /></div>
         <div style={{ gridColumn: "1 / -1" }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Agreed Limitations</label>
           <textarea value={form.agreedLimitations} onChange={e => set("agreedLimitations", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", outline: "none", minHeight: 60, resize: "vertical", width: "100%", marginTop: 4, boxSizing: "border-box" }} /></div>
-        <div style={{ gridColumn: "1 / -1" }}><Field label="Extent of Sampling" value={form.extentOfSampling} onChange={v => set("extentOfSampling", v)} /></div>
-        <div style={{ gridColumn: "1 / -1" }}><Field label="Operational Limitations" value={form.operationalLimitations} onChange={v => set("operationalLimitations", v)} placeholder="e.g. Could not verify main fuse size" /></div>
-      </Section>
+        <div style={{ gridColumn: "1 / -1" }}><EICRField label="Extent of Sampling" value={form.extentOfSampling} onChange={v => set("extentOfSampling", v)} /></div>
+        <div style={{ gridColumn: "1 / -1" }}><EICRField label="Operational Limitations" value={form.operationalLimitations} onChange={v => set("operationalLimitations", v)} placeholder="e.g. Could not verify main fuse size" /></div>
+      </EICRSection>
 
       {/* Part 7 — Supply Characteristics */}
       <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
@@ -2319,129 +2322,129 @@ function EICRPage() {
             </div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr 1fr", gap: 12 }}>
-            <Field label="U₀ Voltage to Earth (V)" value={form.nominalVoltageEarth} onChange={v => set("nominalVoltageEarth", v)} />
-            <Field label="Frequency (Hz)" value={form.nominalFrequency} onChange={v => set("nominalFrequency", v)} />
-            <Field label="Ipf (kA)" value={form.prospectiveFaultCurrent} onChange={v => set("prospectiveFaultCurrent", v)} placeholder="e.g. 1.35" />
-            <Field label="Ze (Ω)" value={form.externalEarthFaultLoop} onChange={v => set("externalEarthFaultLoop", v)} placeholder="e.g. 0.17" />
-            <Field label="Max Demand (A)" value={form.maxDemand} onChange={v => set("maxDemand", v)} placeholder="e.g. 35" />
+            <EICRField label="U₀ Voltage to Earth (V)" value={form.nominalVoltageEarth} onChange={v => set("nominalVoltageEarth", v)} />
+            <EICRField label="Frequency (Hz)" value={form.nominalFrequency} onChange={v => set("nominalFrequency", v)} />
+            <EICRField label="Ipf (kA)" value={form.prospectiveFaultCurrent} onChange={v => set("prospectiveFaultCurrent", v)} placeholder="e.g. 1.35" />
+            <EICRField label="Ze (Ω)" value={form.externalEarthFaultLoop} onChange={v => set("externalEarthFaultLoop", v)} placeholder="e.g. 0.17" />
+            <EICRField label="Max Demand (A)" value={form.maxDemand} onChange={v => set("maxDemand", v)} placeholder="e.g. 35" />
           </div>
         </div>
       </div>
 
       {/* Part 8 — Particulars */}
-      <Section title="Part 8 — Particulars of Installation">
-        <Field label="Earthing Conductor (mm²)" value={form.earthingConductorCSA} onChange={v => set("earthingConductorCSA", v)} />
-        <Field label="Bonding Conductor (mm²)" value={form.bondingConductorCSA} onChange={v => set("bondingConductorCSA", v)} />
-        <Field label="Main Switch Location" value={form.mainSwitchLocation} onChange={v => set("mainSwitchLocation", v)} />
-        <Field label="Main Switch BS EN" value={form.mainSwitchBSEN} onChange={v => set("mainSwitchBSEN", v)} />
-        <Field label="Current Rating (A)" value={form.mainSwitchCurrentRating} onChange={v => set("mainSwitchCurrentRating", v)} />
-        <Field label="Voltage Rating (V)" value={form.mainSwitchVoltage} onChange={v => set("mainSwitchVoltage", v)} />
-      </Section>
+      <EICRSection mob={mob} title="Part 8 — Particulars of Installation">
+        <EICRField label="Earthing Conductor (mm²)" value={form.earthingConductorCSA} onChange={v => set("earthingConductorCSA", v)} />
+        <EICRField label="Bonding Conductor (mm²)" value={form.bondingConductorCSA} onChange={v => set("bondingConductorCSA", v)} />
+        <EICRField label="Main Switch Location" value={form.mainSwitchLocation} onChange={v => set("mainSwitchLocation", v)} />
+        <EICRField label="Main Switch BS EN" value={form.mainSwitchBSEN} onChange={v => set("mainSwitchBSEN", v)} />
+        <EICRField label="Current Rating (A)" value={form.mainSwitchCurrentRating} onChange={v => set("mainSwitchCurrentRating", v)} />
+        <EICRField label="Voltage Rating (V)" value={form.mainSwitchVoltage} onChange={v => set("mainSwitchVoltage", v)} />
+      </EICRSection>
 
       {/* Part 9 — Schedule of Items Inspected */}
       <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
         <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: 0.5 }}>Part 9 — Schedule of Items Inspected</h4>
         <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginBottom: 12 }}>Tap ✓, classification code (C1/C2/C3/FI) or N/A. Sections collapse for easier navigation.</div>
 
-        <SISection id="s1" title="1.0 Intake Equipment">
-          <SI id="1.1" label="Service cable" fieldKey="s1_1_serviceCable" />
-          <SI id="1.1" label="Service head" fieldKey="s1_1_serviceHead" />
-          <SI id="1.1" label="Earthing arrangement" fieldKey="s1_1_earthingArrangement" />
-          <SI id="1.1" label="Meter tails" fieldKey="s1_1_meterTails" />
-          <SI id="1.1" label="Metering equipment" fieldKey="s1_1_metering" />
-          <SI id="1.1" label="Isolator, where present" fieldKey="s1_1_isolator" />
-          <SI id="1.2" label="Consumer's isolator" fieldKey="s1_2_consumerIsolator" />
-          <SI id="1.3" label="Consumer's meter tails" fieldKey="s1_3_consumerMeterTails" />
-        </SISection>
+        <EICRSISection id="s1" title="1.0 Intake Equipment" isOpen={openSections["s1"] !== false} onToggle={() => toggleSection("s1")}>
+          <EICRInspectionItem id="1.1" label="Service cable" value={form.s1_1_serviceCable} onChange={(v) => set("s1_1_serviceCable", v)} />
+          <EICRInspectionItem id="1.1" label="Service head" value={form.s1_1_serviceHead} onChange={(v) => set("s1_1_serviceHead", v)} />
+          <EICRInspectionItem id="1.1" label="Earthing arrangement" value={form.s1_1_earthingArrangement} onChange={(v) => set("s1_1_earthingArrangement", v)} />
+          <EICRInspectionItem id="1.1" label="Meter tails" value={form.s1_1_meterTails} onChange={(v) => set("s1_1_meterTails", v)} />
+          <EICRInspectionItem id="1.1" label="Metering equipment" value={form.s1_1_metering} onChange={(v) => set("s1_1_metering", v)} />
+          <EICRInspectionItem id="1.1" label="Isolator, where present" value={form.s1_1_isolator} onChange={(v) => set("s1_1_isolator", v)} />
+          <EICRInspectionItem id="1.2" label="Consumer's isolator" value={form.s1_2_consumerIsolator} onChange={(v) => set("s1_2_consumerIsolator", v)} />
+          <EICRInspectionItem id="1.3" label="Consumer's meter tails" value={form.s1_3_consumerMeterTails} onChange={(v) => set("s1_3_consumerMeterTails", v)} />
+        </EICRSISection>
 
-        <SISection id="s2" title="2.0 Alternative Sources">
-          <SI id="2.1" label="Generating set — switched alternative" fieldKey="s2_1_genSetSwitched" />
-          <SI id="2.2" label="Generating set — parallel with supply" fieldKey="s2_2_genSetParallel" />
-        </SISection>
+        <EICRSISection id="s2" title="2.0 Alternative Sources" isOpen={openSections["s2"] !== false} onToggle={() => toggleSection("s2")}>
+          <EICRInspectionItem id="2.1" label="Generating set — switched alternative" value={form.s2_1_genSetSwitched} onChange={(v) => set("s2_1_genSetSwitched", v)} />
+          <EICRInspectionItem id="2.2" label="Generating set — parallel with supply" value={form.s2_2_genSetParallel} onChange={(v) => set("s2_2_genSetParallel", v)} />
+        </EICRSISection>
 
-        <SISection id="s3" title="3.0 Methods of Protection">
-          <SI id="3.1" label="Main earthing / bonding arrangement" fieldKey="s3_1_mainEarthBonding" />
-          <SI id="3.1" label="Distributor's earthing arrangement" fieldKey="s3_1_distributorEarth" />
-          <SI id="3.1" label="Earthing conductor size" fieldKey="s3_1_earthingConductorSize" />
-          <SI id="3.1" label="Earthing conductor connections" fieldKey="s3_1_earthingConnections" />
-          <SI id="3.1" label="Earthing conductor accessibility" fieldKey="s3_1_earthingAccessibility" />
-          <SI id="3.1" label="Bonding conductor sizes" fieldKey="s3_1_bondingSize" />
-          <SI id="3.1" label="Bonding conductor location" fieldKey="s3_1_bondingLocation" />
-          <SI id="3.1" label="Bonding accessibility" fieldKey="s3_1_bondingAccessibility" />
-          <SI id="3.1" label="Earthing/bonding labels" fieldKey="s3_1_earthingLabels" />
-          <SI id="3.2" label="FELV requirements" fieldKey="s3_2_felv" />
-        </SISection>
+        <EICRSISection id="s3" title="3.0 Methods of Protection" isOpen={openSections["s3"] !== false} onToggle={() => toggleSection("s3")}>
+          <EICRInspectionItem id="3.1" label="Main earthing / bonding arrangement" fieldKey="s3_1_mainEarthBonding" />
+          <EICRInspectionItem id="3.1" label="Distributor's earthing arrangement" value={form.s3_1_distributorEarth} onChange={(v) => set("s3_1_distributorEarth", v)} />
+          <EICRInspectionItem id="3.1" label="Earthing conductor size" value={form.s3_1_earthingConductorSize} onChange={(v) => set("s3_1_earthingConductorSize", v)} />
+          <EICRInspectionItem id="3.1" label="Earthing conductor connections" value={form.s3_1_earthingConnections} onChange={(v) => set("s3_1_earthingConnections", v)} />
+          <EICRInspectionItem id="3.1" label="Earthing conductor accessibility" value={form.s3_1_earthingAccessibility} onChange={(v) => set("s3_1_earthingAccessibility", v)} />
+          <EICRInspectionItem id="3.1" label="Bonding conductor sizes" value={form.s3_1_bondingSize} onChange={(v) => set("s3_1_bondingSize", v)} />
+          <EICRInspectionItem id="3.1" label="Bonding conductor location" value={form.s3_1_bondingLocation} onChange={(v) => set("s3_1_bondingLocation", v)} />
+          <EICRInspectionItem id="3.1" label="Bonding accessibility" value={form.s3_1_bondingAccessibility} onChange={(v) => set("s3_1_bondingAccessibility", v)} />
+          <EICRInspectionItem id="3.1" label="Earthing/bonding labels" fieldKey="s3_1_earthingLabels" />
+          <EICRInspectionItem id="3.2" label="FELV requirements" value={form.s3_2_felv} onChange={(v) => set("s3_2_felv", v)} />
+        </EICRSISection>
 
-        <SISection id="s4" title="4.0 Distribution Equipment">
-          <SI id="4.1" label="Working space / accessibility" fieldKey="s4_1_workingSpace" />
-          <SI id="4.2" label="Security of fixing" fieldKey="s4_2_security" />
-          <SI id="4.3" label="Insulation of live parts" fieldKey="s4_3_insulationLive" />
-          <SI id="4.4" label="Barriers / enclosures" fieldKey="s4_4_barriers" />
-          <SI id="4.5" label="IP rating" fieldKey="s4_5_ipRating" />
-          <SI id="4.6" label="Fire rating of enclosure" fieldKey="s4_6_fireRating" />
-          <SI id="4.7" label="Enclosure not damaged" fieldKey="s4_7_enclosureDamage" />
-          <SI id="4.9" label="Main switch(es) present" fieldKey="s4_9_mainSwitches" />
-          <SI id="4.10" label="Main switch operation" fieldKey="s4_10_mainSwitchOp" />
-          <SI id="4.11" label="CB / RCD / AFDD manual operation" fieldKey="s4_11_cbRcdOperation" />
-          <SI id="4.12" label="RCD test button trip" fieldKey="s4_12_rcdTestButton" />
-          <SI id="4.13" label="RCD for fault protection" fieldKey="s4_13_rcdFaultProtection" />
-          <SI id="4.14" label="RCD for additional protection" fieldKey="s4_14_rcdAdditional" />
-          <SI id="4.15" label="RCD 6-monthly test notice" fieldKey="s4_15_rcdTestNotice" />
-          <SI id="4.17" label="Diagrams / charts / schedules" fieldKey="s4_17_diagrams" />
-          <SI id="4.19" label="Next inspection label" fieldKey="s4_19_nextInspectionLabel" />
-          <SI id="4.21" label="Compatibility of protective devices" fieldKey="s4_21_compatibility" />
-          <SI id="4.22" label="Single-pole switching in line conductors only" fieldKey="s4_22_singlePole" />
-          <SI id="4.25" label="All connections tight and secure" fieldKey="s4_25_connections" />
-        </SISection>
+        <EICRSISection id="s4" title="4.0 Distribution Equipment" isOpen={openSections["s4"] !== false} onToggle={() => toggleSection("s4")}>
+          <EICRInspectionItem id="4.1" label="Working space / accessibility" fieldKey="s4_1_workingSpace" />
+          <EICRInspectionItem id="4.2" label="Security of fixing" value={form.s4_2_security} onChange={(v) => set("s4_2_security", v)} />
+          <EICRInspectionItem id="4.3" label="Insulation of live parts" value={form.s4_3_insulationLive} onChange={(v) => set("s4_3_insulationLive", v)} />
+          <EICRInspectionItem id="4.4" label="Barriers / enclosures" fieldKey="s4_4_barriers" />
+          <EICRInspectionItem id="4.5" label="IP rating" value={form.s4_5_ipRating} onChange={(v) => set("s4_5_ipRating", v)} />
+          <EICRInspectionItem id="4.6" label="Fire rating of enclosure" value={form.s4_6_fireRating} onChange={(v) => set("s4_6_fireRating", v)} />
+          <EICRInspectionItem id="4.7" label="Enclosure not damaged" value={form.s4_7_enclosureDamage} onChange={(v) => set("s4_7_enclosureDamage", v)} />
+          <EICRInspectionItem id="4.9" label="Main switch(es) present" value={form.s4_9_mainSwitches} onChange={(v) => set("s4_9_mainSwitches", v)} />
+          <EICRInspectionItem id="4.10" label="Main switch operation" value={form.s4_10_mainSwitchOp} onChange={(v) => set("s4_10_mainSwitchOp", v)} />
+          <EICRInspectionItem id="4.11" label="CB / RCD / AFDD manual operation" fieldKey="s4_11_cbRcdOperation" />
+          <EICRInspectionItem id="4.12" label="RCD test button trip" value={form.s4_12_rcdTestButton} onChange={(v) => set("s4_12_rcdTestButton", v)} />
+          <EICRInspectionItem id="4.13" label="RCD for fault protection" value={form.s4_13_rcdFaultProtection} onChange={(v) => set("s4_13_rcdFaultProtection", v)} />
+          <EICRInspectionItem id="4.14" label="RCD for additional protection" value={form.s4_14_rcdAdditional} onChange={(v) => set("s4_14_rcdAdditional", v)} />
+          <EICRInspectionItem id="4.15" label="RCD 6-monthly test notice" value={form.s4_15_rcdTestNotice} onChange={(v) => set("s4_15_rcdTestNotice", v)} />
+          <EICRInspectionItem id="4.17" label="Diagrams / charts / schedules" fieldKey="s4_17_diagrams" />
+          <EICRInspectionItem id="4.19" label="Next inspection label" value={form.s4_19_nextInspectionLabel} onChange={(v) => set("s4_19_nextInspectionLabel", v)} />
+          <EICRInspectionItem id="4.21" label="Compatibility of protective devices" value={form.s4_21_compatibility} onChange={(v) => set("s4_21_compatibility", v)} />
+          <EICRInspectionItem id="4.22" label="Single-pole switching in line conductors only" value={form.s4_22_singlePole} onChange={(v) => set("s4_22_singlePole", v)} />
+          <EICRInspectionItem id="4.25" label="All connections tight and secure" value={form.s4_25_connections} onChange={(v) => set("s4_25_connections", v)} />
+        </EICRSISection>
 
-        <SISection id="s5" title="5.0 Distribution Circuits">
-          <SI id="5.1" label="Conductor identification" fieldKey="s5_1_conductorId" />
-          <SI id="5.2" label="Cables correctly supported" fieldKey="s5_2_cablesSupported" />
-          <SI id="5.3" label="Insulation of live parts" fieldKey="s5_3_insulationLive" />
-          <SI id="5.7" label="Cable damage / deterioration" fieldKey="s5_7_cableDamage" />
-          <SI id="5.8" label="Current-carrying capacity" fieldKey="s5_8_currentCapacity" />
-        </SISection>
+        <EICRSISection id="s5" title="5.0 Distribution Circuits" isOpen={openSections["s5"] !== false} onToggle={() => toggleSection("s5")}>
+          <EICRInspectionItem id="5.1" label="Conductor identification" value={form.s5_1_conductorId} onChange={(v) => set("s5_1_conductorId", v)} />
+          <EICRInspectionItem id="5.2" label="Cables correctly supported" value={form.s5_2_cablesSupported} onChange={(v) => set("s5_2_cablesSupported", v)} />
+          <EICRInspectionItem id="5.3" label="Insulation of live parts" value={form.s5_3_insulationLive} onChange={(v) => set("s5_3_insulationLive", v)} />
+          <EICRInspectionItem id="5.7" label="Cable damage / deterioration" fieldKey="s5_7_cableDamage" />
+          <EICRInspectionItem id="5.8" label="Current-carrying capacity" value={form.s5_8_currentCapacity} onChange={(v) => set("s5_8_currentCapacity", v)} />
+        </EICRSISection>
 
-        <SISection id="s6" title="6.0 Final Circuits">
-          <SI id="6.1" label="Conductor identification" fieldKey="s6_1_conductorId" />
-          <SI id="6.2" label="Cables correctly supported" fieldKey="s6_2_cablesSupported" />
-          <SI id="6.6" label="Current-carrying capacity" fieldKey="s6_6_currentCapacity" />
-          <SI id="6.7" label="Protective devices adequate" fieldKey="s6_7_protectiveDevices" />
-          <SI id="6.8" label="Circuit protective conductors" fieldKey="s6_8_cpc" />
-          <SI id="6.13" label="RCD ≤30mA — all sockets ≤32A" fieldKey="s6_13_rcd30mA_sockets" />
-          <SI id="6.13" label="RCD ≤30mA — outdoor mobile equip" fieldKey="s6_13_rcd30mA_outdoor" />
-          <SI id="6.13" label="RCD ≤30mA — concealed cables <50mm" fieldKey="s6_13_rcd30mA_concealed" />
-          <SI id="6.13" label="RCD ≤30mA — luminaires (domestic)" fieldKey="s6_13_rcd30mA_luminaires" />
-          <SI id="6.18" label="Accessories condition" fieldKey="s6_18_accessories" />
-        </SISection>
+        <EICRSISection id="s6" title="6.0 Final Circuits" isOpen={openSections["s6"] !== false} onToggle={() => toggleSection("s6")}>
+          <EICRInspectionItem id="6.1" label="Conductor identification" value={form.s6_1_conductorId} onChange={(v) => set("s6_1_conductorId", v)} />
+          <EICRInspectionItem id="6.2" label="Cables correctly supported" value={form.s6_2_cablesSupported} onChange={(v) => set("s6_2_cablesSupported", v)} />
+          <EICRInspectionItem id="6.6" label="Current-carrying capacity" value={form.s6_6_currentCapacity} onChange={(v) => set("s6_6_currentCapacity", v)} />
+          <EICRInspectionItem id="6.7" label="Protective devices adequate" value={form.s6_7_protectiveDevices} onChange={(v) => set("s6_7_protectiveDevices", v)} />
+          <EICRInspectionItem id="6.8" label="Circuit protective conductors" value={form.s6_8_cpc} onChange={(v) => set("s6_8_cpc", v)} />
+          <EICRInspectionItem id="6.13" label="RCD ≤30mA — all sockets ≤32A" value={form.s6_13_rcd30mA_sockets} onChange={(v) => set("s6_13_rcd30mA_sockets", v)} />
+          <EICRInspectionItem id="6.13" label="RCD ≤30mA — outdoor mobile equip" value={form.s6_13_rcd30mA_outdoor} onChange={(v) => set("s6_13_rcd30mA_outdoor", v)} />
+          <EICRInspectionItem id="6.13" label="RCD ≤30mA — concealed cables <50mm" value={form.s6_13_rcd30mA_concealed} onChange={(v) => set("s6_13_rcd30mA_concealed", v)} />
+          <EICRInspectionItem id="6.13" label="RCD ≤30mA — luminaires (domestic)" value={form.s6_13_rcd30mA_luminaires} onChange={(v) => set("s6_13_rcd30mA_luminaires", v)} />
+          <EICRInspectionItem id="6.18" label="Accessories condition" value={form.s6_18_accessories} onChange={(v) => set("s6_18_accessories", v)} />
+        </EICRSISection>
 
-        <SISection id="s7" title="7.0 Isolation & Switching">
-          <SI id="7.1" label="Isolators" fieldKey="s7_1_isolators" />
-          <SI id="7.2" label="Switching off for mechanical maintenance" fieldKey="s7_2_mechMaintenance" />
-          <SI id="7.3" label="Emergency switching off" fieldKey="s7_3_emergencySwitching" />
-          <SI id="7.4" label="Functional switching" fieldKey="s7_4_functionalSwitching" />
-        </SISection>
+        <EICRSISection id="s7" title="7.0 Isolation & Switching" isOpen={openSections["s7"] !== false} onToggle={() => toggleSection("s7")}>
+          <EICRInspectionItem id="7.1" label="Isolators" value={form.s7_1_isolators} onChange={(v) => set("s7_1_isolators", v)} />
+          <EICRInspectionItem id="7.2" label="Switching off for mechanical maintenance" value={form.s7_2_mechMaintenance} onChange={(v) => set("s7_2_mechMaintenance", v)} />
+          <EICRInspectionItem id="7.3" label="Emergency switching off" value={form.s7_3_emergencySwitching} onChange={(v) => set("s7_3_emergencySwitching", v)} />
+          <EICRInspectionItem id="7.4" label="Functional switching" value={form.s7_4_functionalSwitching} onChange={(v) => set("s7_4_functionalSwitching", v)} />
+        </EICRSISection>
 
-        <SISection id="s8" title="8.0 Current-Using Equipment">
-          <SI id="8.1" label="IP rating" fieldKey="s8_1_ipRating" />
-          <SI id="8.2" label="Not a fire hazard" fieldKey="s8_2_fireHazard" />
-          <SI id="8.3" label="Enclosure not damaged" fieldKey="s8_3_enclosure" />
-          <SI id="8.5" label="Security of fixing" fieldKey="s8_5_security" />
-          <SI id="8.7" label="Recessed luminaires (downlighters)" fieldKey="s8_7_recessedLuminaires" />
-        </SISection>
+        <EICRSISection id="s8" title="8.0 Current-Using Equipment" isOpen={openSections["s8"] !== false} onToggle={() => toggleSection("s8")}>
+          <EICRInspectionItem id="8.1" label="IP rating" value={form.s8_1_ipRating} onChange={(v) => set("s8_1_ipRating", v)} />
+          <EICRInspectionItem id="8.2" label="Not a fire hazard" value={form.s8_2_fireHazard} onChange={(v) => set("s8_2_fireHazard", v)} />
+          <EICRInspectionItem id="8.3" label="Enclosure not damaged" value={form.s8_3_enclosure} onChange={(v) => set("s8_3_enclosure", v)} />
+          <EICRInspectionItem id="8.5" label="Security of fixing" value={form.s8_5_security} onChange={(v) => set("s8_5_security", v)} />
+          <EICRInspectionItem id="8.7" label="Recessed luminaires (downlighters)" value={form.s8_7_recessedLuminaires} onChange={(v) => set("s8_7_recessedLuminaires", v)} />
+        </EICRSISection>
 
-        <SISection id="s9" title="9.0 Special Locations">
-          <SI id="9.1" label="Bath/shower — RCD ≤30mA" fieldKey="s9_1_bathRcd" />
-          <SI id="9.1" label="SELV / PELV requirements" fieldKey="s9_1_selvPelv" />
-          <SI id="9.1" label="Shaver supply unit" fieldKey="s9_1_shaver" />
-          <SI id="9.1" label="Supplementary bonding" fieldKey="s9_1_suppBonding" />
-          <SI id="9.1" label="IP rating for zone" fieldKey="s9_1_ipRating" />
-          <SI id="9.1" label="Equipment suitable for zone" fieldKey="s9_1_zoneEquipment" />
-        </SISection>
+        <EICRSISection id="s9" title="9.0 Special Locations" isOpen={openSections["s9"] !== false} onToggle={() => toggleSection("s9")}>
+          <EICRInspectionItem id="9.1" label="Bath/shower — RCD ≤30mA" fieldKey="s9_1_bathRcd" />
+          <EICRInspectionItem id="9.1" label="SELV / PELV requirements" fieldKey="s9_1_selvPelv" />
+          <EICRInspectionItem id="9.1" label="Shaver supply unit" value={form.s9_1_shaver} onChange={(v) => set("s9_1_shaver", v)} />
+          <EICRInspectionItem id="9.1" label="Supplementary bonding" value={form.s9_1_suppBonding} onChange={(v) => set("s9_1_suppBonding", v)} />
+          <EICRInspectionItem id="9.1" label="IP rating for zone" value={form.s9_1_ipRating} onChange={(v) => set("s9_1_ipRating", v)} />
+          <EICRInspectionItem id="9.1" label="Equipment suitable for zone" value={form.s9_1_zoneEquipment} onChange={(v) => set("s9_1_zoneEquipment", v)} />
+        </EICRSISection>
 
-        <SISection id="s10" title="10.0 Prosumer Installation">
-          <SI id="10.0" label="Prosumer's low voltage installation" fieldKey="s10_prosumer" />
-        </SISection>
+        <EICRSISection id="s10" title="10.0 Prosumer Installation" isOpen={openSections["s10"] !== false} onToggle={() => toggleSection("s10")}>
+          <EICRInspectionItem id="10.0" label="Prosumer's low voltage installation" value={form.s10_prosumer} onChange={(v) => set("s10_prosumer", v)} />
+        </EICRSISection>
       </div>
 
       {/* Part 11A — Circuit Details */}
@@ -2451,10 +2454,10 @@ function EICRPage() {
           <button onClick={addCircuit} style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.accent, background: C.accentGlow, border: `1px solid rgba(59,130,246,.25)`, borderRadius: 8, padding: "6px 14px", cursor: "pointer", minHeight: 32 }}>+ Add Circuit</button>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 12, padding: 12, background: C.surfaceAlt, borderRadius: 10 }}>
-          <Field label="DB Designation" value={form.dbDesignation} onChange={v => set("dbDesignation", v)} />
-          <Field label="DB Location" value={form.dbLocation} onChange={v => set("dbLocation", v)} />
-          <Field label="Zdb (Ω)" value={form.dbZdb} onChange={v => set("dbZdb", v)} />
-          <Field label="Ipf at DB (kA)" value={form.dbIpf} onChange={v => set("dbIpf", v)} />
+          <EICRField label="DB Designation" value={form.dbDesignation} onChange={v => set("dbDesignation", v)} />
+          <EICRField label="DB Location" value={form.dbLocation} onChange={v => set("dbLocation", v)} />
+          <EICRField label="Zdb (Ω)" value={form.dbZdb} onChange={v => set("dbZdb", v)} />
+          <EICRField label="Ipf at DB (kA)" value={form.dbIpf} onChange={v => set("dbIpf", v)} />
         </div>
         {form.circuits.map((cir, idx) => (
           <div key={idx} style={{ background: C.surfaceAlt, borderRadius: 10, padding: 12, marginBottom: 8 }}>
@@ -2463,14 +2466,14 @@ function EICRPage() {
               {form.circuits.length > 1 && <button onClick={() => removeCircuit(idx)} style={{ fontFamily: font, fontSize: 10, color: C.red, background: "transparent", border: "none", cursor: "pointer" }}>Remove</button>}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "repeat(4,1fr)", gap: 8 }}>
-              <Field label="Description" value={cir.description} onChange={v => updateCircuit(idx, "description", v)} placeholder="e.g. Lights, Sockets" />
-              <Field label="Live (mm²)" value={cir.liveCsa} onChange={v => updateCircuit(idx, "liveCsa", v)} />
-              <Field label="CPC (mm²)" value={cir.cpcCsa} onChange={v => updateCircuit(idx, "cpcCsa", v)} />
-              <Field label="Points" value={cir.points} onChange={v => updateCircuit(idx, "points", v)} />
-              <Field label="OCP Type" value={cir.ocpType} onChange={v => updateCircuit(idx, "ocpType", v)} />
-              <Field label="OCP Rating (A)" value={cir.ocpRating} onChange={v => updateCircuit(idx, "ocpRating", v)} />
-              <Field label="Max Zs (Ω)" value={cir.ocpMaxZs} onChange={v => updateCircuit(idx, "ocpMaxZs", v)} />
-              <Field label="RCD IΔn (mA)" value={cir.rcdImA} onChange={v => updateCircuit(idx, "rcdImA", v)} />
+              <EICRField label="Description" value={cir.description} onChange={v => updateCircuit(idx, "description", v)} placeholder="e.g. Lights, Sockets" />
+              <EICRField label="Live (mm²)" value={cir.liveCsa} onChange={v => updateCircuit(idx, "liveCsa", v)} />
+              <EICRField label="CPC (mm²)" value={cir.cpcCsa} onChange={v => updateCircuit(idx, "cpcCsa", v)} />
+              <EICRField label="Points" value={cir.points} onChange={v => updateCircuit(idx, "points", v)} />
+              <EICRField label="OCP Type" value={cir.ocpType} onChange={v => updateCircuit(idx, "ocpType", v)} />
+              <EICRField label="OCP Rating (A)" value={cir.ocpRating} onChange={v => updateCircuit(idx, "ocpRating", v)} />
+              <EICRField label="Max Zs (Ω)" value={cir.ocpMaxZs} onChange={v => updateCircuit(idx, "ocpMaxZs", v)} />
+              <EICRField label="RCD IΔn (mA)" value={cir.rcdImA} onChange={v => updateCircuit(idx, "rcdImA", v)} />
             </div>
           </div>
         ))}
@@ -2483,20 +2486,20 @@ function EICRPage() {
           <div key={idx} style={{ background: C.surfaceAlt, borderRadius: 10, padding: 12, marginBottom: 8 }}>
             <span style={{ fontFamily: font, fontSize: 12, fontWeight: 700, color: C.accent, marginBottom: 8, display: "block" }}>Circuit {tr.num}: {form.circuits[idx]?.description || "—"}</span>
             <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "repeat(4,1fr)", gap: 8 }}>
-              <Field label="R1+R2 (Ω)" value={tr.r1r2} onChange={v => updateTestResult(idx, "r1r2", v)} />
-              <Field label="IR L/L (MΩ)" value={tr.irLL} onChange={v => updateTestResult(idx, "irLL", v)} placeholder=">999" />
-              <Field label="IR L/E (MΩ)" value={tr.irLE} onChange={v => updateTestResult(idx, "irLE", v)} placeholder=">999" />
-              <Field label="Test V (DC)" value={tr.testV} onChange={v => updateTestResult(idx, "testV", v)} />
-              <Field label="Zs (Ω)" value={tr.zs} onChange={v => updateTestResult(idx, "zs", v)} />
-              <Field label="RCD Time (ms)" value={tr.rcdTime} onChange={v => updateTestResult(idx, "rcdTime", v)} />
-              <Field label="Comments" value={tr.comments} onChange={v => updateTestResult(idx, "comments", v)} />
+              <EICRField label="R1+R2 (Ω)" value={tr.r1r2} onChange={v => updateTestResult(idx, "r1r2", v)} />
+              <EICRField label="IR L/L (MΩ)" value={tr.irLL} onChange={v => updateTestResult(idx, "irLL", v)} placeholder=">999" />
+              <EICRField label="IR L/E (MΩ)" value={tr.irLE} onChange={v => updateTestResult(idx, "irLE", v)} placeholder=">999" />
+              <EICRField label="Test V (DC)" value={tr.testV} onChange={v => updateTestResult(idx, "testV", v)} />
+              <EICRField label="Zs (Ω)" value={tr.zs} onChange={v => updateTestResult(idx, "zs", v)} />
+              <EICRField label="RCD Time (ms)" value={tr.rcdTime} onChange={v => updateTestResult(idx, "rcdTime", v)} />
+              <EICRField label="Comments" value={tr.comments} onChange={v => updateTestResult(idx, "comments", v)} />
             </div>
           </div>
         ))}
         <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr 1fr", gap: 12, marginTop: 12 }}>
-          <Field label="Tested By" value={form.testedByName} onChange={v => set("testedByName", v)} />
-          <Field label="Multi-function Serial" value={form.testInstrumentMulti} onChange={v => set("testInstrumentMulti", v)} />
-          <Field label="Date" value={form.testedByDate} onChange={v => set("testedByDate", v)} type="date" />
+          <EICRField label="Tested By" value={form.testedByName} onChange={v => set("testedByName", v)} />
+          <EICRField label="Multi-function Serial" value={form.testInstrumentMulti} onChange={v => set("testInstrumentMulti", v)} />
+          <EICRField label="Date" value={form.testedByDate} onChange={v => set("testedByDate", v)} type="date" />
         </div>
       </div>
 
@@ -2619,22 +2622,7 @@ function DFPM25Page() {
     if (!asDraft) setSelectedJobId("");
   };
 
-  const Field = ({ label, value, onChange, type = "text", placeholder = "", disabled = false }) => (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</label>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} disabled={disabled}
-        style={{ fontFamily: font, fontSize: 13, color: disabled ? C.textDim : C.text, background: disabled ? C.surface : C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, opacity: disabled ? 0.6 : 1 }} />
-    </div>
-  );
 
-  const Section = ({ title, children, color: sColor }) => (
-    <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
-      <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: sColor || C.green, margin: "0 0 16px", textTransform: "uppercase", letterSpacing: 0.5 }}>{title}</h4>
-      <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap: 12 }}>
-        {children}
-      </div>
-    </div>
-  );
 
   // Triple-state check button component (Pass / Fail / N/A)
   const CheckItem = ({ num, label, clauseRef, fieldKey }) => {
@@ -2699,36 +2687,36 @@ function DFPM25Page() {
       </div>
 
       {/* Part 1 — Contractor Details (auto-filled) */}
-      <Section title="Part 1 — Contractor Details">
-        <Field label="Trading Title" value={form.tradingTitle} onChange={v => set("tradingTitle", v)} />
-        <Field label="Name" value={form.contractorName} onChange={v => set("contractorName", v)} />
+      <EICRSection mob={mob} title="Part 1 — Contractor Details">
+        <EICRField label="Trading Title" value={form.tradingTitle} onChange={v => set("tradingTitle", v)} />
+        <EICRField label="Name" value={form.contractorName} onChange={v => set("contractorName", v)} />
         <div style={{ gridColumn: "1 / -1" }}>
-          <Field label="Address" value={form.contractorAddress} onChange={v => set("contractorAddress", v)} />
+          <EICRField label="Address" value={form.contractorAddress} onChange={v => set("contractorAddress", v)} />
         </div>
-        <Field label="Postcode" value={form.contractorPostcode} onChange={v => set("contractorPostcode", v)} />
-        <Field label="Tel No" value={form.contractorTel} onChange={v => set("contractorTel", v)} />
-      </Section>
+        <EICRField label="Postcode" value={form.contractorPostcode} onChange={v => set("contractorPostcode", v)} />
+        <EICRField label="Tel No" value={form.contractorTel} onChange={v => set("contractorTel", v)} />
+      </EICRSection>
 
       {/* Part 1 — Client Details (Landlord / Agent) */}
-      <Section title="Part 1 — Client Details (Landlord / Agent)">
-        <Field label="Landlord Name" value={form.landlordName} onChange={v => set("landlordName", v)} placeholder="Property owner" />
-        <Field label="Estate Agent" value={form.agentName} onChange={v => set("agentName", v)} placeholder="Managing agent" />
-        <Field label="Reference Number (RN)" value={form.clientRefNo} onChange={v => set("clientRefNo", v)} />
-        <Field label="Client Name" value={form.clientName} onChange={v => set("clientName", v)} />
+      <EICRSection mob={mob} title="Part 1 — Client Details (Landlord / Agent)">
+        <EICRField label="Landlord Name" value={form.landlordName} onChange={v => set("landlordName", v)} placeholder="Property owner" />
+        <EICRField label="Estate Agent" value={form.agentName} onChange={v => set("agentName", v)} placeholder="Managing agent" />
+        <EICRField label="Reference Number (RN)" value={form.clientRefNo} onChange={v => set("clientRefNo", v)} />
+        <EICRField label="Client Name" value={form.clientName} onChange={v => set("clientName", v)} />
         <div style={{ gridColumn: "1 / -1" }}>
-          <Field label="Client Address" value={form.clientAddress} onChange={v => set("clientAddress", v)} />
+          <EICRField label="Client Address" value={form.clientAddress} onChange={v => set("clientAddress", v)} />
         </div>
-        <Field label="Postcode" value={form.clientPostcode} onChange={v => set("clientPostcode", v)} />
-        <Field label="Tel No" value={form.clientTel} onChange={v => set("clientTel", v)} />
-      </Section>
+        <EICRField label="Postcode" value={form.clientPostcode} onChange={v => set("clientPostcode", v)} />
+        <EICRField label="Tel No" value={form.clientTel} onChange={v => set("clientTel", v)} />
+      </EICRSection>
 
       {/* Part 1 — Installation Details */}
-      <Section title="Part 1 — Installation Details">
+      <EICRSection mob={mob} title="Part 1 — Installation Details">
         <div style={{ gridColumn: "1 / -1" }}>
-          <Field label="Installation Address" value={form.installationAddress} onChange={v => set("installationAddress", v)} />
+          <EICRField label="Installation Address" value={form.installationAddress} onChange={v => set("installationAddress", v)} />
         </div>
-        <Field label="Postcode" value={form.installationPostcode} onChange={v => set("installationPostcode", v)} />
-        <Field label="Tel No" value={form.installationTel} onChange={v => set("installationTel", v)} />
+        <EICRField label="Postcode" value={form.installationPostcode} onChange={v => set("installationPostcode", v)} />
+        <EICRField label="Tel No" value={form.installationTel} onChange={v => set("installationTel", v)} />
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Occupied By</label>
           <div style={{ display: "flex", gap: 6 }}>
@@ -2742,10 +2730,10 @@ function DFPM25Page() {
             ))}
           </div>
         </div>
-      </Section>
+      </EICRSection>
 
       {/* Part 2 — System Grade & Category */}
-      <Section title="Part 2 — System Grade & Category">
+      <EICRSection mob={mob} title="Part 2 — System Grade & Category">
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>System Grade</label>
           <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
@@ -2772,14 +2760,14 @@ function DFPM25Page() {
             ))}
           </div>
         </div>
-        <Field label="Total Number of Detectors/Alarms" value={form.totalDetectors} onChange={v => set("totalDetectors", v)} placeholder="e.g. 3" />
-        <Field label="Heat Detectors" value={form.heatDetectors} onChange={v => set("heatDetectors", v)} placeholder="0" />
-        <Field label="Smoke Detectors" value={form.smokeDetectors} onChange={v => set("smokeDetectors", v)} placeholder="e.g. 1" />
-        <Field label="Reference & Replacement Date" value={form.replacementDate} onChange={v => set("replacementDate", v)} placeholder="e.g. 2035" />
-      </Section>
+        <EICRField label="Total Number of Detectors/Alarms" value={form.totalDetectors} onChange={v => set("totalDetectors", v)} placeholder="e.g. 3" />
+        <EICRField label="Heat Detectors" value={form.heatDetectors} onChange={v => set("heatDetectors", v)} placeholder="0" />
+        <EICRField label="Smoke Detectors" value={form.smokeDetectors} onChange={v => set("smokeDetectors", v)} placeholder="e.g. 1" />
+        <EICRField label="Reference & Replacement Date" value={form.replacementDate} onChange={v => set("replacementDate", v)} placeholder="e.g. 2035" />
+      </EICRSection>
 
       {/* Part 3 — Inspection Limitations & Observations */}
-      <Section title="Part 3 — Inspection Limitations & Observations">
+      <EICRSection mob={mob} title="Part 3 — Inspection Limitations & Observations">
         <div style={{ gridColumn: "1 / -1" }}>
           <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Extent of Fire Detection & Alarm System Covered</label>
           <textarea value={form.extentOfInspection} onChange={e => set("extentOfInspection", e.target.value)} placeholder="e.g. Communal area landings, all floors…"
@@ -2790,7 +2778,7 @@ function DFPM25Page() {
           <textarea value={form.observations} onChange={e => set("observations", e.target.value)} placeholder="e.g. Good standard, all alarms operational…"
             style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", outline: "none", minHeight: 80, resize: "vertical", width: "100%", marginTop: 4, boxSizing: "border-box" }} />
         </div>
-      </Section>
+      </EICRSection>
 
       {/* Part 4 — Inspection Checklist */}
       <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
@@ -2809,11 +2797,11 @@ function DFPM25Page() {
       </div>
 
       {/* Sound Level Instrument (optional) */}
-      <Section title="Sound Level Test Instrument (if used)">
-        <Field label="Make" value={form.soundMake} onChange={v => set("soundMake", v)} placeholder="N/A if not used" />
-        <Field label="Model" value={form.soundModel} onChange={v => set("soundModel", v)} placeholder="N/A" />
-        <Field label="Serial No" value={form.soundSerial} onChange={v => set("soundSerial", v)} placeholder="N/A" />
-      </Section>
+      <EICRSection mob={mob} title="Sound Level Test Instrument (if used)">
+        <EICRField label="Make" value={form.soundMake} onChange={v => set("soundMake", v)} placeholder="N/A if not used" />
+        <EICRField label="Model" value={form.soundModel} onChange={v => set("soundModel", v)} placeholder="N/A" />
+        <EICRField label="Serial No" value={form.soundSerial} onChange={v => set("soundSerial", v)} placeholder="N/A" />
+      </EICRSection>
 
       {/* Part 5 — Declaration & Outcome */}
       <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
@@ -2844,8 +2832,8 @@ function DFPM25Page() {
               style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", outline: "none", minHeight: 60, resize: "vertical", width: "100%", marginTop: 4, boxSizing: "border-box" }} />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap: 12 }}>
-            <Field label="Inspector Name" value={form.inspectorName} onChange={v => set("inspectorName", v)} />
-            <Field label="Inspection Date" value={form.inspectionDate} onChange={v => set("inspectionDate", v)} type="date" />
+            <EICRField label="Inspector Name" value={form.inspectorName} onChange={v => set("inspectorName", v)} />
+            <EICRField label="Inspection Date" value={form.inspectionDate} onChange={v => set("inspectionDate", v)} type="date" />
           </div>
         </div>
       </div>
@@ -2991,22 +2979,7 @@ function EPM25Page() {
     if (!asDraft) setSelectedJobId("");
   };
 
-  const Field = ({ label, value, onChange, type = "text", placeholder = "", disabled = false }) => (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</label>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} disabled={disabled}
-        style={{ fontFamily: font, fontSize: 13, color: disabled ? C.textDim : C.text, background: disabled ? C.surface : C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, opacity: disabled ? 0.6 : 1 }} />
-    </div>
-  );
 
-  const Section = ({ title, children }) => (
-    <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
-      <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.green, margin: "0 0 16px", textTransform: "uppercase", letterSpacing: 0.5 }}>{title}</h4>
-      <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap: 12 }}>
-        {children}
-      </div>
-    </div>
-  );
 
   const CheckItem = ({ num, label, clauseRef, fieldKey, dimmed }) => {
     const val = form[fieldKey];
@@ -3084,30 +3057,30 @@ function EPM25Page() {
       </div>
 
       {/* Part 1 — Contractor */}
-      <Section title="Part 1 — Contractor Details">
-        <Field label="Trading Title" value={form.tradingTitle} onChange={v => set("tradingTitle", v)} />
-        <Field label="Name" value={form.contractorName} onChange={v => set("contractorName", v)} />
-        <div style={{ gridColumn: "1 / -1" }}><Field label="Address" value={form.contractorAddress} onChange={v => set("contractorAddress", v)} /></div>
-        <Field label="Postcode" value={form.contractorPostcode} onChange={v => set("contractorPostcode", v)} />
-        <Field label="Tel No" value={form.contractorTel} onChange={v => set("contractorTel", v)} />
-      </Section>
+      <EICRSection mob={mob} title="Part 1 — Contractor Details">
+        <EICRField label="Trading Title" value={form.tradingTitle} onChange={v => set("tradingTitle", v)} />
+        <EICRField label="Name" value={form.contractorName} onChange={v => set("contractorName", v)} />
+        <div style={{ gridColumn: "1 / -1" }}><EICRField label="Address" value={form.contractorAddress} onChange={v => set("contractorAddress", v)} /></div>
+        <EICRField label="Postcode" value={form.contractorPostcode} onChange={v => set("contractorPostcode", v)} />
+        <EICRField label="Tel No" value={form.contractorTel} onChange={v => set("contractorTel", v)} />
+      </EICRSection>
 
       {/* Part 1 — Client (Landlord / Agent) */}
-      <Section title="Part 1 — Client Details (Landlord / Agent)">
-        <Field label="Landlord Name" value={form.landlordName} onChange={v => set("landlordName", v)} placeholder="Property owner" />
-        <Field label="Estate Agent" value={form.agentName} onChange={v => set("agentName", v)} placeholder="Managing agent" />
-        <Field label="Reference Number (RN)" value={form.clientRefNo} onChange={v => set("clientRefNo", v)} />
-        <Field label="Client Name" value={form.clientName} onChange={v => set("clientName", v)} />
-        <div style={{ gridColumn: "1 / -1" }}><Field label="Client Address" value={form.clientAddress} onChange={v => set("clientAddress", v)} /></div>
-        <Field label="Postcode" value={form.clientPostcode} onChange={v => set("clientPostcode", v)} />
-        <Field label="Tel No" value={form.clientTel} onChange={v => set("clientTel", v)} />
-      </Section>
+      <EICRSection mob={mob} title="Part 1 — Client Details (Landlord / Agent)">
+        <EICRField label="Landlord Name" value={form.landlordName} onChange={v => set("landlordName", v)} placeholder="Property owner" />
+        <EICRField label="Estate Agent" value={form.agentName} onChange={v => set("agentName", v)} placeholder="Managing agent" />
+        <EICRField label="Reference Number (RN)" value={form.clientRefNo} onChange={v => set("clientRefNo", v)} />
+        <EICRField label="Client Name" value={form.clientName} onChange={v => set("clientName", v)} />
+        <div style={{ gridColumn: "1 / -1" }}><EICRField label="Client Address" value={form.clientAddress} onChange={v => set("clientAddress", v)} /></div>
+        <EICRField label="Postcode" value={form.clientPostcode} onChange={v => set("clientPostcode", v)} />
+        <EICRField label="Tel No" value={form.clientTel} onChange={v => set("clientTel", v)} />
+      </EICRSection>
 
       {/* Part 1 — Installation */}
-      <Section title="Part 1 — Installation Details">
-        <div style={{ gridColumn: "1 / -1" }}><Field label="Installation Address" value={form.installationAddress} onChange={v => set("installationAddress", v)} /></div>
-        <Field label="Postcode" value={form.installationPostcode} onChange={v => set("installationPostcode", v)} />
-        <Field label="Tel No" value={form.installationTel} onChange={v => set("installationTel", v)} />
+      <EICRSection mob={mob} title="Part 1 — Installation Details">
+        <div style={{ gridColumn: "1 / -1" }}><EICRField label="Installation Address" value={form.installationAddress} onChange={v => set("installationAddress", v)} /></div>
+        <EICRField label="Postcode" value={form.installationPostcode} onChange={v => set("installationPostcode", v)} />
+        <EICRField label="Tel No" value={form.installationTel} onChange={v => set("installationTel", v)} />
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Occupied By</label>
           <div style={{ display: "flex", gap: 6 }}>
@@ -3121,16 +3094,16 @@ function EPM25Page() {
             ))}
           </div>
         </div>
-      </Section>
+      </EICRSection>
 
       {/* Part 2 — System Description */}
-      <Section title="Part 2 — Description of Emergency Lighting System">
+      <EICRSection mob={mob} title="Part 2 — Description of Emergency Lighting System">
         <div style={{ gridColumn: "1 / -1" }}>
           <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Description & Extent of Installation</label>
           <textarea value={form.systemDescription} onChange={e => set("systemDescription", e.target.value)} placeholder="e.g. Communal area landings and intake cupboard"
             style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", outline: "none", minHeight: 80, resize: "vertical", width: "100%", marginTop: 4, boxSizing: "border-box" }} />
         </div>
-      </Section>
+      </EICRSection>
 
       {/* Part 7 — Installed System Details */}
       <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
@@ -3169,10 +3142,10 @@ function EPM25Page() {
 
         <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>Classification of Operation (Annex F, BS 5266-1)</div>
         <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap: 12 }}>
-          <Field label="Type" value={form.classType} onChange={v => set("classType", v)} placeholder="e.g. MAINTAINED" />
-          <Field label="Mode" value={form.classMode} onChange={v => set("classMode", v)} placeholder="e.g. COMBINED" />
-          <Field label="Facilities" value={form.classFacilities} onChange={v => set("classFacilities", v)} placeholder="e.g. ESCAPE ROUTE" />
-          <Field label="Duration (Hours)" value={form.classDuration} onChange={v => set("classDuration", v)} placeholder="e.g. 3 HOUR" />
+          <EICRField label="Type" value={form.classType} onChange={v => set("classType", v)} placeholder="e.g. MAINTAINED" />
+          <EICRField label="Mode" value={form.classMode} onChange={v => set("classMode", v)} placeholder="e.g. COMBINED" />
+          <EICRField label="Facilities" value={form.classFacilities} onChange={v => set("classFacilities", v)} placeholder="e.g. ESCAPE ROUTE" />
+          <EICRField label="Duration (Hours)" value={form.classDuration} onChange={v => set("classDuration", v)} placeholder="e.g. 3 HOUR" />
         </div>
 
         <div style={{ marginTop: 16 }}>
@@ -3232,29 +3205,29 @@ function EPM25Page() {
       </div>
 
       {/* Part 9 — Test Instruments */}
-      <Section title="Part 9 — Test Instruments Used">
-        <Field label="Light Meter — Make" value={form.lightMeterMake} onChange={v => set("lightMeterMake", v)} placeholder="N/A if not used" />
-        <Field label="Model" value={form.lightMeterModel} onChange={v => set("lightMeterModel", v)} placeholder="N/A" />
-        <Field label="Serial No" value={form.lightMeterSerial} onChange={v => set("lightMeterSerial", v)} placeholder="N/A" />
-        <Field label="Other Instrument — Make" value={form.otherInstrumentMake} onChange={v => set("otherInstrumentMake", v)} placeholder="N/A" />
-      </Section>
+      <EICRSection mob={mob} title="Part 9 — Test Instruments Used">
+        <EICRField label="Light Meter — Make" value={form.lightMeterMake} onChange={v => set("lightMeterMake", v)} placeholder="N/A if not used" />
+        <EICRField label="Model" value={form.lightMeterModel} onChange={v => set("lightMeterModel", v)} placeholder="N/A" />
+        <EICRField label="Serial No" value={form.lightMeterSerial} onChange={v => set("lightMeterSerial", v)} placeholder="N/A" />
+        <EICRField label="Other Instrument — Make" value={form.otherInstrumentMake} onChange={v => set("otherInstrumentMake", v)} placeholder="N/A" />
+      </EICRSection>
 
       {/* Part 4 — Variations */}
-      <Section title="Part 4 — Variations from BS 5266-1 & BS EN 50172">
+      <EICRSection mob={mob} title="Part 4 — Variations from BS 5266-1 & BS EN 50172">
         <div style={{ gridColumn: "1 / -1" }}>
           <textarea value={form.variations} onChange={e => set("variations", e.target.value)} placeholder="N/A if none"
             style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", outline: "none", minHeight: 60, resize: "vertical", width: "100%", boxSizing: "border-box" }} />
         </div>
-      </Section>
+      </EICRSection>
 
       {/* Part 5 — Related References */}
-      <Section title="Part 5 — Related Reference Documents">
-        <Field label="Most Recent EICR — Report No" value={form.relatedEICRNo} onChange={v => set("relatedEICRNo", v)} placeholder="N/A" />
-        <Field label="EICR Date" value={form.relatedEICRDate} onChange={v => set("relatedEICRDate", v)} type="date" />
+      <EICRSection mob={mob} title="Part 5 — Related Reference Documents">
+        <EICRField label="Most Recent EICR — Report No" value={form.relatedEICRNo} onChange={v => set("relatedEICRNo", v)} placeholder="N/A" />
+        <EICRField label="EICR Date" value={form.relatedEICRDate} onChange={v => set("relatedEICRDate", v)} type="date" />
         <div style={{ gridColumn: "1 / -1" }}>
-          <Field label="Other Documents" value={form.otherDocuments} onChange={v => set("otherDocuments", v)} placeholder="N/A" />
+          <EICRField label="Other Documents" value={form.otherDocuments} onChange={v => set("otherDocuments", v)} placeholder="N/A" />
         </div>
-      </Section>
+      </EICRSection>
 
       {/* Part 6 — Next Inspection + Part 3 — Certification */}
       <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
@@ -3274,10 +3247,10 @@ function EPM25Page() {
             </div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap: 12 }}>
-            <Field label="Inspector Name" value={form.inspectorName} onChange={v => set("inspectorName", v)} />
-            <Field label="Position" value={form.inspectorPosition} onChange={v => set("inspectorPosition", v)} placeholder="Electrician" />
-            <Field label="Inspection Date" value={form.inspectionDate} onChange={v => set("inspectionDate", v)} type="date" />
-            <Field label="Next Inspection Interval (Months)" value={form.nextInspectionMonths} onChange={v => set("nextInspectionMonths", v)} placeholder="12" />
+            <EICRField label="Inspector Name" value={form.inspectorName} onChange={v => set("inspectorName", v)} />
+            <EICRField label="Position" value={form.inspectorPosition} onChange={v => set("inspectorPosition", v)} placeholder="Electrician" />
+            <EICRField label="Inspection Date" value={form.inspectionDate} onChange={v => set("inspectionDate", v)} type="date" />
+            <EICRField label="Next Inspection Interval (Months)" value={form.nextInspectionMonths} onChange={v => set("nextInspectionMonths", v)} placeholder="12" />
           </div>
         </div>
       </div>
@@ -3453,22 +3426,7 @@ function EIC183CPage() {
     if (!asDraft) setSelectedJobId("");
   };
 
-  const Field = ({ label, value, onChange, type = "text", placeholder = "", disabled = false, style: extraStyle = {} }) => (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4, ...extraStyle }}>
-      <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</label>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} disabled={disabled}
-        style={{ fontFamily: font, fontSize: 13, color: disabled ? C.textDim : C.text, background: disabled ? C.surface : C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, opacity: disabled ? 0.6 : 1 }} />
-    </div>
-  );
 
-  const Section = ({ title, children, accent }) => (
-    <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
-      <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: accent || C.red, margin: "0 0 16px", textTransform: "uppercase", letterSpacing: 0.5 }}>{title}</h4>
-      <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap: 12 }}>
-        {children}
-      </div>
-    </div>
-  );
 
   const InspectItem = ({ num, label, fieldKey }) => {
     const val = form[fieldKey];
@@ -3525,31 +3483,31 @@ function EIC183CPage() {
       </div>
 
       {/* Part 1 — Contractor */}
-      <Section title="Part 1 — Contractor Details">
-        <Field label="Registration No" value={form.regNo} onChange={v => set("regNo", v)} placeholder="e.g. 615884000" />
-        <Field label="Branch No" value={form.branchNo} onChange={v => set("branchNo", v)} placeholder="000" />
-        <Field label="Trading Title" value={form.tradingTitle} onChange={v => set("tradingTitle", v)} />
-        <div style={{ gridColumn: "1 / -1" }}><Field label="Address" value={form.contractorAddress} onChange={v => set("contractorAddress", v)} /></div>
-        <Field label="Postcode" value={form.contractorPostcode} onChange={v => set("contractorPostcode", v)} />
-        <Field label="Tel No" value={form.contractorTel} onChange={v => set("contractorTel", v)} />
-      </Section>
+      <EICRSection mob={mob} title="Part 1 — Contractor Details">
+        <EICRField label="Registration No" value={form.regNo} onChange={v => set("regNo", v)} placeholder="e.g. 615884000" />
+        <EICRField label="Branch No" value={form.branchNo} onChange={v => set("branchNo", v)} placeholder="000" />
+        <EICRField label="Trading Title" value={form.tradingTitle} onChange={v => set("tradingTitle", v)} />
+        <div style={{ gridColumn: "1 / -1" }}><EICRField label="Address" value={form.contractorAddress} onChange={v => set("contractorAddress", v)} /></div>
+        <EICRField label="Postcode" value={form.contractorPostcode} onChange={v => set("contractorPostcode", v)} />
+        <EICRField label="Tel No" value={form.contractorTel} onChange={v => set("contractorTel", v)} />
+      </EICRSection>
 
       {/* Part 1 — Client */}
-      <Section title="Part 1 — Client Details (Landlord / Agent)">
-        <Field label="Landlord Name" value={form.landlordName} onChange={v => set("landlordName", v)} placeholder="Property owner" />
-        <Field label="Estate Agent" value={form.agentName} onChange={v => set("agentName", v)} placeholder="Managing agent" />
-        <Field label="Contractor Reference (CRN)" value={form.clientRefNo} onChange={v => set("clientRefNo", v)} />
-        <Field label="Client Name" value={form.clientName} onChange={v => set("clientName", v)} />
-        <div style={{ gridColumn: "1 / -1" }}><Field label="Client Address" value={form.clientAddress} onChange={v => set("clientAddress", v)} /></div>
-        <Field label="Postcode" value={form.clientPostcode} onChange={v => set("clientPostcode", v)} />
-        <Field label="Tel No" value={form.clientTel} onChange={v => set("clientTel", v)} />
-      </Section>
+      <EICRSection mob={mob} title="Part 1 — Client Details (Landlord / Agent)">
+        <EICRField label="Landlord Name" value={form.landlordName} onChange={v => set("landlordName", v)} placeholder="Property owner" />
+        <EICRField label="Estate Agent" value={form.agentName} onChange={v => set("agentName", v)} placeholder="Managing agent" />
+        <EICRField label="Contractor Reference (CRN)" value={form.clientRefNo} onChange={v => set("clientRefNo", v)} />
+        <EICRField label="Client Name" value={form.clientName} onChange={v => set("clientName", v)} />
+        <div style={{ gridColumn: "1 / -1" }}><EICRField label="Client Address" value={form.clientAddress} onChange={v => set("clientAddress", v)} /></div>
+        <EICRField label="Postcode" value={form.clientPostcode} onChange={v => set("clientPostcode", v)} />
+        <EICRField label="Tel No" value={form.clientTel} onChange={v => set("clientTel", v)} />
+      </EICRSection>
 
       {/* Part 1 — Installation */}
-      <Section title="Part 1 — Installation Details">
-        <div style={{ gridColumn: "1 / -1" }}><Field label="Installation Address" value={form.installationAddress} onChange={v => set("installationAddress", v)} /></div>
-        <Field label="Postcode" value={form.installationPostcode} onChange={v => set("installationPostcode", v)} />
-        <Field label="UPRN" value={form.uprn} onChange={v => set("uprn", v)} placeholder="Unique Property Reference Number" />
+      <EICRSection mob={mob} title="Part 1 — Installation Details">
+        <div style={{ gridColumn: "1 / -1" }}><EICRField label="Installation Address" value={form.installationAddress} onChange={v => set("installationAddress", v)} /></div>
+        <EICRField label="Postcode" value={form.installationPostcode} onChange={v => set("installationPostcode", v)} />
+        <EICRField label="UPRN" value={form.uprn} onChange={v => set("uprn", v)} placeholder="Unique Property Reference Number" />
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Occupied By</label>
           <div style={{ display: "flex", gap: 6 }}>
@@ -3563,13 +3521,13 @@ function EIC183CPage() {
             ))}
           </div>
         </div>
-      </Section>
+      </EICRSection>
 
       {/* Part 2 — Details of Work */}
       <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
         <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.red, margin: "0 0 16px", textTransform: "uppercase", letterSpacing: 0.5 }}>Part 2 — Details of Electrical Work</h4>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <Field label="Date Works Completed" value={form.dateCompleted} onChange={v => set("dateCompleted", v)} type="date" />
+          <EICRField label="Date Works Completed" value={form.dateCompleted} onChange={v => set("dateCompleted", v)} type="date" />
           <div>
             <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>The Installation Is</label>
             <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 8 }}>
@@ -3592,16 +3550,16 @@ function EIC183CPage() {
       </div>
 
       {/* Part 3 — Comments on existing installation */}
-      <Section title="Part 3 — Comments on Existing Installation">
+      <EICRSection mob={mob} title="Part 3 — Comments on Existing Installation">
         <div style={{ gridColumn: "1 / -1" }}>
           <textarea value={form.existingComments} onChange={e => set("existingComments", e.target.value)} placeholder="e.g. In a good condition for continued use"
             style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", outline: "none", minHeight: 60, resize: "vertical", width: "100%", boxSizing: "border-box" }} />
         </div>
-      </Section>
+      </EICRSection>
 
       {/* Part 4A — Declaration */}
-      <Section title="Part 4A — Declaration">
-        <Field label="BS 7671: 2018 Amended To (Date)" value={form.declarationBS7671Date} onChange={v => set("declarationBS7671Date", v)} placeholder="2024" />
+      <EICRSection mob={mob} title="Part 4A — Declaration">
+        <EICRField label="BS 7671: 2018 Amended To (Date)" value={form.declarationBS7671Date} onChange={v => set("declarationBS7671Date", v)} placeholder="2024" />
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Permitted Exception (411.3.3)</label>
           <div style={{ display: "flex", gap: 6 }}>
@@ -3615,19 +3573,19 @@ function EIC183CPage() {
             ))}
           </div>
         </div>
-        <Field label="Next Inspection & Test By (Date)" value={form.nextInspectionDate} onChange={v => set("nextInspectionDate", v)} type="date" />
+        <EICRField label="Next Inspection & Test By (Date)" value={form.nextInspectionDate} onChange={v => set("nextInspectionDate", v)} type="date" />
         <div style={{ gridColumn: "1 / -1" }}>
           <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Departures (if any)</label>
           <textarea value={form.departures} onChange={e => set("departures", e.target.value)} placeholder="N/A"
             style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", outline: "none", minHeight: 60, resize: "vertical", width: "100%", marginTop: 4, boxSizing: "border-box" }} />
         </div>
-        <Field label="Designer / Inspector Name" value={form.designerName} onChange={v => set("designerName", v)} />
-        <Field label="Organisation" value={form.designerOrg} onChange={v => set("designerOrg", v)} />
-        <Field label="Registration No" value={form.designerRegNo} onChange={v => set("designerRegNo", v)} />
-        <Field label="Signature Date" value={form.designerDate} onChange={v => set("designerDate", v)} type="date" />
-        <Field label="Reviewed By (QS Name)" value={form.reviewerName} onChange={v => set("reviewerName", v)} />
-        <Field label="Reviewer Date" value={form.reviewerDate} onChange={v => set("reviewerDate", v)} type="date" />
-      </Section>
+        <EICRField label="Designer / Inspector Name" value={form.designerName} onChange={v => set("designerName", v)} />
+        <EICRField label="Organisation" value={form.designerOrg} onChange={v => set("designerOrg", v)} />
+        <EICRField label="Registration No" value={form.designerRegNo} onChange={v => set("designerRegNo", v)} />
+        <EICRField label="Signature Date" value={form.designerDate} onChange={v => set("designerDate", v)} type="date" />
+        <EICRField label="Reviewed By (QS Name)" value={form.reviewerName} onChange={v => set("reviewerName", v)} />
+        <EICRField label="Reviewer Date" value={form.reviewerDate} onChange={v => set("reviewerDate", v)} type="date" />
+      </EICRSection>
 
       {/* Part 5 — Supply Characteristics */}
       <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
@@ -3647,25 +3605,25 @@ function EIC183CPage() {
             </div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap: 12 }}>
-            <Field label="Nominal Voltage to Earth, U₀ (V)" value={form.nominalVoltageEarth} onChange={v => set("nominalVoltageEarth", v)} />
-            <Field label="Frequency (Hz)" value={form.nominalFrequency} onChange={v => set("nominalFrequency", v)} />
-            <Field label="Prospective Fault Current, Ipf (kA)" value={form.prospectiveFaultCurrent} onChange={v => set("prospectiveFaultCurrent", v)} placeholder="e.g. 1.06" />
-            <Field label="External Earth Fault Loop, Ze (Ω)" value={form.externalEarthFaultLoop} onChange={v => set("externalEarthFaultLoop", v)} placeholder="e.g. 0.22" />
+            <EICRField label="Nominal Voltage to Earth, U₀ (V)" value={form.nominalVoltageEarth} onChange={v => set("nominalVoltageEarth", v)} />
+            <EICRField label="Frequency (Hz)" value={form.nominalFrequency} onChange={v => set("nominalFrequency", v)} />
+            <EICRField label="Prospective Fault Current, Ipf (kA)" value={form.prospectiveFaultCurrent} onChange={v => set("prospectiveFaultCurrent", v)} placeholder="e.g. 1.06" />
+            <EICRField label="External Earth Fault Loop, Ze (Ω)" value={form.externalEarthFaultLoop} onChange={v => set("externalEarthFaultLoop", v)} placeholder="e.g. 0.22" />
           </div>
         </div>
       </div>
 
       {/* Part 6 — Particulars */}
-      <Section title="Part 6 — Particulars of Installation">
-        <Field label="Maximum Demand (A)" value={form.maxDemand} onChange={v => set("maxDemand", v)} placeholder="e.g. 35" />
-        <Field label="Earthing Conductor Material" value={form.earthingConductorMaterial} onChange={v => set("earthingConductorMaterial", v)} placeholder="Copper" />
-        <Field label="Earthing Conductor CSA (mm²)" value={form.earthingConductorCSA} onChange={v => set("earthingConductorCSA", v)} placeholder="16" />
-        <Field label="Bonding Conductor CSA (mm²)" value={form.bondingConductorCSA} onChange={v => set("bondingConductorCSA", v)} placeholder="10" />
-        <Field label="Main Switch Location" value={form.mainSwitchLocation} onChange={v => set("mainSwitchLocation", v)} placeholder="CCU" />
-        <Field label="Main Switch BS EN" value={form.mainSwitchBSEN} onChange={v => set("mainSwitchBSEN", v)} placeholder="60947-3" />
-        <Field label="Main Switch Current Rating (A)" value={form.mainSwitchCurrentRating} onChange={v => set("mainSwitchCurrentRating", v)} placeholder="100" />
-        <Field label="Main Switch Voltage (V)" value={form.mainSwitchVoltage} onChange={v => set("mainSwitchVoltage", v)} placeholder="230" />
-      </Section>
+      <EICRSection mob={mob} title="Part 6 — Particulars of Installation">
+        <EICRField label="Maximum Demand (A)" value={form.maxDemand} onChange={v => set("maxDemand", v)} placeholder="e.g. 35" />
+        <EICRField label="Earthing Conductor Material" value={form.earthingConductorMaterial} onChange={v => set("earthingConductorMaterial", v)} placeholder="Copper" />
+        <EICRField label="Earthing Conductor CSA (mm²)" value={form.earthingConductorCSA} onChange={v => set("earthingConductorCSA", v)} placeholder="16" />
+        <EICRField label="Bonding Conductor CSA (mm²)" value={form.bondingConductorCSA} onChange={v => set("bondingConductorCSA", v)} placeholder="10" />
+        <EICRField label="Main Switch Location" value={form.mainSwitchLocation} onChange={v => set("mainSwitchLocation", v)} placeholder="CCU" />
+        <EICRField label="Main Switch BS EN" value={form.mainSwitchBSEN} onChange={v => set("mainSwitchBSEN", v)} placeholder="60947-3" />
+        <EICRField label="Main Switch Current Rating (A)" value={form.mainSwitchCurrentRating} onChange={v => set("mainSwitchCurrentRating", v)} placeholder="100" />
+        <EICRField label="Main Switch Voltage (V)" value={form.mainSwitchVoltage} onChange={v => set("mainSwitchVoltage", v)} placeholder="230" />
+      </EICRSection>
 
       {/* Part 7 — Schedule of Items Inspected */}
       <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
@@ -3696,10 +3654,10 @@ function EIC183CPage() {
 
         {/* DB Details */}
         <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap: 12, marginBottom: 16, padding: "12px", background: C.surfaceAlt, borderRadius: 10 }}>
-          <Field label="DB Designation" value={form.dbDesignation} onChange={v => set("dbDesignation", v)} placeholder="Fusebox" />
-          <Field label="DB Location" value={form.dbLocation} onChange={v => set("dbLocation", v)} placeholder="Hallway" />
-          <Field label="Zdb (Ω)" value={form.dbZdb} onChange={v => set("dbZdb", v)} placeholder="e.g. 0.22" />
-          <Field label="Ipf at DB (kA)" value={form.dbIpf} onChange={v => set("dbIpf", v)} placeholder="e.g. 1.06" />
+          <EICRField label="DB Designation" value={form.dbDesignation} onChange={v => set("dbDesignation", v)} placeholder="Fusebox" />
+          <EICRField label="DB Location" value={form.dbLocation} onChange={v => set("dbLocation", v)} placeholder="Hallway" />
+          <EICRField label="Zdb (Ω)" value={form.dbZdb} onChange={v => set("dbZdb", v)} placeholder="e.g. 0.22" />
+          <EICRField label="Ipf at DB (kA)" value={form.dbIpf} onChange={v => set("dbIpf", v)} placeholder="e.g. 1.06" />
         </div>
 
         {/* Circuit rows */}
@@ -3710,14 +3668,14 @@ function EIC183CPage() {
               {form.circuits.length > 1 && <button onClick={() => removeCircuit(idx)} style={{ fontFamily: font, fontSize: 10, color: C.red, background: "transparent", border: "none", cursor: "pointer" }}>Remove</button>}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: 8 }}>
-              <Field label="Description" value={cir.description} onChange={v => updateCircuit(idx, "description", v)} placeholder="e.g. Lights, Sockets" />
-              <Field label="Live CSA (mm²)" value={cir.liveCsa} onChange={v => updateCircuit(idx, "liveCsa", v)} placeholder="1.5" />
-              <Field label="CPC CSA (mm²)" value={cir.cpcCsa} onChange={v => updateCircuit(idx, "cpcCsa", v)} placeholder="1" />
-              <Field label="Points Served" value={cir.points} onChange={v => updateCircuit(idx, "points", v)} placeholder="e.g. 6" />
-              <Field label="OCP Type" value={cir.ocpType} onChange={v => updateCircuit(idx, "ocpType", v)} placeholder="B" />
-              <Field label="OCP Rating (A)" value={cir.ocpRating} onChange={v => updateCircuit(idx, "ocpRating", v)} placeholder="6" />
-              <Field label="Max Zs (Ω)" value={cir.ocpMaxZs} onChange={v => updateCircuit(idx, "ocpMaxZs", v)} placeholder="7.28" />
-              <Field label="RCD IΔn (mA)" value={cir.rcdImA} onChange={v => updateCircuit(idx, "rcdImA", v)} placeholder="30" />
+              <EICRField label="Description" value={cir.description} onChange={v => updateCircuit(idx, "description", v)} placeholder="e.g. Lights, Sockets" />
+              <EICRField label="Live CSA (mm²)" value={cir.liveCsa} onChange={v => updateCircuit(idx, "liveCsa", v)} placeholder="1.5" />
+              <EICRField label="CPC CSA (mm²)" value={cir.cpcCsa} onChange={v => updateCircuit(idx, "cpcCsa", v)} placeholder="1" />
+              <EICRField label="Points Served" value={cir.points} onChange={v => updateCircuit(idx, "points", v)} placeholder="e.g. 6" />
+              <EICRField label="OCP Type" value={cir.ocpType} onChange={v => updateCircuit(idx, "ocpType", v)} placeholder="B" />
+              <EICRField label="OCP Rating (A)" value={cir.ocpRating} onChange={v => updateCircuit(idx, "ocpRating", v)} placeholder="6" />
+              <EICRField label="Max Zs (Ω)" value={cir.ocpMaxZs} onChange={v => updateCircuit(idx, "ocpMaxZs", v)} placeholder="7.28" />
+              <EICRField label="RCD IΔn (mA)" value={cir.rcdImA} onChange={v => updateCircuit(idx, "rcdImA", v)} placeholder="30" />
             </div>
           </div>
         ))}
@@ -3731,26 +3689,26 @@ function EIC183CPage() {
           <div key={idx} style={{ background: C.surfaceAlt, borderRadius: 10, padding: 12, marginBottom: 8 }}>
             <span style={{ fontFamily: font, fontSize: 12, fontWeight: 700, color: C.red, marginBottom: 8, display: "block" }}>Circuit {tr.num}: {form.circuits[idx]?.description || "—"}</span>
             <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: 8 }}>
-              <Field label="R1+R2 (Ω)" value={tr.r1r2} onChange={v => updateTestResult(idx, "r1r2", v)} placeholder="e.g. 0.66" />
-              <Field label="Insulation IR L/L (MΩ)" value={tr.irLL} onChange={v => updateTestResult(idx, "irLL", v)} placeholder=">999" />
-              <Field label="Insulation IR L/E (MΩ)" value={tr.irLE} onChange={v => updateTestResult(idx, "irLE", v)} placeholder=">999" />
-              <Field label="Test Voltage (V)" value={tr.testV} onChange={v => updateTestResult(idx, "testV", v)} placeholder="250" />
-              <Field label="Zs (Ω)" value={tr.zs} onChange={v => updateTestResult(idx, "zs", v)} placeholder="e.g. 0.88" />
-              <Field label="RCD Time (ms)" value={tr.rcdTime} onChange={v => updateTestResult(idx, "rcdTime", v)} placeholder="e.g. 28" />
-              <Field label="Comments" value={tr.comments} onChange={v => updateTestResult(idx, "comments", v)} placeholder="" />
+              <EICRField label="R1+R2 (Ω)" value={tr.r1r2} onChange={v => updateTestResult(idx, "r1r2", v)} placeholder="e.g. 0.66" />
+              <EICRField label="Insulation IR L/L (MΩ)" value={tr.irLL} onChange={v => updateTestResult(idx, "irLL", v)} placeholder=">999" />
+              <EICRField label="Insulation IR L/E (MΩ)" value={tr.irLE} onChange={v => updateTestResult(idx, "irLE", v)} placeholder=">999" />
+              <EICRField label="Test Voltage (V)" value={tr.testV} onChange={v => updateTestResult(idx, "testV", v)} placeholder="250" />
+              <EICRField label="Zs (Ω)" value={tr.zs} onChange={v => updateTestResult(idx, "zs", v)} placeholder="e.g. 0.88" />
+              <EICRField label="RCD Time (ms)" value={tr.rcdTime} onChange={v => updateTestResult(idx, "rcdTime", v)} placeholder="e.g. 28" />
+              <EICRField label="Comments" value={tr.comments} onChange={v => updateTestResult(idx, "comments", v)} placeholder="" />
             </div>
           </div>
         ))}
 
         <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr 1fr", gap: 12, marginTop: 16 }}>
-          <Field label="Tested By" value={form.testedByName} onChange={v => set("testedByName", v)} />
-          <Field label="Position" value={form.testedByPosition} onChange={v => set("testedByPosition", v)} />
-          <Field label="Date" value={form.testedByDate} onChange={v => set("testedByDate", v)} type="date" />
+          <EICRField label="Tested By" value={form.testedByName} onChange={v => set("testedByName", v)} />
+          <EICRField label="Position" value={form.testedByPosition} onChange={v => set("testedByPosition", v)} />
+          <EICRField label="Date" value={form.testedByDate} onChange={v => set("testedByDate", v)} type="date" />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr 1fr", gap: 12, marginTop: 12 }}>
-          <Field label="Multi-function Instrument Serial" value={form.testInstrumentMulti} onChange={v => set("testInstrumentMulti", v)} placeholder="e.g. 101672538" />
-          <Field label="Continuity Serial" value={form.testInstrumentContinuity} onChange={v => set("testInstrumentContinuity", v)} placeholder="N/A" />
-          <Field label="RCD Tester Serial" value={form.testInstrumentRCD} onChange={v => set("testInstrumentRCD", v)} placeholder="N/A" />
+          <EICRField label="Multi-function Instrument Serial" value={form.testInstrumentMulti} onChange={v => set("testInstrumentMulti", v)} placeholder="e.g. 101672538" />
+          <EICRField label="Continuity Serial" value={form.testInstrumentContinuity} onChange={v => set("testInstrumentContinuity", v)} placeholder="N/A" />
+          <EICRField label="RCD Tester Serial" value={form.testInstrumentRCD} onChange={v => set("testInstrumentRCD", v)} placeholder="N/A" />
         </div>
       </div>
 
