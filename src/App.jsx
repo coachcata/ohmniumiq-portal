@@ -2455,30 +2455,50 @@ function EICRPage() {
       <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, margin: 0, textTransform: "uppercase", letterSpacing: 0.5 }}>Part 5 — Observations</h4>
-          <button onClick={addObs} style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.accent, background: C.accentGlow, border: `1px solid rgba(59,130,246,.25)`, borderRadius: 8, padding: "6px 14px", cursor: "pointer", minHeight: 32 }}>+ Add</button>
+          <button onClick={addObs} style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.accent, background: C.accentGlow, border: `1px solid rgba(59,130,246,.25)`, borderRadius: 8, padding: "6px 14px", cursor: "pointer", minHeight: 32 }}>+ Add observation manually</button>
         </div>
         <div style={{ fontFamily: font, fontSize: 10, color: C.textDim, marginBottom: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
           <span style={{ color: "#dc2626" }}>C1 = Danger Present</span>
           <span style={{ color: "#ea580c" }}>C2 = Potentially Dangerous</span>
-          <span style={{ color: C.amber }}>C3 = Improvement Recommended</span>
+          <span style={{ color: C.accent }}>C3 = Improvement Recommended</span>
           <span style={{ color: C.purple }}>FI = Further Investigation</span>
         </div>
+        {form.observations.length === 0 && (
+          <div style={{ fontFamily: font, fontSize: 12, color: C.textDim, padding: "16px 0", textAlign: "center" }}>No observations yet. Observations are auto-linked when Part 9 items are classified as C1/C2/C3/FI, or add manually above.</div>
+        )}
         {form.observations.map((obs, idx) => (
           <div key={idx} style={{ background: C.surfaceAlt, borderRadius: 10, padding: 12, marginBottom: 8 }}>
-            <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "60px 60px 1fr 70px 1fr 32px", gap: 8, alignItems: "end" }}>
-              <EICRField label="Item" value={obs.itemNo} onChange={v => updateObs(idx, "itemNo", v)} placeholder="1" />
-              <EICRField label="Ref" value={obs.ref} onChange={v => updateObs(idx, "ref", v)} placeholder="4.6" />
-              <EICRField label="Observation" value={obs.observation} onChange={v => updateObs(idx, "observation", v)} placeholder="e.g. Fusebox made of combustible material" />
+            <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "50px 70px 70px 1fr 32px", gap: 8, alignItems: "end" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase" }}>Item</label>
+                <div style={{ fontFamily: font, fontSize: 13, color: C.textDim, padding: "9px 4px", minHeight: 40, display: "flex", alignItems: "center" }}>{obs.itemNo}</div>
+              </div>
+              {obs.linkedFromPart9 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase" }}>Ref</label>
+                  <div style={{ fontFamily: font, fontSize: 13, color: C.textDim, padding: "9px 4px", minHeight: 40, display: "flex", alignItems: "center" }}>{obs.ref}</div>
+                </div>
+              ) : (
+                <EICRField label="Ref" value={obs.ref} onChange={v => updateObs(idx, "ref", v)} placeholder="4.6" />
+              )}
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase" }}>Code</label>
-                <div style={{ display: "flex", gap: 2 }}>
-                  {["C1", "C2", "C3", "FI"].map(c => (
-                    <button key={c} onClick={() => updateObs(idx, "code", c)} style={{ fontFamily: font, fontSize: 9, fontWeight: obs.code === c ? 700 : 400, color: obs.code === c ? C.white : C.textDim, background: obs.code === c ? (c === "C1" ? "#dc2626" : c === "C2" ? "#ea580c" : c === "C3" ? C.amber : C.purple) : C.surface, border: "none", borderRadius: 4, padding: "4px 6px", cursor: "pointer", minHeight: 28 }}>{c}</button>
-                  ))}
-                </div>
+                {obs.linkedFromPart9 ? (
+                  <span style={{ fontFamily: font, fontSize: 11, fontWeight: 700, color: C.white, background: obs.code === "C1" ? "#dc2626" : obs.code === "C2" ? "#ea580c" : obs.code === "C3" ? C.accent : C.purple, borderRadius: 6, padding: "6px 10px", textAlign: "center", minHeight: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>{obs.code}</span>
+                ) : (
+                  <div style={{ display: "flex", gap: 2 }}>
+                    {["C1", "C2", "C3", "FI"].map(c => (
+                      <button key={c} onClick={() => updateObs(idx, "code", c)} style={{ fontFamily: font, fontSize: 9, fontWeight: obs.code === c ? 700 : 400, color: obs.code === c ? C.white : C.textDim, background: obs.code === c ? (c === "C1" ? "#dc2626" : c === "C2" ? "#ea580c" : c === "C3" ? C.accent : C.purple) : C.surface, border: "none", borderRadius: 4, padding: "4px 6px", cursor: "pointer", minHeight: 28 }}>{c}</button>
+                    ))}
+                  </div>
+                )}
               </div>
               <EICRField label="Location" value={obs.location} onChange={v => updateObs(idx, "location", v)} placeholder="e.g. Fusebox" />
-              {form.observations.length > 1 && <button onClick={() => removeObs(idx)} style={{ fontFamily: font, fontSize: 14, color: C.red, background: "transparent", border: "none", cursor: "pointer", minHeight: 40 }}>✕</button>}
+              {!obs.linkedFromPart9 ? (
+                <button onClick={() => removeObs(idx)} style={{ fontFamily: font, fontSize: 14, color: C.red, background: "transparent", border: "none", cursor: "pointer", minHeight: 40 }}>✕</button>
+              ) : (
+                <div style={{ fontFamily: font, fontSize: 9, color: C.textDim, textAlign: "center", minHeight: 40, display: "flex", alignItems: "center", justifyContent: "center" }}>linked</div>
+              )}
             </div>
           </div>
         ))}
@@ -2488,12 +2508,37 @@ function EICRPage() {
       <EICRSection mob={mob} title="Part 6 — Details & Limitations">
         <EICRField label="BS 7671: 2018 Amended To" value={form.bs7671AmendedTo} onChange={v => set("bs7671AmendedTo", v)} placeholder="2024" />
         <EICRField label="Agreed With" value={form.agreedWith} onChange={v => set("agreedWith", v)} placeholder="CLIENT" />
-        <div style={{ gridColumn: "1 / -1" }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Details of Installation Covered</label>
-          <textarea value={form.extentDetails} onChange={e => set("extentDetails", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", outline: "none", minHeight: 60, resize: "vertical", width: "100%", marginTop: 4, boxSizing: "border-box" }} /></div>
-        <div style={{ gridColumn: "1 / -1" }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Agreed Limitations</label>
-          <textarea value={form.agreedLimitations} onChange={e => set("agreedLimitations", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", outline: "none", minHeight: 60, resize: "vertical", width: "100%", marginTop: 4, boxSizing: "border-box" }} /></div>
+        <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Details of Installation Covered</label>
+          <select value={form.extentKey} onChange={e => set("extentKey", e.target.value)}
+            style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>
+            {EXTENT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          {form.extentKey && (
+            <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, background: C.surface, borderRadius: 8, padding: "8px 12px", marginTop: 4, lineHeight: 1.5 }}>
+              {EXTENT_OPTIONS.find(o => o.value === form.extentKey)?.text}
+            </div>
+          )}
+        </div>
+        <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Agreed Limitations</label>
+          <select value={form.limitationsKey} onChange={e => set("limitationsKey", e.target.value)}
+            style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>
+            {LIMITATIONS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          {form.limitationsKey && form.limitationsKey !== "na" && (
+            <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, background: C.surface, borderRadius: 8, padding: "8px 12px", marginTop: 4, lineHeight: 1.5 }}>
+              {LIMITATIONS_OPTIONS.find(o => o.value === form.limitationsKey)?.text}
+            </div>
+          )}
+        </div>
         <div style={{ gridColumn: "1 / -1" }}><EICRField label="Extent of Sampling" value={form.extentOfSampling} onChange={v => set("extentOfSampling", v)} /></div>
-        <div style={{ gridColumn: "1 / -1" }}><EICRField label="Operational Limitations" value={form.operationalLimitations} onChange={v => set("operationalLimitations", v)} placeholder="e.g. Could not verify main fuse size" /></div>
+        <div style={{ gridColumn: "1 / -1" }}>
+          <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Operational Limitations (read-only)</label>
+          <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", marginTop: 4, lineHeight: 1.5, opacity: 0.8 }}>
+            {OPERATIONAL_LIMITATIONS}
+          </div>
+        </div>
       </EICRSection>
 
       {/* Part 7 — Supply Characteristics */}
