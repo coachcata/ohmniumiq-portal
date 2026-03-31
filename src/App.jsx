@@ -229,7 +229,7 @@ function LoginPage() {
             </>
           )}
         </div>
-        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v17.1</p>
+        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v17.2</p>
       </div>
     </div>
   );
@@ -245,20 +245,39 @@ function DataProvider({ children, userProfile }) {
   const [audit, setAudit] = useState([]);
   const [engineers, setEngineers] = useState([]);
   const [loading, setLoading] = useState(true);
-
+  const [organisations, setOrganisations] = useState([]);
   const [comments, setComments] = useState([]);
 
-  // Fetch all data on mount — all queries scoped to the user's organisation
+  // Fetch all data on mount
   const fetchAll = useCallback(async () => {
     setLoading(true);
     const orgId = userProfile.organisation_id;
-    const [propRes, jobRes, docRes, auditRes, engRes, commentRes] = await Promise.all([
-      supabase.from("properties").select("*").eq("agency_id", orgId).order("ref"),
-      supabase.from("jobs").select("*").eq("organisation_id", orgId).order("created_at", { ascending: false }),
-      supabase.from("documents").select("*").eq("organisation_id", orgId).order("uploaded_at", { ascending: false }),
-      supabase.from("audit_log").select("*").eq("organisation_id", orgId).order("created_at", { ascending: false }).limit(500),
-      supabase.from("profiles").select("id, full_name, role, email").eq("organisation_id", orgId).in("role", ["engineer", "junior", "supervisor", "agent", "admin"]),
-      supabase.from("job_comments").select("*").eq("organisation_id", orgId).order("created_at", { ascending: true }),
+    // Check if user's org is a contractor (sees all clients) or agency (sees own data only)
+    const { data: orgData } = await supabase.from("organisations").select("type").eq("id", orgId).single();
+    const isContractor = orgData?.type === "contractor";
+    // Contractor admin/supervisor sees all data; agency users see only their org
+    const propQuery = isContractor
+      ? supabase.from("properties").select("*").order("ref")
+      : supabase.from("properties").select("*").eq("agency_id", orgId).order("ref");
+    const jobQuery = isContractor
+      ? supabase.from("jobs").select("*").order("created_at", { ascending: false })
+      : supabase.from("jobs").select("*").eq("organisation_id", orgId).order("created_at", { ascending: false });
+    const docQuery = isContractor
+      ? supabase.from("documents").select("*").order("uploaded_at", { ascending: false })
+      : supabase.from("documents").select("*").eq("organisation_id", orgId).order("uploaded_at", { ascending: false });
+    const auditQuery = isContractor
+      ? supabase.from("audit_log").select("*").order("created_at", { ascending: false }).limit(500)
+      : supabase.from("audit_log").select("*").eq("organisation_id", orgId).order("created_at", { ascending: false }).limit(500);
+    const engQuery = isContractor
+      ? supabase.from("profiles").select("id, full_name, role, email, organisation_id").in("role", ["engineer", "junior", "supervisor", "agent", "admin"])
+      : supabase.from("profiles").select("id, full_name, role, email, organisation_id").eq("organisation_id", orgId).in("role", ["engineer", "junior", "supervisor", "agent", "admin"]);
+    const commentQuery = isContractor
+      ? supabase.from("job_comments").select("*").order("created_at", { ascending: true })
+      : supabase.from("job_comments").select("*").eq("organisation_id", orgId).order("created_at", { ascending: true });
+    const orgQuery = supabase.from("organisations").select("id, name, type").order("name");
+
+    const [propRes, jobRes, docRes, auditRes, engRes, commentRes, orgRes] = await Promise.all([
+      propQuery, jobQuery, docQuery, auditQuery, engQuery, commentQuery, orgQuery,
     ]);
     if (propRes.data) setProperties(propRes.data);
     if (jobRes.data) setJobs(jobRes.data);
@@ -266,6 +285,7 @@ function DataProvider({ children, userProfile }) {
     if (auditRes.data) setAudit(auditRes.data);
     if (engRes.data) setEngineers(engRes.data);
     if (commentRes.data) setComments(commentRes.data);
+    if (orgRes.data) setOrganisations(orgRes.data);
     setLoading(false);
   }, []);
 
@@ -377,7 +397,7 @@ function DataProvider({ children, userProfile }) {
     return { data, error };
   }, []);
 
-  const ctx = { properties, jobs, documents, audit, engineers, comments, loading, addProperty, updateProperty, deleteProperty, addJob, updateJob, deleteJob, addDoc, addAudit, addComment, uploadFile, fetchAll };
+  const ctx = { properties, jobs, documents, audit, engineers, comments, organisations, loading, addProperty, updateProperty, deleteProperty, addJob, updateJob, deleteJob, addDoc, addAudit, addComment, uploadFile, fetchAll };
 
   return <DataContext.Provider value={ctx}>{children}</DataContext.Provider>;
 }
@@ -689,7 +709,7 @@ function Sidebar({ active, setActive, role, userProfile, onLogout }) {
       <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}` }}>
         <button onClick={onLogout} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.card, display: "grid", placeItems: "center" }}><Icon name="logout" size={16} color={C.textMuted} /></div>
-          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v17.1 — Supabase</div></div>
+          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v17.2 — Supabase</div></div>
         </button>
       </div>
     </div>
@@ -943,23 +963,26 @@ function AddPropertyModal({ open, onClose }) {
 }
 
 function PropertiesPage({ onRequestJob, onSelectProperty }) {
-  const { properties, loading } = useContext(DataContext);
+  const { properties, organisations, loading } = useContext(DataContext);
   const auth = useContext(AuthContext);
   const { w } = useWindowSize();
   const mob = w < BP.mobile;
   const [filter, setFilter] = useState("all"); const [search, setSearch] = useState("");
   const [sort, setSort] = useState("ref");
+  const [clientFilter, setClientFilter] = useState("all");
   const [showAdd, setShowAdd] = useState(false);
   const [showCSV, setShowCSV] = useState(false);
   const [toast, setToast] = useState(null);
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
   const role = auth.role;
+  const clients = organisations.filter(o => o.type === "agency");
 
   const statusOrder = { red: 0, amber: 1, green: 2 };
 
   const filtered = properties.filter(p => {
     const st = overallStatus(p);
     if (filter !== "all" && st !== filter) return false;
+    if (clientFilter !== "all" && p.agency_id !== clientFilter) return false;
     if (search && !p.address.toLowerCase().includes(search.toLowerCase()) && !(p.tenant_name || "").toLowerCase().includes(search.toLowerCase()) && !(p.ref || "").toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   }).sort((a, b) => {
@@ -983,6 +1006,12 @@ function PropertiesPage({ onRequestJob, onSelectProperty }) {
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
           {[{ id: "all", label: "All" }, { id: "green", label: "OK" }, { id: "amber", label: "Soon" }, { id: "red", label: "Overdue" }].map(f => (<button key={f.id} onClick={() => setFilter(f.id)} style={{ fontFamily: font, fontSize: 11, fontWeight: filter === f.id ? 600 : 400, color: filter === f.id ? C.white : C.textMuted, background: filter === f.id ? (f.id === "all" ? C.accent : statusColor(f.id)) : C.card, border: `1px solid ${filter === f.id ? "transparent" : C.border}`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>{f.label}</button>))}
         </div>
+        {clients.length > 0 && (
+          <select value={clientFilter} onChange={e => setClientFilter(e.target.value)} style={{ fontFamily: font, fontSize: 11, color: C.text, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", cursor: "pointer", minHeight: 36, outline: "none" }}>
+            <option value="all">All Clients</option>
+            {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        )}
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
           {[{ id: "ref", label: "Default" }, { id: "status", label: "Status" }, { id: "expiry", label: "Expiry" }, { id: "tenant", label: "A–Z" }].map(s => (<button key={s.id} onClick={() => setSort(s.id)} style={{ fontFamily: font, fontSize: 11, fontWeight: sort === s.id ? 600 : 400, color: sort === s.id ? C.accent : C.textMuted, background: "transparent", border: `1px solid ${sort === s.id ? C.accent : "transparent"}`, borderRadius: 8, padding: "8px 10px", cursor: "pointer", minHeight: 36 }}>{s.label}</button>))}
         </div>
@@ -1033,21 +1062,24 @@ function PropertiesPage({ onRequestJob, onSelectProperty }) {
 // JOBS PAGE
 // ─────────────────────────────────────────────
 function JobsPage({ onNavigateEicr }) {
-  const { jobs, properties, engineers, updateJob, addJob, addAudit } = useContext(DataContext);
+  const { jobs, properties, engineers, organisations, updateJob, addJob, addAudit } = useContext(DataContext);
   const auth = useContext(AuthContext);
   const { w } = useWindowSize();
   const mob = w < BP.mobile;
   const role = auth.role;
   const [sf, setSf] = useState("all");
   const [search, setSearch] = useState("");
+  const [clientFilter, setClientFilter] = useState("all");
   const [assignModal, setAssignModal] = useState(null);
   const [editModal, setEditModal] = useState(null);
   const [toast, setToast] = useState(null);
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
+  const clients = organisations.filter(o => o.type === "agency");
 
   const filtered = jobs.filter(j => {
     if (sf !== "all" && j.status !== sf) return false;
     if (["engineer", "junior"].includes(role) && j.engineer_id !== auth.id) return false;
+    if (clientFilter !== "all" && j.organisation_id !== clientFilter) return false;
     if (search) {
       const prop = properties.find(p => p.id === j.property_id);
       const q = search.toLowerCase();
@@ -1075,6 +1107,12 @@ function JobsPage({ onNavigateEicr }) {
             <button key={s} onClick={() => setSf(s)} style={{ fontFamily: font, fontSize: 11, fontWeight: sf === s ? 600 : 400, color: sf === s ? C.white : C.textMuted, background: sf === s ? C.accent : C.card, border: `1px solid ${sf === s ? "transparent" : C.border}`, borderRadius: 8, padding: "8px 12px", cursor: "pointer", minHeight: 36 }}>{s === "all" ? "All" : s}</button>
           ))}
         </div>
+        {clients.length > 0 && !["engineer", "junior"].includes(role) && (
+          <select value={clientFilter} onChange={e => setClientFilter(e.target.value)} style={{ fontFamily: font, fontSize: 11, color: C.text, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", cursor: "pointer", minHeight: 36, outline: "none" }}>
+            <option value="all">All Clients</option>
+            {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        )}
         {!["engineer", "junior"].includes(role) && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.card, borderRadius: 8, padding: "6px 12px", border: `1px solid ${C.border}`, flex: mob ? "1 1 100%" : "0 1 220px" }}>
             <Icon name="search" size={14} color={C.textDim} />
