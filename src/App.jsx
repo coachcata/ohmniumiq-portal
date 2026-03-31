@@ -288,7 +288,7 @@ function LoginPage() {
             </>
           )}
         </div>
-        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v17.3</p>
+        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v18.0</p>
       </div>
     </div>
   );
@@ -829,7 +829,7 @@ function Sidebar({ active, setActive, role, userProfile, onLogout }) {
       <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}` }}>
         <button onClick={onLogout} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.card, display: "grid", placeItems: "center" }}><Icon name="logout" size={16} color={C.textMuted} /></div>
-          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v17.3 — Supabase</div></div>
+          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v18.0 — Supabase</div></div>
         </button>
       </div>
     </div>
@@ -1397,7 +1397,14 @@ function CertificateRenderer({ job, property, certRef }) {
   const headS = { ...cellS, fontWeight: 700, background: "#e8edf2", fontSize: 8, textTransform: "uppercase", letterSpacing: 0.3 };
   const secHead = { fontFamily: "Arial, sans-serif", fontSize: 11, fontWeight: 700, color: "#1a1a1a", margin: "10px 0 6px", padding: "4px 0", borderBottom: "2px solid #2a4a8d" };
 
-  if (isEICR) return (
+  if (isEICR) {
+  const purposeObj = PURPOSE_OPTIONS.find(o => o.value === eicr.purposeKey);
+  const conditionObj = CONDITION_OPTIONS.find(o => o.value === eicr.conditionKey);
+  const extentObj = EXTENT_OPTIONS.find(o => o.value === eicr.extentKey);
+  const limitationsObj = LIMITATIONS_OPTIONS.find(o => o.value === eicr.limitationsKey);
+  const conditionLabel = conditionObj?.label || eicr.overallAssessment || "—";
+  const conditionIsUnsat = isUnsatisfactory(eicr.conditionKey);
+  return (
     <div ref={certRef} style={{ width: 794, background: "#fff", padding: "30px 40px", boxSizing: "border-box" }}>
       {/* PAGE 1 — Header & Summary */}
       <div style={{ borderBottom: "3px solid #2a4a8d", paddingBottom: 10, marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -1407,19 +1414,26 @@ function CertificateRenderer({ job, property, certRef }) {
         </div>
         <div style={{ textAlign: "right" }}>
           <div style={{ fontFamily: "Arial, sans-serif", fontSize: 9, color: "#555" }}>Certificate No.</div>
-          <div style={{ fontFamily: "Arial, sans-serif", fontSize: 12, fontWeight: 700, color: "#1a1a1a" }}>{job.ref}</div>
+          <div style={{ fontFamily: "Arial, sans-serif", fontSize: 12, fontWeight: 700, color: "#1a1a1a" }}>{job.crn || job.ref}</div>
         </div>
+      </div>
+
+      {/* Contractor Block */}
+      <div style={{ background: "#f0f2f5", borderRadius: 4, padding: "8px 12px", marginBottom: 14, fontSize: 9, fontFamily: "Arial, sans-serif", color: "#333" }}>
+        <div style={{ fontWeight: 700, marginBottom: 2 }}>{CONTRACTOR.name}</div>
+        <div>{CONTRACTOR.address}</div>
+        <div>{CONTRACTOR.phone} | {CONTRACTOR.email}</div>
       </div>
 
       {/* Section A — Details */}
       <div style={secHead}>Section A — Details of the Client and Installation</div>
       <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14 }}>
         <tbody>
-          <tr><td style={{ ...headS, width: "25%" }}>Client / Landlord</td><td style={cellS}>{eicr.clientName || eicr.landlordName || "—"}</td><td style={{ ...headS, width: "25%" }}>Occupier</td><td style={cellS}>{eicr.occupier || property?.tenant_name || "—"}</td></tr>
-          <tr><td style={headS}>Installation Address</td><td style={cellS} colSpan={3}>{eicr.clientAddress || eicr.installationAddress || property?.address || "—"}</td></tr>
-          <tr><td style={headS}>Purpose of Report</td><td style={cellS} colSpan={3}>{eicr.purpose || "Condition report on the electrical installation"}</td></tr>
-          <tr><td style={headS}>Description of Premises</td><td style={cellS}>{eicr.description || eicr.premisesType || "—"}</td><td style={headS}>Estimated Age</td><td style={cellS}>{eicr.estimatedAge || eicr.ageOfInstallation || "—"}</td></tr>
-          <tr><td style={headS}>Evidence of Alterations</td><td style={cellS}>{eicr.evidenceOfAlterations || "—"}</td><td style={headS}>Date of Last Inspection</td><td style={cellS}>{eicr.dateOfLastInspection || "—"}</td></tr>
+          <tr><td style={{ ...headS, width: "25%" }}>Estate Agent / Agency</td><td style={cellS}>{eicr.agencyAddress || eicr.agentName || "—"}</td><td style={{ ...headS, width: "25%" }}>Occupier</td><td style={cellS}>{eicr.occupier || property?.tenant_name || "—"}</td></tr>
+          <tr><td style={headS}>Landlord / Property Address</td><td style={cellS} colSpan={3}>{eicr.landlordDetails || eicr.installationAddress || property?.address || "—"}</td></tr>
+          <tr><td style={headS}>Purpose of Report</td><td style={cellS} colSpan={3}>{purposeObj ? `${purposeObj.label} — ${purposeObj.text}` : eicr.purpose || "—"}</td></tr>
+          <tr><td style={headS}>Description of Premises</td><td style={cellS}>{eicr.premisesType || "—"}</td><td style={headS}>Estimated Age</td><td style={cellS}>{eicr.estimatedAgeRange || eicr.estimatedAge || "—"}</td></tr>
+          <tr><td style={headS}>Evidence of Alterations</td><td style={cellS}>{eicr.evidenceOfAlterations ? "Yes" : "No"}{eicr.alterationsAge ? ` (${eicr.alterationsAge})` : ""}</td><td style={headS}>Date of Last Inspection</td><td style={cellS}>{eicr.dateOfLastInspection || eicr.previousReportDate || "—"}</td></tr>
         </tbody>
       </table>
 
@@ -1427,10 +1441,10 @@ function CertificateRenderer({ job, property, certRef }) {
       <div style={secHead}>Section B — Extent and Limitations of the Inspection</div>
       <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14 }}>
         <tbody>
-          <tr><td style={headS}>Extent of Installation Covered</td><td style={cellS}>{eicr.extentCovered || eicr.extent || "As agreed with client"}</td></tr>
-          <tr><td style={{ ...headS, width: "25%" }}>Limitations</td><td style={cellS}>{eicr.limitations || "None"}</td></tr>
-          <tr><td style={headS}>Agreed With</td><td style={cellS}>{eicr.agreedWith || eicr.clientName || "—"}</td></tr>
-          <tr><td style={headS}>Operational Limitations</td><td style={cellS}>{eicr.operationalLimitations || "None"}</td></tr>
+          <tr><td style={headS}>Extent of Installation Covered</td><td style={cellS}>{extentObj?.text || eicr.extentDetails || "As agreed with client"}</td></tr>
+          <tr><td style={{ ...headS, width: "25%" }}>Agreed Limitations</td><td style={cellS}>{limitationsObj?.text || eicr.agreedLimitations || "N/A"}</td></tr>
+          <tr><td style={headS}>Agreed With</td><td style={cellS}>{eicr.agreedWith || "—"}</td></tr>
+          <tr><td style={headS}>Operational Limitations</td><td style={cellS}>{OPERATIONAL_LIMITATIONS}</td></tr>
         </tbody>
       </table>
 
@@ -1482,30 +1496,28 @@ function CertificateRenderer({ job, property, certRef }) {
 
       {/* Section E — Observations */}
       <div style={secHead}>Section E — Observations and Recommendations</div>
-      {eicr.observations && (Array.isArray(eicr.observations) ? eicr.observations.filter(o => o.observation) : []).length > 0 ? (
+      {eicr.observations && Array.isArray(eicr.observations) && eicr.observations.length > 0 ? (
         <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14 }}>
-          <thead><tr><th style={{ ...headS, width: 50 }}>Code</th><th style={headS}>Observation</th><th style={{ ...headS, width: 120 }}>Location</th></tr></thead>
+          <thead><tr><th style={{ ...headS, width: 35 }}>Item</th><th style={{ ...headS, width: 40 }}>Ref</th><th style={{ ...headS, width: 40 }}>Code</th><th style={headS}>Location / Details</th></tr></thead>
           <tbody>
-            {(Array.isArray(eicr.observations) ? eicr.observations : []).filter(o => o.observation).map((obs, i) => (
-              <tr key={i}><td style={{ ...cellS, textAlign: "center", fontWeight: 700, color: obs.code === "C1" ? "#dc2626" : obs.code === "C2" ? "#ea580c" : "#333" }}>{obs.code || "—"}</td><td style={cellS}>{obs.observation}</td><td style={cellS}>{obs.location || "—"}</td></tr>
+            {eicr.observations.map((obs, i) => (
+              <tr key={i}><td style={{ ...cellS, textAlign: "center" }}>{obs.itemNumber || i + 1}</td><td style={{ ...cellS, textAlign: "center" }}>{obs.refCode || obs.ref || "—"}</td><td style={{ ...cellS, textAlign: "center", fontWeight: 700, color: obs.classification === "C1" || obs.code === "C1" ? "#dc2626" : obs.classification === "C2" || obs.code === "C2" ? "#d97706" : obs.classification === "C3" || obs.code === "C3" ? "#2563eb" : obs.classification === "FI" || obs.code === "FI" ? "#7c3aed" : "#333" }}>{obs.classification || obs.code || "—"}</td><td style={cellS}>{obs.location || obs.observation || "—"}</td></tr>
             ))}
           </tbody>
         </table>
       ) : (
         <div style={{ fontFamily: "Arial, sans-serif", fontSize: 9, color: "#666", padding: "8px 0", marginBottom: 10 }}>No observations recorded.</div>
       )}
-      {eicr.recommendations && <div style={{ fontFamily: "Arial, sans-serif", fontSize: 9, color: "#333", padding: "6px 8px", background: "#f5f5f5", borderRadius: 4, marginBottom: 14, lineHeight: 1.5 }}><strong>Recommendations:</strong> {eicr.recommendations}</div>}
 
-      {/* Section F — Overall Assessment */}
-      <div style={secHead}>Section F — Summary of the Condition of the Installation</div>
+      {/* Section F — General Condition */}
+      <div style={secHead}>Section F — General Condition of the Installation</div>
       <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14 }}>
         <tbody>
           <tr>
-            <td style={{ ...headS, width: "40%" }}>Overall Assessment</td>
-            <td style={{ ...cellS, fontSize: 12, fontWeight: 700, color: (eicr.outcome || eicr.overallAssessment) === "Satisfactory" ? "#15803d" : (eicr.outcome || eicr.overallAssessment) === "Unsatisfactory" ? "#dc2626" : "#d97706" }}>
-              {eicr.outcome || eicr.overallAssessment || "—"}
-            </td>
+            <td style={{ ...headS, width: "25%" }}>General Condition</td>
+            <td style={{ ...cellS, fontSize: 11, fontWeight: 700, color: conditionIsUnsat ? "#dc2626" : "#15803d" }}>{conditionLabel}</td>
           </tr>
+          {conditionObj?.text && <tr><td style={headS}>Details</td><td style={{ ...cellS, fontSize: 8, lineHeight: 1.5 }}>{conditionObj.text}</td></tr>}
         </tbody>
       </table>
 
@@ -1524,6 +1536,7 @@ function CertificateRenderer({ job, property, certRef }) {
       </div>
     </div>
   );
+  }
 
   // Default fallback for non-EICR job types — basic job summary cert
   return (
@@ -1674,7 +1687,7 @@ function UploadCertModal({ open, onClose }) {
       await updateJob(jobId, { hasCert: true });
 
       // Auto-create remedial if job notes mention unsatisfactory
-      if ((selectedJob?.eicr_data?.outcome || selectedJob?.eicr_data?.overallAssessment) === "Unsatisfactory") {
+      if (isUnsatisfactory(selectedJob?.eicr_data?.conditionKey) || (selectedJob?.eicr_data?.outcome || selectedJob?.eicr_data?.overallAssessment) === "Unsatisfactory") {
         await addJob({ propertyId: selectedJob.property_id, type: "Remedial", status: "Pending", notes: `Auto-created from unsatisfactory EICR — ${selectedJob.ref}` });
         await addAudit({ action: `Remedial job auto-created from unsatisfactory EICR (${selectedJob.ref})`, userName: "System", userRole: "Auto" });
       }
@@ -2565,11 +2578,29 @@ function EICRPage() {
 
       {/* Part 8 — Particulars */}
       <EICRSection mob={mob} title="Part 8 — Particulars of Installation">
-        <EICRField label="Earthing Conductor (mm²)" value={form.earthingConductorCSA} onChange={v => set("earthingConductorCSA", v)} />
-        <EICRField label="Bonding Conductor (mm²)" value={form.bondingConductorCSA} onChange={v => set("bondingConductorCSA", v)} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Earthing Conductor (mm²)</label>
+          <select value={form.earthingConductorCSA} onChange={e => set("earthingConductorCSA", e.target.value)}
+            style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>
+            {["6", "10", "16"].map(v => <option key={v} value={v}>{v}</option>)}
+          </select>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Bonding Conductor (mm²)</label>
+          <select value={form.bondingConductorCSA} onChange={e => set("bondingConductorCSA", e.target.value)}
+            style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>
+            {["6", "10", "16"].map(v => <option key={v} value={v}>{v}</option>)}
+          </select>
+        </div>
         <EICRField label="Main Switch Location" value={form.mainSwitchLocation} onChange={v => set("mainSwitchLocation", v)} />
         <EICRField label="Main Switch BS EN" value={form.mainSwitchBSEN} onChange={v => set("mainSwitchBSEN", v)} />
-        <EICRField label="Current Rating (A)" value={form.mainSwitchCurrentRating} onChange={v => set("mainSwitchCurrentRating", v)} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Current Rating (A)</label>
+          <select value={form.mainSwitchCurrentRating} onChange={e => set("mainSwitchCurrentRating", e.target.value)}
+            style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>
+            {["100", "125"].map(v => <option key={v} value={v}>{v}</option>)}
+          </select>
+        </div>
         <EICRField label="Voltage Rating (V)" value={form.mainSwitchVoltage} onChange={v => set("mainSwitchVoltage", v)} />
       </EICRSection>
 
@@ -2579,103 +2610,103 @@ function EICRPage() {
         <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginBottom: 12 }}>Tap ✓, classification code (C1/C2/C3/FI) or N/A. Sections collapse for easier navigation.</div>
 
         <EICRSISection id="s1" title="1.0 Intake Equipment" isOpen={openSections["s1"] !== false} onToggle={() => toggleSection("s1")}>
-          <EICRInspectionItem id="1.1" label="Service cable" value={form.s1_1_serviceCable} onChange={(v) => set("s1_1_serviceCable", v)} />
-          <EICRInspectionItem id="1.1" label="Service head" value={form.s1_1_serviceHead} onChange={(v) => set("s1_1_serviceHead", v)} />
-          <EICRInspectionItem id="1.1" label="Earthing arrangement" value={form.s1_1_earthingArrangement} onChange={(v) => set("s1_1_earthingArrangement", v)} />
-          <EICRInspectionItem id="1.1" label="Meter tails" value={form.s1_1_meterTails} onChange={(v) => set("s1_1_meterTails", v)} />
-          <EICRInspectionItem id="1.1" label="Metering equipment" value={form.s1_1_metering} onChange={(v) => set("s1_1_metering", v)} />
-          <EICRInspectionItem id="1.1" label="Isolator, where present" value={form.s1_1_isolator} onChange={(v) => set("s1_1_isolator", v)} />
-          <EICRInspectionItem id="1.2" label="Consumer's isolator" value={form.s1_2_consumerIsolator} onChange={(v) => set("s1_2_consumerIsolator", v)} />
-          <EICRInspectionItem id="1.3" label="Consumer's meter tails" value={form.s1_3_consumerMeterTails} onChange={(v) => set("s1_3_consumerMeterTails", v)} />
+          <EICRInspectionItem id="1.1" label="Service cable" value={form.s1_1_serviceCable} onChange={(v) => { set("s1_1_serviceCable", v); handlePart9Classification("1.1a", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="1.1" label="Service head" value={form.s1_1_serviceHead} onChange={(v) => { set("s1_1_serviceHead", v); handlePart9Classification("1.1b", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="1.1" label="Earthing arrangement" value={form.s1_1_earthingArrangement} onChange={(v) => { set("s1_1_earthingArrangement", v); handlePart9Classification("1.1c", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="1.1" label="Meter tails" value={form.s1_1_meterTails} onChange={(v) => { set("s1_1_meterTails", v); handlePart9Classification("1.1d", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="1.1" label="Metering equipment" value={form.s1_1_metering} onChange={(v) => { set("s1_1_metering", v); handlePart9Classification("1.1e", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="1.1" label="Isolator, where present" value={form.s1_1_isolator} onChange={(v) => { set("s1_1_isolator", v); handlePart9Classification("1.1f", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="1.2" label="Consumer's isolator" value={form.s1_2_consumerIsolator} onChange={(v) => { set("s1_2_consumerIsolator", v); handlePart9Classification("1.2", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="1.3" label="Consumer's meter tails" value={form.s1_3_consumerMeterTails} onChange={(v) => { set("s1_3_consumerMeterTails", v); handlePart9Classification("1.3", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
         </EICRSISection>
 
         <EICRSISection id="s2" title="2.0 Alternative Sources" isOpen={openSections["s2"] !== false} onToggle={() => toggleSection("s2")}>
-          <EICRInspectionItem id="2.1" label="Generating set — switched alternative" value={form.s2_1_genSetSwitched} onChange={(v) => set("s2_1_genSetSwitched", v)} />
-          <EICRInspectionItem id="2.2" label="Generating set — parallel with supply" value={form.s2_2_genSetParallel} onChange={(v) => set("s2_2_genSetParallel", v)} />
+          <EICRInspectionItem id="2.1" label="Generating set — switched alternative" value={form.s2_1_genSetSwitched} onChange={(v) => { set("s2_1_genSetSwitched", v); handlePart9Classification("2.1", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="2.2" label="Generating set — parallel with supply" value={form.s2_2_genSetParallel} onChange={(v) => { set("s2_2_genSetParallel", v); handlePart9Classification("2.2", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
         </EICRSISection>
 
         <EICRSISection id="s3" title="3.0 Methods of Protection" isOpen={openSections["s3"] !== false} onToggle={() => toggleSection("s3")}>
-          <EICRInspectionItem id="3.1" label="Main earthing / bonding arrangement" fieldKey="s3_1_mainEarthBonding" />
-          <EICRInspectionItem id="3.1" label="Distributor's earthing arrangement" value={form.s3_1_distributorEarth} onChange={(v) => set("s3_1_distributorEarth", v)} />
-          <EICRInspectionItem id="3.1" label="Earthing conductor size" value={form.s3_1_earthingConductorSize} onChange={(v) => set("s3_1_earthingConductorSize", v)} />
-          <EICRInspectionItem id="3.1" label="Earthing conductor connections" value={form.s3_1_earthingConnections} onChange={(v) => set("s3_1_earthingConnections", v)} />
-          <EICRInspectionItem id="3.1" label="Earthing conductor accessibility" value={form.s3_1_earthingAccessibility} onChange={(v) => set("s3_1_earthingAccessibility", v)} />
-          <EICRInspectionItem id="3.1" label="Bonding conductor sizes" value={form.s3_1_bondingSize} onChange={(v) => set("s3_1_bondingSize", v)} />
-          <EICRInspectionItem id="3.1" label="Bonding conductor location" value={form.s3_1_bondingLocation} onChange={(v) => set("s3_1_bondingLocation", v)} />
-          <EICRInspectionItem id="3.1" label="Bonding accessibility" value={form.s3_1_bondingAccessibility} onChange={(v) => set("s3_1_bondingAccessibility", v)} />
-          <EICRInspectionItem id="3.1" label="Earthing/bonding labels" fieldKey="s3_1_earthingLabels" />
-          <EICRInspectionItem id="3.2" label="FELV requirements" value={form.s3_2_felv} onChange={(v) => set("s3_2_felv", v)} />
+          <EICRInspectionItem id="3.1" label="Main earthing / bonding arrangement" value={form.s3_1_mainEarthBonding} onChange={(v) => { set("s3_1_mainEarthBonding", v); handlePart9Classification("3.1a", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="3.1" label="Distributor's earthing arrangement" value={form.s3_1_distributorEarth} onChange={(v) => { set("s3_1_distributorEarth", v); handlePart9Classification("3.1b", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="3.1" label="Earthing conductor size" value={form.s3_1_earthingConductorSize} onChange={(v) => { set("s3_1_earthingConductorSize", v); handlePart9Classification("3.1c", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="3.1" label="Earthing conductor connections" value={form.s3_1_earthingConnections} onChange={(v) => { set("s3_1_earthingConnections", v); handlePart9Classification("3.1d", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="3.1" label="Earthing conductor accessibility" value={form.s3_1_earthingAccessibility} onChange={(v) => { set("s3_1_earthingAccessibility", v); handlePart9Classification("3.1e", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="3.1" label="Bonding conductor sizes" value={form.s3_1_bondingSize} onChange={(v) => { set("s3_1_bondingSize", v); handlePart9Classification("3.1f", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="3.1" label="Bonding conductor location" value={form.s3_1_bondingLocation} onChange={(v) => { set("s3_1_bondingLocation", v); handlePart9Classification("3.1g", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="3.1" label="Bonding accessibility" value={form.s3_1_bondingAccessibility} onChange={(v) => { set("s3_1_bondingAccessibility", v); handlePart9Classification("3.1h", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="3.1" label="Earthing/bonding labels" value={form.s3_1_earthingLabels} onChange={(v) => { set("s3_1_earthingLabels", v); handlePart9Classification("3.1i", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="3.2" label="FELV requirements" value={form.s3_2_felv} onChange={(v) => { set("s3_2_felv", v); handlePart9Classification("3.2", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
         </EICRSISection>
 
         <EICRSISection id="s4" title="4.0 Distribution Equipment" isOpen={openSections["s4"] !== false} onToggle={() => toggleSection("s4")}>
-          <EICRInspectionItem id="4.1" label="Working space / accessibility" fieldKey="s4_1_workingSpace" />
-          <EICRInspectionItem id="4.2" label="Security of fixing" value={form.s4_2_security} onChange={(v) => set("s4_2_security", v)} />
-          <EICRInspectionItem id="4.3" label="Insulation of live parts" value={form.s4_3_insulationLive} onChange={(v) => set("s4_3_insulationLive", v)} />
-          <EICRInspectionItem id="4.4" label="Barriers / enclosures" fieldKey="s4_4_barriers" />
-          <EICRInspectionItem id="4.5" label="IP rating" value={form.s4_5_ipRating} onChange={(v) => set("s4_5_ipRating", v)} />
-          <EICRInspectionItem id="4.6" label="Fire rating of enclosure" value={form.s4_6_fireRating} onChange={(v) => set("s4_6_fireRating", v)} />
-          <EICRInspectionItem id="4.7" label="Enclosure not damaged" value={form.s4_7_enclosureDamage} onChange={(v) => set("s4_7_enclosureDamage", v)} />
-          <EICRInspectionItem id="4.9" label="Main switch(es) present" value={form.s4_9_mainSwitches} onChange={(v) => set("s4_9_mainSwitches", v)} />
-          <EICRInspectionItem id="4.10" label="Main switch operation" value={form.s4_10_mainSwitchOp} onChange={(v) => set("s4_10_mainSwitchOp", v)} />
-          <EICRInspectionItem id="4.11" label="CB / RCD / AFDD manual operation" fieldKey="s4_11_cbRcdOperation" />
-          <EICRInspectionItem id="4.12" label="RCD test button trip" value={form.s4_12_rcdTestButton} onChange={(v) => set("s4_12_rcdTestButton", v)} />
-          <EICRInspectionItem id="4.13" label="RCD for fault protection" value={form.s4_13_rcdFaultProtection} onChange={(v) => set("s4_13_rcdFaultProtection", v)} />
-          <EICRInspectionItem id="4.14" label="RCD for additional protection" value={form.s4_14_rcdAdditional} onChange={(v) => set("s4_14_rcdAdditional", v)} />
-          <EICRInspectionItem id="4.15" label="RCD 6-monthly test notice" value={form.s4_15_rcdTestNotice} onChange={(v) => set("s4_15_rcdTestNotice", v)} />
-          <EICRInspectionItem id="4.17" label="Diagrams / charts / schedules" fieldKey="s4_17_diagrams" />
-          <EICRInspectionItem id="4.19" label="Next inspection label" value={form.s4_19_nextInspectionLabel} onChange={(v) => set("s4_19_nextInspectionLabel", v)} />
-          <EICRInspectionItem id="4.21" label="Compatibility of protective devices" value={form.s4_21_compatibility} onChange={(v) => set("s4_21_compatibility", v)} />
-          <EICRInspectionItem id="4.22" label="Single-pole switching in line conductors only" value={form.s4_22_singlePole} onChange={(v) => set("s4_22_singlePole", v)} />
-          <EICRInspectionItem id="4.25" label="All connections tight and secure" value={form.s4_25_connections} onChange={(v) => set("s4_25_connections", v)} />
+          <EICRInspectionItem id="4.1" label="Working space / accessibility" value={form.s4_1_workingSpace} onChange={(v) => { set("s4_1_workingSpace", v); handlePart9Classification("4.1", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="4.2" label="Security of fixing" value={form.s4_2_security} onChange={(v) => { set("s4_2_security", v); handlePart9Classification("4.2", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="4.3" label="Insulation of live parts" value={form.s4_3_insulationLive} onChange={(v) => { set("s4_3_insulationLive", v); handlePart9Classification("4.3", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="4.4" label="Barriers / enclosures" value={form.s4_4_barriers} onChange={(v) => { set("s4_4_barriers", v); handlePart9Classification("4.4", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="4.5" label="IP rating" value={form.s4_5_ipRating} onChange={(v) => { set("s4_5_ipRating", v); handlePart9Classification("4.5", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="4.6" label="Fire rating of enclosure" value={form.s4_6_fireRating} onChange={(v) => { set("s4_6_fireRating", v); handlePart9Classification("4.6", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="4.7" label="Enclosure not damaged" value={form.s4_7_enclosureDamage} onChange={(v) => { set("s4_7_enclosureDamage", v); handlePart9Classification("4.7", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="4.9" label="Main switch(es) present" value={form.s4_9_mainSwitches} onChange={(v) => { set("s4_9_mainSwitches", v); handlePart9Classification("4.9", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="4.10" label="Main switch operation" value={form.s4_10_mainSwitchOp} onChange={(v) => { set("s4_10_mainSwitchOp", v); handlePart9Classification("4.10", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="4.11" label="CB / RCD / AFDD manual operation" value={form.s4_11_cbRcdOperation} onChange={(v) => { set("s4_11_cbRcdOperation", v); handlePart9Classification("4.11", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="4.12" label="RCD test button trip" value={form.s4_12_rcdTestButton} onChange={(v) => { set("s4_12_rcdTestButton", v); handlePart9Classification("4.12", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="4.13" label="RCD for fault protection" value={form.s4_13_rcdFaultProtection} onChange={(v) => { set("s4_13_rcdFaultProtection", v); handlePart9Classification("4.13", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="4.14" label="RCD for additional protection" value={form.s4_14_rcdAdditional} onChange={(v) => { set("s4_14_rcdAdditional", v); handlePart9Classification("4.14", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="4.15" label="RCD 6-monthly test notice" value={form.s4_15_rcdTestNotice} onChange={(v) => { set("s4_15_rcdTestNotice", v); handlePart9Classification("4.15", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="4.17" label="Diagrams / charts / schedules" value={form.s4_17_diagrams} onChange={(v) => { set("s4_17_diagrams", v); handlePart9Classification("4.17", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="4.19" label="Next inspection label" value={form.s4_19_nextInspectionLabel} onChange={(v) => { set("s4_19_nextInspectionLabel", v); handlePart9Classification("4.19", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="4.21" label="Compatibility of protective devices" value={form.s4_21_compatibility} onChange={(v) => { set("s4_21_compatibility", v); handlePart9Classification("4.21", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="4.22" label="Single-pole switching in line conductors only" value={form.s4_22_singlePole} onChange={(v) => { set("s4_22_singlePole", v); handlePart9Classification("4.22", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="4.25" label="All connections tight and secure" value={form.s4_25_connections} onChange={(v) => { set("s4_25_connections", v); handlePart9Classification("4.25", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
         </EICRSISection>
 
         <EICRSISection id="s5" title="5.0 Distribution Circuits" isOpen={openSections["s5"] !== false} onToggle={() => toggleSection("s5")}>
-          <EICRInspectionItem id="5.1" label="Conductor identification" value={form.s5_1_conductorId} onChange={(v) => set("s5_1_conductorId", v)} />
-          <EICRInspectionItem id="5.2" label="Cables correctly supported" value={form.s5_2_cablesSupported} onChange={(v) => set("s5_2_cablesSupported", v)} />
-          <EICRInspectionItem id="5.3" label="Insulation of live parts" value={form.s5_3_insulationLive} onChange={(v) => set("s5_3_insulationLive", v)} />
-          <EICRInspectionItem id="5.7" label="Cable damage / deterioration" fieldKey="s5_7_cableDamage" />
-          <EICRInspectionItem id="5.8" label="Current-carrying capacity" value={form.s5_8_currentCapacity} onChange={(v) => set("s5_8_currentCapacity", v)} />
+          <EICRInspectionItem id="5.1" label="Conductor identification" value={form.s5_1_conductorId} onChange={(v) => { set("s5_1_conductorId", v); handlePart9Classification("5.1", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="5.2" label="Cables correctly supported" value={form.s5_2_cablesSupported} onChange={(v) => { set("s5_2_cablesSupported", v); handlePart9Classification("5.2", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="5.3" label="Insulation of live parts" value={form.s5_3_insulationLive} onChange={(v) => { set("s5_3_insulationLive", v); handlePart9Classification("5.3", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="5.7" label="Cable damage / deterioration" value={form.s5_7_cableDamage} onChange={(v) => { set("s5_7_cableDamage", v); handlePart9Classification("5.7", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="5.8" label="Current-carrying capacity" value={form.s5_8_currentCapacity} onChange={(v) => { set("s5_8_currentCapacity", v); handlePart9Classification("5.8", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
         </EICRSISection>
 
         <EICRSISection id="s6" title="6.0 Final Circuits" isOpen={openSections["s6"] !== false} onToggle={() => toggleSection("s6")}>
-          <EICRInspectionItem id="6.1" label="Conductor identification" value={form.s6_1_conductorId} onChange={(v) => set("s6_1_conductorId", v)} />
-          <EICRInspectionItem id="6.2" label="Cables correctly supported" value={form.s6_2_cablesSupported} onChange={(v) => set("s6_2_cablesSupported", v)} />
-          <EICRInspectionItem id="6.6" label="Current-carrying capacity" value={form.s6_6_currentCapacity} onChange={(v) => set("s6_6_currentCapacity", v)} />
-          <EICRInspectionItem id="6.7" label="Protective devices adequate" value={form.s6_7_protectiveDevices} onChange={(v) => set("s6_7_protectiveDevices", v)} />
-          <EICRInspectionItem id="6.8" label="Circuit protective conductors" value={form.s6_8_cpc} onChange={(v) => set("s6_8_cpc", v)} />
-          <EICRInspectionItem id="6.13" label="RCD ≤30mA — all sockets ≤32A" value={form.s6_13_rcd30mA_sockets} onChange={(v) => set("s6_13_rcd30mA_sockets", v)} />
-          <EICRInspectionItem id="6.13" label="RCD ≤30mA — outdoor mobile equip" value={form.s6_13_rcd30mA_outdoor} onChange={(v) => set("s6_13_rcd30mA_outdoor", v)} />
-          <EICRInspectionItem id="6.13" label="RCD ≤30mA — concealed cables <50mm" value={form.s6_13_rcd30mA_concealed} onChange={(v) => set("s6_13_rcd30mA_concealed", v)} />
-          <EICRInspectionItem id="6.13" label="RCD ≤30mA — luminaires (domestic)" value={form.s6_13_rcd30mA_luminaires} onChange={(v) => set("s6_13_rcd30mA_luminaires", v)} />
-          <EICRInspectionItem id="6.18" label="Accessories condition" value={form.s6_18_accessories} onChange={(v) => set("s6_18_accessories", v)} />
+          <EICRInspectionItem id="6.1" label="Conductor identification" value={form.s6_1_conductorId} onChange={(v) => { set("s6_1_conductorId", v); handlePart9Classification("6.1", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="6.2" label="Cables correctly supported" value={form.s6_2_cablesSupported} onChange={(v) => { set("s6_2_cablesSupported", v); handlePart9Classification("6.2", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="6.6" label="Current-carrying capacity" value={form.s6_6_currentCapacity} onChange={(v) => { set("s6_6_currentCapacity", v); handlePart9Classification("6.6", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="6.7" label="Protective devices adequate" value={form.s6_7_protectiveDevices} onChange={(v) => { set("s6_7_protectiveDevices", v); handlePart9Classification("6.7", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="6.8" label="Circuit protective conductors" value={form.s6_8_cpc} onChange={(v) => { set("s6_8_cpc", v); handlePart9Classification("6.8", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="6.13" label="RCD ≤30mA — all sockets ≤32A" value={form.s6_13_rcd30mA_sockets} onChange={(v) => { set("s6_13_rcd30mA_sockets", v); handlePart9Classification("6.13a", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="6.13" label="RCD ≤30mA — outdoor mobile equip" value={form.s6_13_rcd30mA_outdoor} onChange={(v) => { set("s6_13_rcd30mA_outdoor", v); handlePart9Classification("6.13b", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="6.13" label="RCD ≤30mA — concealed cables <50mm" value={form.s6_13_rcd30mA_concealed} onChange={(v) => { set("s6_13_rcd30mA_concealed", v); handlePart9Classification("6.13c", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="6.13" label="RCD ≤30mA — luminaires (domestic)" value={form.s6_13_rcd30mA_luminaires} onChange={(v) => { set("s6_13_rcd30mA_luminaires", v); handlePart9Classification("6.13d", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="6.18" label="Accessories condition" value={form.s6_18_accessories} onChange={(v) => { set("s6_18_accessories", v); handlePart9Classification("6.18", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
         </EICRSISection>
 
         <EICRSISection id="s7" title="7.0 Isolation & Switching" isOpen={openSections["s7"] !== false} onToggle={() => toggleSection("s7")}>
-          <EICRInspectionItem id="7.1" label="Isolators" value={form.s7_1_isolators} onChange={(v) => set("s7_1_isolators", v)} />
-          <EICRInspectionItem id="7.2" label="Switching off for mechanical maintenance" value={form.s7_2_mechMaintenance} onChange={(v) => set("s7_2_mechMaintenance", v)} />
-          <EICRInspectionItem id="7.3" label="Emergency switching off" value={form.s7_3_emergencySwitching} onChange={(v) => set("s7_3_emergencySwitching", v)} />
-          <EICRInspectionItem id="7.4" label="Functional switching" value={form.s7_4_functionalSwitching} onChange={(v) => set("s7_4_functionalSwitching", v)} />
+          <EICRInspectionItem id="7.1" label="Isolators" value={form.s7_1_isolators} onChange={(v) => { set("s7_1_isolators", v); handlePart9Classification("7.1", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="7.2" label="Switching off for mechanical maintenance" value={form.s7_2_mechMaintenance} onChange={(v) => { set("s7_2_mechMaintenance", v); handlePart9Classification("7.2", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="7.3" label="Emergency switching off" value={form.s7_3_emergencySwitching} onChange={(v) => { set("s7_3_emergencySwitching", v); handlePart9Classification("7.3", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="7.4" label="Functional switching" value={form.s7_4_functionalSwitching} onChange={(v) => { set("s7_4_functionalSwitching", v); handlePart9Classification("7.4", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
         </EICRSISection>
 
         <EICRSISection id="s8" title="8.0 Current-Using Equipment" isOpen={openSections["s8"] !== false} onToggle={() => toggleSection("s8")}>
-          <EICRInspectionItem id="8.1" label="IP rating" value={form.s8_1_ipRating} onChange={(v) => set("s8_1_ipRating", v)} />
-          <EICRInspectionItem id="8.2" label="Not a fire hazard" value={form.s8_2_fireHazard} onChange={(v) => set("s8_2_fireHazard", v)} />
-          <EICRInspectionItem id="8.3" label="Enclosure not damaged" value={form.s8_3_enclosure} onChange={(v) => set("s8_3_enclosure", v)} />
-          <EICRInspectionItem id="8.5" label="Security of fixing" value={form.s8_5_security} onChange={(v) => set("s8_5_security", v)} />
-          <EICRInspectionItem id="8.7" label="Recessed luminaires (downlighters)" value={form.s8_7_recessedLuminaires} onChange={(v) => set("s8_7_recessedLuminaires", v)} />
+          <EICRInspectionItem id="8.1" label="IP rating" value={form.s8_1_ipRating} onChange={(v) => { set("s8_1_ipRating", v); handlePart9Classification("8.1", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="8.2" label="Not a fire hazard" value={form.s8_2_fireHazard} onChange={(v) => { set("s8_2_fireHazard", v); handlePart9Classification("8.2", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="8.3" label="Enclosure not damaged" value={form.s8_3_enclosure} onChange={(v) => { set("s8_3_enclosure", v); handlePart9Classification("8.3", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="8.5" label="Security of fixing" value={form.s8_5_security} onChange={(v) => { set("s8_5_security", v); handlePart9Classification("8.5", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="8.7" label="Recessed luminaires (downlighters)" value={form.s8_7_recessedLuminaires} onChange={(v) => { set("s8_7_recessedLuminaires", v); handlePart9Classification("8.7", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
         </EICRSISection>
 
         <EICRSISection id="s9" title="9.0 Special Locations" isOpen={openSections["s9"] !== false} onToggle={() => toggleSection("s9")}>
-          <EICRInspectionItem id="9.1" label="Bath/shower — RCD ≤30mA" fieldKey="s9_1_bathRcd" />
-          <EICRInspectionItem id="9.1" label="SELV / PELV requirements" fieldKey="s9_1_selvPelv" />
-          <EICRInspectionItem id="9.1" label="Shaver supply unit" value={form.s9_1_shaver} onChange={(v) => set("s9_1_shaver", v)} />
-          <EICRInspectionItem id="9.1" label="Supplementary bonding" value={form.s9_1_suppBonding} onChange={(v) => set("s9_1_suppBonding", v)} />
-          <EICRInspectionItem id="9.1" label="IP rating for zone" value={form.s9_1_ipRating} onChange={(v) => set("s9_1_ipRating", v)} />
-          <EICRInspectionItem id="9.1" label="Equipment suitable for zone" value={form.s9_1_zoneEquipment} onChange={(v) => set("s9_1_zoneEquipment", v)} />
+          <EICRInspectionItem id="9.1" label="Bath/shower — RCD ≤30mA" value={form.s9_1_bathRcd} onChange={(v) => { set("s9_1_bathRcd", v); handlePart9Classification("9.1a", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="9.1" label="SELV / PELV requirements" value={form.s9_1_selvPelv} onChange={(v) => { set("s9_1_selvPelv", v); handlePart9Classification("9.1b", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="9.1" label="Shaver supply unit" value={form.s9_1_shaver} onChange={(v) => { set("s9_1_shaver", v); handlePart9Classification("9.1c", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="9.1" label="Supplementary bonding" value={form.s9_1_suppBonding} onChange={(v) => { set("s9_1_suppBonding", v); handlePart9Classification("9.1d", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="9.1" label="IP rating for zone" value={form.s9_1_ipRating} onChange={(v) => { set("s9_1_ipRating", v); handlePart9Classification("9.1e", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="9.1" label="Equipment suitable for zone" value={form.s9_1_zoneEquipment} onChange={(v) => { set("s9_1_zoneEquipment", v); handlePart9Classification("9.1f", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
         </EICRSISection>
 
         <EICRSISection id="s10" title="10.0 Prosumer Installation" isOpen={openSections["s10"] !== false} onToggle={() => toggleSection("s10")}>
-          <EICRInspectionItem id="10.0" label="Prosumer's low voltage installation" value={form.s10_prosumer} onChange={(v) => set("s10_prosumer", v)} />
+          <EICRInspectionItem id="10.0" label="Prosumer's low voltage installation" value={form.s10_prosumer} onChange={(v) => { set("s10_prosumer", v); handlePart9Classification("10.0", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
         </EICRSISection>
       </div>
 
@@ -2699,13 +2730,39 @@ function EICRPage() {
             </div>
             <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "repeat(4,1fr)", gap: 8 }}>
               <EICRField label="Description" value={cir.description} onChange={v => updateCircuit(idx, "description", v)} placeholder="e.g. Lights, Sockets" />
-              <EICRField label="Live (mm²)" value={cir.liveCsa} onChange={v => updateCircuit(idx, "liveCsa", v)} />
-              <EICRField label="CPC (mm²)" value={cir.cpcCsa} onChange={v => updateCircuit(idx, "cpcCsa", v)} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Live (mm²)</label>
+                <select value={cir.liveCsa} onChange={e => updateCircuit(idx, "liveCsa", e.target.value)}
+                  style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>
+                  {CABLE_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>CPC (mm²)</label>
+                <select value={cir.cpcCsa} onChange={e => updateCircuit(idx, "cpcCsa", e.target.value)}
+                  style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>
+                  {CABLE_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
               <EICRField label="Points" value={cir.points} onChange={v => updateCircuit(idx, "points", v)} />
               <EICRField label="OCP Type" value={cir.ocpType} onChange={v => updateCircuit(idx, "ocpType", v)} />
               <EICRField label="OCP Rating (A)" value={cir.ocpRating} onChange={v => updateCircuit(idx, "ocpRating", v)} />
               <EICRField label="Max Zs (Ω)" value={cir.ocpMaxZs} onChange={v => updateCircuit(idx, "ocpMaxZs", v)} />
-              <EICRField label="RCD IΔn (mA)" value={cir.rcdImA} onChange={v => updateCircuit(idx, "rcdImA", v)} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Wiring Type</label>
+                <select value={cir.wiringType} onChange={e => updateCircuit(idx, "wiringType", e.target.value)}
+                  style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>
+                  {WIRING_TYPES.map(w => <option key={w.value} value={w.value}>{w.label}</option>)}
+                </select>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>RCD IΔn (mA)</label>
+                <select value={cir.rcdImA} onChange={e => updateCircuit(idx, "rcdImA", e.target.value)}
+                  style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>
+                  <option value="">N/A</option>
+                  {RCD_RATINGS.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
             </div>
           </div>
         ))}
@@ -3985,14 +4042,18 @@ function SignOffPage() {
   const approve = async (job) => {
     await updateJob(job.id, { status: "Completed" });
     const prop = properties.find(p => p.id === job.property_id);
-    await addAudit({ action: `EICR signed off by ${auth.fullName} — ${prop?.address?.split(",")[0]} — Outcome: ${job.eicr_data?.outcome || job.eicr_data?.overallAssessment || "—"}` });
-    if ((job.eicr_data?.outcome || job.eicr_data?.overallAssessment) === "Unsatisfactory") {
+    const eData = job.eicr_data || {};
+    const condObj = CONDITION_OPTIONS.find(o => o.value === eData.conditionKey);
+    const outcomeLabel = condObj?.label || eData.outcome || eData.overallAssessment || "—";
+    const isUnsat = isUnsatisfactory(eData.conditionKey) || (eData.outcome || eData.overallAssessment) === "Unsatisfactory";
+    await addAudit({ action: `EICR signed off by ${auth.fullName} — ${prop?.address?.split(",")[0]} — Outcome: ${outcomeLabel}` });
+    if (isUnsat) {
       await addJob({ propertyId: job.property_id, type: "Remedial", status: "Pending", notes: `Auto-created from unsatisfactory EICR — ${job.ref}` });
       await addAudit({ action: `Remedial job auto-created from unsatisfactory EICR (${job.ref})`, userName: "System", userRole: "Auto" });
     }
     await fetchAll();
     setSelectedJob(null);
-    showToast("EICR signed off" + ((job.eicr_data?.outcome || job.eicr_data?.overallAssessment) === "Unsatisfactory" ? " · Remedial job created" : ""));
+    showToast("EICR signed off" + (isUnsat ? " · Remedial job created" : ""));
   };
 
   const confirmReject = async () => {
@@ -4054,7 +4115,7 @@ function SignOffPage() {
                   <div style={{ fontFamily: font, fontSize: 14, color: C.white, fontWeight: 500 }}>{prop?.address?.split(",")[0] || "—"}</div>
                   <div style={{ fontFamily: font, fontSize: 12, color: C.textMuted, marginTop: 3 }}>
                     {eng?.full_name || "—"} · {job.ref}
-                    {(eicr.outcome || eicr.overallAssessment) && <span style={{ marginLeft: 10, color: (eicr.outcome || eicr.overallAssessment) === "Satisfactory" ? C.green : (eicr.outcome || eicr.overallAssessment) === "Unsatisfactory" ? C.red : C.amber, fontWeight: 600 }}>{eicr.outcome || eicr.overallAssessment}</span>}
+                    {(() => { const co = CONDITION_OPTIONS.find(o => o.value === eicr.conditionKey); const lbl = co?.label || eicr.outcome || eicr.overallAssessment; return lbl ? <span style={{ marginLeft: 10, color: isUnsatisfactory(eicr.conditionKey) || lbl === "Unsatisfactory" ? C.red : C.green, fontWeight: 600 }}>{lbl}</span> : null; })()}
                   </div>
                 </div>
               </div>
@@ -4332,7 +4393,7 @@ function PropertyDetailPage({ propertyId, onBack, onRequestJob }) {
                   </div>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{job.type} <span style={{ color: C.textDim, fontWeight: 400 }}>· {job.ref}</span>
-                      {hasEicrReport && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, color: eicr.outcome === "Satisfactory" ? C.green : eicr.outcome === "Unsatisfactory" ? C.red : C.amber }}>{eicr.outcome}</span>}
+                      {hasEicrReport && (() => { const co = CONDITION_OPTIONS.find(o => o.value === eicr.conditionKey); const lbl = co?.label || eicr.outcome || eicr.overallAssessment; return lbl ? <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, color: isUnsatisfactory(eicr.conditionKey) || lbl === "Unsatisfactory" ? C.red : C.green }}>{lbl}</span> : null; })()}
                     </div>
                     <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 2 }}>{job.scheduled_date ? formatDate(job.scheduled_date) : "Unscheduled"}{job.notes ? ` · ${job.notes}` : ""}</div>
                   </div>
