@@ -18,6 +18,65 @@ const C = {
   red: "#ef4444", redBg: "rgba(239,68,68,.12)", redBorder: "rgba(239,68,68,.3)",
   purple: "#8b5cf6", purpleBg: "rgba(139,92,246,.12)", white: "#ffffff",
 };
+
+const CONTRACTOR = {
+  name: "Ohmnium Electrical",
+  address: "24 Mount Pleasant, London EN4 9HH",
+  phone: "020 3500 1441",
+  email: "info@ohmnium.co.uk",
+};
+
+const PURPOSE_OPTIONS = [
+  { value: "change_of_tenancy", label: "Change of tenancy", text: "Inspection and testing carried out prior to a change of tenancy to ensure the installation is safe for continued use." },
+  { value: "general_periodic", label: "General periodic", text: "Routine periodic inspection and testing of the electrical installation in accordance with BS 7671." },
+  { value: "sale_purchase", label: "Sale / purchase", text: "Inspection and testing carried out in connection with the sale/purchase of the property." },
+  { value: "after_works", label: "After works / alterations", text: "Inspection and testing following alterations/additions to the electrical installation." },
+];
+
+const CONDITION_OPTIONS = [
+  { value: "satisfactory_standard", label: "Satisfactory", text: "Overall, the electrical installation has been inspected and tested and is considered satisfactory for continued service at the time of assessment. The installation provides adequate protection against electric shock and fire, and no immediate remedial works are required." },
+  { value: "satisfactory_recommendations", label: "Satisfactory with recommendations (C3s)", text: "Overall, the electrical installation is considered satisfactory for continued service; however, improvements are recommended to bring the installation closer to current standards. These do not present immediate danger but would enhance overall safety." },
+  { value: "unsatisfactory_c2", label: "Unsatisfactory (C2 present)", text: "Overall, the electrical installation has been inspected and tested; however, it is not considered satisfactory for continued service at the time of assessment due to identified safety concerns. Remedial works are required to address these issues." },
+  { value: "unsatisfactory_multiple", label: "Unsatisfactory (multiple issues)", text: "The electrical installation is considered unsatisfactory for continued service due to multiple safety concerns, including absence of adequate protection and defects that may present a risk of electric shock or fire. Remedial works are required." },
+  { value: "unsatisfactory_specific", label: "Unsatisfactory (specific)", text: "The installation is not considered satisfactory due to the absence of additional protection to relevant circuits and other identified defects. Remedial works are required to ensure safety." },
+  { value: "older_installation", label: "Older installation", text: "The installation is generally in serviceable condition; however, it does not fully meet current standards. While not immediately unsafe, improvements are recommended to enhance safety." },
+];
+
+const EXTENT_OPTIONS = [
+  { value: "full_property", label: "Full property", text: "The inspection and testing covered the fixed electrical installation within the property, including all accessible circuits, accessories, and distribution equipment. No inspection was carried out on concealed wiring or parts of the installation not readily accessible." },
+  { value: "flat_only", label: "Flat only", text: "The inspection covered the fixed electrical installation within the flat only and did not include any communal or landlord-controlled installations." },
+];
+
+const LIMITATIONS_OPTIONS = [
+  { value: "na", label: "N/A", text: "N/A" },
+  { value: "standard", label: "Standard limitations", text: "Limitations agreed prior to inspection include no access to concealed wiring, wiring within walls, floors, or ceilings, and no removal of fixed building fabric. No access was available to areas obstructed by furniture, fixtures, or stored items. Inspection and testing were carried out on a sampling basis in accordance with BS 7671." },
+];
+
+const OPERATIONAL_LIMITATIONS = "Operational limitations included temporary isolation of electrical circuits during inspection and testing, resulting in brief interruptions to power. Testing of certain equipment may have been limited to avoid inconvenience or potential damage. No access or inspection was carried out on supplier equipment, including the service head, meter, and associated connections, as these are not within the scope of this inspection. Therefore, verification of service head size and incoming supply characteristics could not be confirmed.";
+
+const ESTIMATED_AGE_OPTIONS = ["0–5", "5–10", "10–15", "15–20", "20–25", "25–30", "30–40", "40–50", "50+"];
+
+const CABLE_SIZES = ["0.75", "1.0", "1.5", "2.5", "4.0", "6.0", "10.0", "16.0", "25.0", "35.0", "50.0"];
+
+const RCD_RATINGS = ["10", "30", "100", "300"];
+
+const WIRING_TYPES = [
+  { value: "", label: "Please select.." },
+  { value: "N/A", label: "N/A" },
+  { value: "LIM", label: "LIM" },
+  { value: "A", label: "A — Thermoplastic insulated / sheathed cables" },
+  { value: "B", label: "B — Thermoplastic cables in metallic conduit" },
+  { value: "C", label: "C — Thermoplastic cables in non-metallic conduit" },
+  { value: "D", label: "D — Thermoplastic cables in metallic trunking" },
+  { value: "E", label: "E — Thermoplastic cables in non-metallic trunking" },
+  { value: "F", label: "F — Thermoplastic / SWA cables" },
+  { value: "G", label: "G — Thermosetting / SWA cables" },
+  { value: "H", label: "H — Mineral-insulated cables" },
+  { value: "O", label: "O — Other (state)" },
+];
+
+const isUnsatisfactory = (outcome) => ["unsatisfactory_c2", "unsatisfactory_multiple", "unsatisfactory_specific"].includes(outcome);
+
 const font = `'Sora', sans-serif`;
 const fontMono = `'JetBrains Mono', monospace`;
 
@@ -269,8 +328,8 @@ function DataProvider({ children, userProfile }) {
       ? supabase.from("audit_log").select("*").order("created_at", { ascending: false }).limit(500)
       : supabase.from("audit_log").select("*").eq("organisation_id", orgId).order("created_at", { ascending: false }).limit(500);
     const engQuery = isContractor
-      ? supabase.from("profiles").select("id, full_name, role, email, organisation_id").in("role", ["engineer", "junior", "supervisor", "agent", "admin"])
-      : supabase.from("profiles").select("id, full_name, role, email, organisation_id").eq("organisation_id", orgId).in("role", ["engineer", "junior", "supervisor", "agent", "admin"]);
+      ? supabase.from("profiles").select("id, full_name, role, email, organisation_id, signature_url").in("role", ["engineer", "junior", "supervisor", "agent", "admin"])
+      : supabase.from("profiles").select("id, full_name, role, email, organisation_id, signature_url").eq("organisation_id", orgId).in("role", ["engineer", "junior", "supervisor", "agent", "admin"]);
     const commentQuery = isContractor
       ? supabase.from("job_comments").select("*").order("created_at", { ascending: true })
       : supabase.from("job_comments").select("*").eq("organisation_id", orgId).order("created_at", { ascending: true });
@@ -363,6 +422,7 @@ function DataProvider({ children, userProfile }) {
     if (updates.notes !== undefined) mapped.notes = updates.notes;
     if (updates.eicrData !== undefined) mapped.eicr_data = updates.eicrData;
     if (updates.hasCert !== undefined) mapped.has_cert = updates.hasCert;
+    if (updates.crn !== undefined) mapped.crn = updates.crn;
     const { data, error } = await supabase.from("jobs").update(mapped).eq("id", id).select().single();
     if (data) setJobs(prev => prev.map(j => j.id === id ? data : j));
     return { data, error };
@@ -397,7 +457,15 @@ function DataProvider({ children, userProfile }) {
     return { data, error };
   }, []);
 
-  const ctx = { properties, jobs, documents, audit, engineers, comments, organisations, loading, addProperty, updateProperty, deleteProperty, addJob, updateJob, deleteJob, addDoc, addAudit, addComment, uploadFile, fetchAll };
+  const getNextCRN = useCallback(async () => {
+    const { data } = await supabase.from("jobs").select("crn").not("crn", "is", null).order("crn", { ascending: false }).limit(1);
+    const last = data?.[0]?.crn;
+    if (!last) return "1000000";
+    const lastNum = parseInt(last, 10);
+    return String(isNaN(lastNum) ? 1000000 : lastNum + 1);
+  }, []);
+
+  const ctx = { properties, jobs, documents, audit, engineers, comments, organisations, loading, addProperty, updateProperty, deleteProperty, addJob, updateJob, deleteJob, addDoc, addAudit, addComment, uploadFile, fetchAll, getNextCRN };
 
   return <DataContext.Provider value={ctx}>{children}</DataContext.Provider>;
 }
@@ -500,11 +568,55 @@ function InviteUserModal({ open, onClose }) {
   );
 }
 
+function SignatureModal({ open, onClose, member }) {
+  const { uploadFile } = useContext(DataContext);
+  const [file, setFile] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = async () => {
+    if (!file) { setError("Please select a file"); return; }
+    setSaving(true);
+    const path = `signatures/${member.id}/signature.png`;
+    const { error: upErr } = await uploadFile(file, path);
+    if (upErr) { setError("Upload failed: " + upErr.message); setSaving(false); return; }
+    // Get the public URL
+    const { data: urlData } = supabase.storage.from("certificates").getPublicUrl(path);
+    const sigUrl = urlData?.publicUrl || path;
+    // Update profile
+    await supabase.from("profiles").update({ signature_url: sigUrl }).eq("id", member.id);
+    setSaving(false);
+    onClose("saved");
+  };
+
+  if (!open) return null;
+  return (
+    <Modal open={open} onClose={onClose} title={`Upload Signature — ${member?.full_name || ""}`}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {member?.signature_url && (
+          <div style={{ background: C.surfaceAlt, borderRadius: 8, padding: 12, textAlign: "center" }}>
+            <img src={member.signature_url} alt="Current signature" style={{ maxWidth: 200, maxHeight: 80 }} />
+          </div>
+        )}
+        <input type="file" accept="image/png,image/jpeg,image/svg+xml" onChange={e => setFile(e.target.files?.[0] || null)}
+          style={{ fontFamily: font, fontSize: 12, color: C.text }} />
+        {error && <div style={{ fontFamily: font, fontSize: 12, color: C.red }}>{error}</div>}
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button onClick={() => onClose(null)} style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44 }}>Cancel</button>
+          <button onClick={submit} disabled={!file || saving} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: file && !saving ? C.accent : C.textDim, border: "none", borderRadius: 10, padding: "10px 20px", cursor: file && !saving ? "pointer" : "not-allowed", minHeight: 44 }}>{saving ? "Uploading…" : "Upload"}</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function TeamPage() {
-  const { engineers } = useContext(DataContext);
+  const { engineers, fetchAll } = useContext(DataContext);
+  const auth = useContext(AuthContext);
   const { w } = useWindowSize();
   const mob = w < BP.mobile;
   const [showInvite, setShowInvite] = useState(false);
+  const [signatureMember, setSignatureMember] = useState(null);
   const [toast, setToast] = useState(null);
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
@@ -535,10 +647,18 @@ function TeamPage() {
                 <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 2 }}>{member.email || ""}</div>
               </div>
             </div>
-            <span style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: roleColor(member.role), background: `${roleColor(member.role)}18`, padding: "4px 12px", borderRadius: 20, whiteSpace: "nowrap" }}>{roleLabel(member.role)}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: roleColor(member.role), background: `${roleColor(member.role)}18`, padding: "4px 12px", borderRadius: 20, whiteSpace: "nowrap" }}>{roleLabel(member.role)}</span>
+              {auth.role === "admin" && ["engineer", "junior", "supervisor"].includes(member.role) && (
+                <button onClick={() => setSignatureMember(member)} style={{ fontFamily: font, fontSize: 11, color: C.accent, background: C.accentGlow, border: `1px solid rgba(59,130,246,.25)`, borderRadius: 6, padding: "5px 10px", cursor: "pointer", minHeight: 30, marginLeft: 8 }}>
+                  {member.signature_url ? "Update Sig" : "Add Sig"}
+                </button>
+              )}
+            </div>
           </div>
         ))}
       </div>
+      <SignatureModal open={!!signatureMember} onClose={(r) => { setSignatureMember(null); if (r === "saved") { fetchAll(); } }} member={signatureMember} />
     </div>
   );
 }
@@ -1932,8 +2052,8 @@ function EICRSection({ title, children, mob }) {
 
 function EICRInspectionItem({ id, label, value, onChange }) {
   const opts = [
-    { key: "pass", label: "\u2713", bg: C.green }, { key: "C1", label: "C1", bg: "#dc2626" },
-    { key: "C2", label: "C2", bg: "#ea580c" }, { key: "C3", label: "C3", bg: C.amber },
+    { key: "pass", label: "\u2713", bg: C.green }, { key: "C1", label: "C1", bg: C.red },
+    { key: "C2", label: "C2", bg: C.amber }, { key: "C3", label: "C3", bg: C.accent },
     { key: "FI", label: "FI", bg: C.purple }, { key: "na", label: "N/A", bg: C.textDim },
   ];
   return (
@@ -1982,40 +2102,40 @@ function EICRPage() {
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
 
   const [form, setForm] = useState({
-    // Part 1 — Contractor
-    regNo: "", branchNo: "", tradingTitle: "Ohmnium Electrical",
-    contractorAddress: "", contractorPostcode: "", contractorTel: "",
+    // Part 1 — Contractor (read-only from CONTRACTOR constant)
+    tradingTitle: CONTRACTOR.name,
+    contractorAddress: CONTRACTOR.address, contractorTel: CONTRACTOR.phone,
     // Part 1 — Client
-    clientRefNo: "", clientName: "", clientAddress: "", clientPostcode: "", clientTel: "",
+    agencyAddress: "", landlordDetails: "",
+    clientAddress: "", clientPostcode: "",
     landlordName: "", agentName: "",
     // Part 1 — Installation
     installationAddress: "", installationPostcode: "", installationTel: "",
     occupiedBy: "Tenant", uprn: "",
     // Part 2 — Purpose
-    purpose: "To identify damage, deterioration, defects and conditions which may give rise to danger, and highlight any non-compliance with current edition of BS7671.",
+    purposeKey: "",
     inspectionDate: new Date().toISOString().split("T")[0],
     recordsAvailable: true, previousReportAvailable: false, previousReportDate: "",
     // Part 3 — Summary
     generalCondition: "",
     premisesType: "Dwelling", // Dwelling | Commercial | Industrial | Other
     premisesOther: "",
-    estimatedAge: "", evidenceOfAlterations: false, alterationsAge: "",
-    overallAssessment: "Satisfactory", // Satisfactory | Unsatisfactory
+    estimatedAgeRange: "", evidenceOfAlterations: false, alterationsAge: "",
+    conditionKey: "",
     // Part 4 — Declaration
     inspectorName: auth.fullName || "", inspectorDate: "",
     nextInspectionDate: "", nextInspectionReason: "As per IET Guidance Note 3 Table 3.2 or change of tenancy if sooner.",
     reviewerName: "", reviewerDate: "",
-    // Part 5 — Observations (dynamic rows)
-    observations: [{ itemNo: "1", ref: "", observation: "", code: "C3", location: "" }],
+    // Part 5 — Observations (dynamic rows, linked from Part 9 or manual)
+    observations: [],
     noRemedialRequired: false,
     c1Items: "", c2Items: "", c3Items: "", fiItems: "",
     // Part 6 — Details and limitations
     bs7671AmendedTo: "2024",
-    extentDetails: "The Distribution Board, Earthing Arrangements, Main Equipotential/ Supplementary Bonding, and Final Circuits.",
-    agreedLimitations: "Excludes service head and appliances which may be connected to the system. Excludes any live testing to off-peak circuits.",
+    extentKey: "full_property",
+    limitationsKey: "na",
     agreedWith: "CLIENT",
     extentOfSampling: "100% visual. 30% of accessories removed for inspection.",
-    operationalLimitations: "",
     // Part 7 — Supply characteristics
     earthingSystem: "TN-S",
     supplyProtectiveBSEN: "", supplyProtectiveType: "", supplyProtectiveRating: "",
@@ -2081,11 +2201,11 @@ function EICRPage() {
     dbDesignation: "Fusebox", dbLocation: "Hallway", dbZdb: "", dbIpf: "",
     dbPolarityConfirmed: true, spdT1: false, spdT2: false, spdT3: false, spdNA: true,
     circuits: [
-      { num: "1", description: "", wiringType: "A", refMethod: "100", points: "", liveCsa: "1.5", cpcCsa: "1", maxDisconnect: "0.4", ocpBSEN: "60898", ocpType: "B", ocpRating: "6", ocpKA: "6", ocpMaxZs: "7.28", rcdBSEN: "", rcdType: "", rcdRating: "", rcdImA: "" },
+      { num: "1", description: "", wiringType: "A", refMethod: "100", points: "", liveCsa: "1.5", cpcCsa: "1", maxDisconnect: "0.4", ocpBSEN: "60898", ocpType: "B", ocpRating: "6", ocpKA: "6", ocpMaxZs: "7.28", rcdBSEN: "", rcdType: "", rcdRating: "", rcdImA: "30" },
     ],
     // Part 11B — Test results (dynamic)
     testResults: [
-      { num: "1", r1: "", rn: "", r2: "", r1r2: "", r2only: "", irLL: "", irLE: "", testV: "250", polarity: true, zs: "", rcdTime: "", rcdTestBtn: "", afddTestBtn: "", comments: "" },
+      { num: "1", r1: "", rn: "", r2: "", r1r2: "", r2only: "", irLL: "Limitation", irLE: ">999", testV: "250", polarity: true, zs: "", rcdTime: "", rcdTestBtn: "", afddTestBtn: "", comments: "" },
     ],
     testInstrumentMulti: "", testedByName: auth.fullName || "", testedByPosition: "Electrician", testedByDate: "",
     company: "Ohmnium Electrical",
@@ -2102,24 +2222,62 @@ function EICRPage() {
     const prop = job ? properties.find(p => p.id === job.property_id) : null;
     if (job?.eicr_data && (job.eicr_data.isDraft || job.eicr_data.rejectionReason)) {
       const { isDraft, submittedAt, submittedBy, rejectionReason, rejectedBy, rejectedAt, ...savedFields } = job.eicr_data;
+      // Backward compatibility: string observations → array
+      if (typeof savedFields.observations === "string") {
+        savedFields.observations = savedFields.observations ? [{ itemNo: "1", ref: "", observation: savedFields.observations, code: "C3", location: "" }] : [];
+      }
+      // Backward compatibility: old overallAssessment → conditionKey
+      if (savedFields.overallAssessment && !savedFields.conditionKey) {
+        savedFields.conditionKey = savedFields.overallAssessment === "Unsatisfactory" ? "unsatisfactory_c2" : "satisfactory_standard";
+        delete savedFields.overallAssessment;
+      }
       setForm(prev => ({ ...prev, ...savedFields }));
     } else if (prop) {
-      setForm(prev => ({ ...prev, installationAddress: prop.address || "", installationPostcode: prop.address?.match(/[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}/i)?.[0] || "", landlordName: prop.tenant_name || "" }));
+      setForm(prev => ({
+        ...prev,
+        installationAddress: prop.address || "",
+        installationPostcode: prop.address?.match(/[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}/i)?.[0] || "",
+        landlordName: prop.tenant_name || "",
+        agencyAddress: "",
+        landlordDetails: prop.address || "",
+      }));
     }
   };
 
   // Observation management
   const addObs = () => setForm(prev => ({ ...prev, observations: [...prev.observations, { itemNo: String(prev.observations.length + 1), ref: "", observation: "", code: "C3", location: "" }] }));
-  const removeObs = (idx) => { if (form.observations.length <= 1) return; setForm(prev => ({ ...prev, observations: prev.observations.filter((_, i) => i !== idx) })); };
+  const removeObs = (idx) => setForm(prev => {
+    const updated = prev.observations.filter((_, i) => i !== idx).map((o, i) => ({ ...o, itemNo: String(i + 1) }));
+    return { ...prev, observations: updated };
+  });
   const updateObs = (idx, key, val) => setForm(prev => { const o = [...prev.observations]; o[idx] = { ...o[idx], [key]: val }; return { ...prev, observations: o }; });
+
+  // Part 9 → Part 5 linked observations
+  const handlePart9Classification = (refCode, code) => {
+    setForm(prev => {
+      let obs = [...prev.observations];
+      const existingIdx = obs.findIndex(o => o.linkedFromPart9 && o.linkedRef === refCode);
+      if (code) {
+        if (existingIdx >= 0) {
+          obs[existingIdx] = { ...obs[existingIdx], code };
+        } else {
+          obs.push({ itemNo: "", ref: refCode, observation: "", code, location: "", linkedFromPart9: true, linkedRef: refCode });
+        }
+      } else {
+        if (existingIdx >= 0) obs.splice(existingIdx, 1);
+      }
+      obs = obs.map((o, i) => ({ ...o, itemNo: String(i + 1) }));
+      return { ...prev, observations: obs };
+    });
+  };
 
   // Circuit management
   const addCircuit = () => {
     const n = String(form.circuits.length + 1);
     setForm(prev => ({
       ...prev,
-      circuits: [...prev.circuits, { num: n, description: "", wiringType: "A", refMethod: "100", points: "", liveCsa: "1.5", cpcCsa: "1", maxDisconnect: "0.4", ocpBSEN: "60898", ocpType: "B", ocpRating: "", ocpKA: "6", ocpMaxZs: "", rcdBSEN: "", rcdType: "", rcdRating: "", rcdImA: "" }],
-      testResults: [...prev.testResults, { num: n, r1: "", rn: "", r2: "", r1r2: "", r2only: "", irLL: "", irLE: "", testV: "250", polarity: true, zs: "", rcdTime: "", rcdTestBtn: "", afddTestBtn: "", comments: "" }],
+      circuits: [...prev.circuits, { num: n, description: "", wiringType: "A", refMethod: "100", points: "", liveCsa: "1.5", cpcCsa: "1", maxDisconnect: "0.4", ocpBSEN: "60898", ocpType: "B", ocpRating: "", ocpKA: "6", ocpMaxZs: "", rcdBSEN: "", rcdType: "", rcdRating: "", rcdImA: "30" }],
+      testResults: [...prev.testResults, { num: n, r1: "", rn: "", r2: "", r1r2: "", r2only: "", irLL: "Limitation", irLE: ">999", testV: "250", polarity: true, zs: "", rcdTime: "", rcdTestBtn: "", afddTestBtn: "", comments: "" }],
     }));
   };
   const removeCircuit = (idx) => { if (form.circuits.length <= 1) return; setForm(prev => ({ ...prev, circuits: prev.circuits.filter((_, i) => i !== idx), testResults: prev.testResults.filter((_, i) => i !== idx) })); };
@@ -2132,7 +2290,8 @@ function EICRPage() {
     const eicrData = { ...form, formType: "EICR183C", submittedAt: new Date().toISOString(), submittedBy: auth.id, isDraft: asDraft };
     const newStatus = asDraft ? "In Progress" : (auth.role === "junior" ? "Awaiting Sign-Off" : "Completed");
     await updateJob(selectedJobId, { status: newStatus, eicrData });
-    await addAudit({ action: `EICR ${asDraft ? "draft saved" : auth.role === "junior" ? "submitted for sign-off" : "completed"} — ${selectedProp?.address?.split(",")[0]} — Outcome: ${form.overallAssessment}` });
+    const conditionLabel = CONDITION_OPTIONS.find(o => o.value === form.conditionKey)?.label || "Not set";
+    await addAudit({ action: `EICR ${asDraft ? "draft saved" : auth.role === "junior" ? "submitted for sign-off" : "completed"} — ${selectedProp?.address?.split(",")[0]} — Outcome: ${conditionLabel}${isUnsatisfactory(form.conditionKey) ? " (UNSATISFACTORY)" : ""}` });
     showToast(asDraft ? "Draft saved" : auth.role === "junior" ? "Submitted for Supervisor sign-off" : "EICR completed");
     setSaving(false);
     if (!asDraft) setSelectedJobId("");
@@ -2178,19 +2337,25 @@ function EICRPage() {
 
       {/* Part 1 — Contractor, Client, Installation */}
       <EICRSection mob={mob} title="Part 1 — Contractor Details">
-        <EICRField label="Registration No" value={form.regNo} onChange={v => set("regNo", v)} />
-        <EICRField label="Trading Title" value={form.tradingTitle} onChange={v => set("tradingTitle", v)} />
-        <div style={{ gridColumn: "1 / -1" }}><EICRField label="Address" value={form.contractorAddress} onChange={v => set("contractorAddress", v)} /></div>
-        <EICRField label="Postcode" value={form.contractorPostcode} onChange={v => set("contractorPostcode", v)} />
+        <div style={{ gridColumn: "1 / -1" }}>
+          <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Trading Title</label>
+          <div style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.text, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", minHeight: 40, opacity: 0.8 }}>{CONTRACTOR.name}</div>
+        </div>
+        <div style={{ gridColumn: "1 / -1", background: C.surface, borderRadius: 10, padding: "12px 14px", border: `1px solid ${C.border}` }}>
+          <div style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Contractor Info (read-only)</div>
+          <div style={{ fontFamily: font, fontSize: 12, color: C.textDim, lineHeight: 1.6 }}>
+            <div>{CONTRACTOR.address}</div>
+            <div>Tel: {CONTRACTOR.phone}</div>
+            <div>Email: {CONTRACTOR.email}</div>
+          </div>
+        </div>
       </EICRSection>
 
       <EICRSection mob={mob} title="Part 1 — Client Details (Landlord / Agent)">
         <EICRField label="Landlord Name" value={form.landlordName} onChange={v => set("landlordName", v)} placeholder="Property owner" />
         <EICRField label="Estate Agent" value={form.agentName} onChange={v => set("agentName", v)} placeholder="Managing agent" />
-        <EICRField label="CRN" value={form.clientRefNo} onChange={v => set("clientRefNo", v)} />
-        <EICRField label="Client Name" value={form.clientName} onChange={v => set("clientName", v)} />
-        <div style={{ gridColumn: "1 / -1" }}><EICRField label="Client Address" value={form.clientAddress} onChange={v => set("clientAddress", v)} /></div>
-        <EICRField label="Postcode" value={form.clientPostcode} onChange={v => set("clientPostcode", v)} />
+        <div style={{ gridColumn: "1 / -1" }}><EICRField label="Agency Address" value={form.agencyAddress} onChange={v => set("agencyAddress", v)} placeholder="Agency office address" /></div>
+        <div style={{ gridColumn: "1 / -1" }}><EICRField label="Landlord / Client Details" value={form.landlordDetails} onChange={v => set("landlordDetails", v)} placeholder="Landlord address or contact details" /></div>
       </EICRSection>
 
       <EICRSection mob={mob} title="Part 1 — Installation Details">
@@ -2209,8 +2374,18 @@ function EICRPage() {
 
       {/* Part 2 — Purpose */}
       <EICRSection mob={mob} title="Part 2 — Purpose of the Report">
-        <div style={{ gridColumn: "1 / -1" }}>
-          <textarea value={form.purpose} onChange={e => set("purpose", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", outline: "none", minHeight: 60, resize: "vertical", width: "100%", boxSizing: "border-box" }} />
+        <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Purpose</label>
+          <select value={form.purposeKey} onChange={e => set("purposeKey", e.target.value)}
+            style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>
+            <option value="">— Select purpose —</option>
+            {PURPOSE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          {form.purposeKey && (
+            <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, background: C.surface, borderRadius: 8, padding: "8px 12px", marginTop: 4, lineHeight: 1.5 }}>
+              {PURPOSE_OPTIONS.find(o => o.value === form.purposeKey)?.text}
+            </div>
+          )}
         </div>
         <EICRField label="Inspection Date" value={form.inspectionDate} onChange={v => set("inspectionDate", v)} type="date" />
         <EICRField label="Previous Report Date" value={form.previousReportDate} onChange={v => set("previousReportDate", v)} type="date" />
@@ -2234,18 +2409,30 @@ function EICRPage() {
                 ))}
               </div>
             </div>
-            <EICRField label="Estimated Age (years)" value={form.estimatedAge} onChange={v => set("estimatedAge", v)} placeholder="e.g. 30" />
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Estimated Age</label>
+              <select value={form.estimatedAgeRange} onChange={e => set("estimatedAgeRange", e.target.value)}
+                style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>
+                <option value="">— Select —</option>
+                {ESTIMATED_AGE_OPTIONS.map(o => <option key={o} value={o}>{o} years</option>)}
+              </select>
+            </div>
             <EICRField label="Alterations Age (years)" value={form.alterationsAge} onChange={v => set("alterationsAge", v)} placeholder="e.g. 5" />
           </div>
-          <div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Overall Assessment</label>
-            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-              {["Satisfactory", "Unsatisfactory"].map(o => (
-                <button key={o} onClick={() => set("overallAssessment", o)} style={{ fontFamily: font, fontSize: 12, fontWeight: form.overallAssessment === o ? 600 : 400, color: form.overallAssessment === o ? C.white : C.textMuted, background: form.overallAssessment === o ? (o === "Satisfactory" ? C.green : C.red) : C.surfaceAlt, border: `1px solid ${form.overallAssessment === o ? "transparent" : C.border}`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>{o}</button>
-              ))}
-            </div>
+            <select value={form.conditionKey} onChange={e => set("conditionKey", e.target.value)}
+              style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>
+              <option value="">— Select condition —</option>
+              {CONDITION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            {form.conditionKey && (
+              <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, background: C.surface, borderRadius: 8, padding: "8px 12px", marginTop: 4, lineHeight: 1.5 }}>
+                {CONDITION_OPTIONS.find(o => o.value === form.conditionKey)?.text}
+              </div>
+            )}
           </div>
-          {form.overallAssessment === "Unsatisfactory" && (
+          {isUnsatisfactory(form.conditionKey) && (
             <div style={{ background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 10 }}>
               <Icon name="alert" size={16} color={C.red} />
               <span style={{ fontFamily: font, fontSize: 12, color: C.red }}>Unsatisfactory — C1/C2 conditions identified. Remedial action required urgently.</span>
