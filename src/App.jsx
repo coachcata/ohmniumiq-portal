@@ -760,14 +760,14 @@ function TeamPage() {
   const [showInvite, setShowInvite] = useState(false);
   const [showAddUser, setShowAddUser] = useState(false);
   const [signatureMember, setSignatureMember] = useState(null);
-  const [orgFilter, setOrgFilter] = useState(auth.orgId);
+  const [orgFilter, setOrgFilter] = useState("all");
   const [toast, setToast] = useState(null);
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
   const roleLabel = (r) => ({ admin: "Admin", agent: "Agent", engineer: "Engineer", junior: "Junior Engineer", supervisor: "Supervisor" }[r] || r);
   const roleColor = (r) => ({ admin: C.white, agent: C.accent, engineer: C.green, junior: C.purple, supervisor: C.amber }[r] || C.textMuted);
 
-  const filteredMembers = orgFilter === "all" ? engineers : engineers.filter(m => m.organisation_id === orgFilter);
+  const filteredMembers = orgFilter === "all" ? engineers : engineers.filter(m => m.organisation_id === orgFilter || (!m.organisation_id && orgFilter === auth.orgId));
   const selectedOrgName = organisations.find(o => o.id === orgFilter)?.name || "All";
 
   return (
