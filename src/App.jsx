@@ -75,6 +75,15 @@ const WIRING_TYPES = [
   { value: "O", label: "O — Other (state)" },
 ];
 
+const OCP_TYPES = ["B", "C", "D", "BS 3036", "N/A"];
+const OCP_RATINGS = ["6", "10", "13", "16", "20", "25", "32", "40", "45", "50", "63", "80", "100", "N/A"];
+const REF_METHODS = ["100", "101", "102", "103", "A", "B", "C", "D", "E", "F", "G", "N/A"];
+const MAX_DISCONNECT_TIMES = ["0.1", "0.2", "0.4", "1", "5", "N/A"];
+const RCD_TYPES = ["AC", "A", "F", "B", "N/A"];
+const RCD_RATINGS_A = ["6", "10", "16", "20", "25", "32", "40", "63", "N/A"];
+const TEST_VOLTAGES = ["250", "500", "1000"];
+const TOGGLE_OPTIONS = ["\u2713", "N/A", "LIM", "X"];
+
 const isUnsatisfactory = (outcome) => ["unsatisfactory_c2", "unsatisfactory_multiple", "unsatisfactory_specific"].includes(outcome);
 
 const font = `'Sora', sans-serif`;
@@ -288,7 +297,7 @@ function LoginPage() {
             </>
           )}
         </div>
-        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v18.0</p>
+        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v18.1</p>
       </div>
     </div>
   );
@@ -829,7 +838,7 @@ function Sidebar({ active, setActive, role, userProfile, onLogout }) {
       <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}` }}>
         <button onClick={onLogout} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.card, display: "grid", placeItems: "center" }}><Icon name="logout" size={16} color={C.textMuted} /></div>
-          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v18.0 — Supabase</div></div>
+          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v18.1 — Supabase</div></div>
         </button>
       </div>
     </div>
@@ -2111,6 +2120,7 @@ function EICRPage() {
 
   const [selectedJobId, setSelectedJobId] = useState("");
   const [saving, setSaving] = useState(false);
+  const [cloneCount, setCloneCount] = useState(1);
   const [toast, setToast] = useState(null);
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
 
@@ -2214,11 +2224,11 @@ function EICRPage() {
     dbDesignation: "Fusebox", dbLocation: "Hallway", dbZdb: "", dbIpf: "",
     dbPolarityConfirmed: true, spdT1: false, spdT2: false, spdT3: false, spdNA: true,
     circuits: [
-      { num: "1", description: "", wiringType: "A", refMethod: "100", points: "", liveCsa: "1.5", cpcCsa: "1", maxDisconnect: "0.4", ocpBSEN: "60898", ocpType: "B", ocpRating: "6", ocpKA: "6", ocpMaxZs: "7.28", rcdBSEN: "", rcdType: "", rcdRating: "", rcdImA: "30" },
+      { num: "1", description: "", wiringType: "A", refMethod: "100", points: "", liveCsa: "1.5", cpcCsa: "1", maxDisconnect: "0.4", ocpBSEN: "60898", ocpType: "B", ocpRating: "6", ocpKA: "6", ocpMaxZs: "7.28", rcdBSEN: "", rcdType: "A", rcdRating: "N/A", rcdImA: "30" },
     ],
     // Part 11B — Test results (dynamic)
     testResults: [
-      { num: "1", r1: "", rn: "", r2: "", r1r2: "", r2only: "", irLL: "Limitation", irLE: ">999", testV: "250", polarity: true, zs: "", rcdTime: "", rcdTestBtn: "", afddTestBtn: "", comments: "" },
+      { num: "1", r1: "", rn: "", r2: "", r1r2: "", r2only: "", irLL: "Limitation", irLE: ">999", testV: "250", polarity: "\u2713", zs: "", rcdTime: "", rcdTestBtn: "N/A", afddTestBtn: "N/A", comments: "" },
     ],
     testInstrumentMulti: "", testedByName: auth.fullName || "", testedByPosition: "Electrician", testedByDate: "",
     company: "Ohmnium Electrical",
@@ -2289,13 +2299,21 @@ function EICRPage() {
     const n = String(form.circuits.length + 1);
     setForm(prev => ({
       ...prev,
-      circuits: [...prev.circuits, { num: n, description: "", wiringType: "A", refMethod: "100", points: "", liveCsa: "1.5", cpcCsa: "1", maxDisconnect: "0.4", ocpBSEN: "60898", ocpType: "B", ocpRating: "", ocpKA: "6", ocpMaxZs: "", rcdBSEN: "", rcdType: "", rcdRating: "", rcdImA: "30" }],
-      testResults: [...prev.testResults, { num: n, r1: "", rn: "", r2: "", r1r2: "", r2only: "", irLL: "Limitation", irLE: ">999", testV: "250", polarity: true, zs: "", rcdTime: "", rcdTestBtn: "", afddTestBtn: "", comments: "" }],
+      circuits: [...prev.circuits, { num: n, description: "", wiringType: "A", refMethod: "100", points: "", liveCsa: "1.5", cpcCsa: "1", maxDisconnect: "0.4", ocpBSEN: "60898", ocpType: "B", ocpRating: "", ocpKA: "6", ocpMaxZs: "", rcdBSEN: "", rcdType: "A", rcdRating: "N/A", rcdImA: "30" }],
+      testResults: [...prev.testResults, { num: n, r1: "", rn: "", r2: "", r1r2: "", r2only: "", irLL: "Limitation", irLE: ">999", testV: "250", polarity: "\u2713", zs: "", rcdTime: "", rcdTestBtn: "N/A", afddTestBtn: "N/A", comments: "" }],
     }));
   };
   const removeCircuit = (idx) => { if (form.circuits.length <= 1) return; setForm(prev => ({ ...prev, circuits: prev.circuits.filter((_, i) => i !== idx), testResults: prev.testResults.filter((_, i) => i !== idx) })); };
   const updateCircuit = (idx, key, val) => setForm(prev => { const c = [...prev.circuits]; c[idx] = { ...c[idx], [key]: val }; return { ...prev, circuits: c }; });
   const updateTestResult = (idx, key, val) => setForm(prev => { const t = [...prev.testResults]; t[idx] = { ...t[idx], [key]: val }; return { ...prev, testResults: t }; });
+
+  const addCircuitsFromTemplate = () => {
+    const template = form.circuits[form.circuits.length - 1];
+    const startNum = form.circuits.length + 1;
+    const newCircuits = Array.from({ length: cloneCount }, (_, i) => ({ ...template, num: String(startNum + i), description: "" }));
+    const newTestResults = Array.from({ length: cloneCount }, (_, i) => ({ num: String(startNum + i), r1: "", rn: "", r2: "", r1r2: "", r2only: "", irLL: "Limitation", irLE: ">999", testV: "250", polarity: "\u2713", zs: "", rcdTime: "", rcdTestBtn: "N/A", afddTestBtn: "N/A", comments: "" }));
+    setForm(prev => ({ ...prev, circuits: [...prev.circuits, ...newCircuits], testResults: [...prev.testResults, ...newTestResults] }));
+  };
 
   const submit = async (asDraft = false) => {
     if (!selectedJobId) { showToast("Please select a job first", "error"); return; }
@@ -2714,7 +2732,14 @@ function EICRPage() {
       <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, margin: 0, textTransform: "uppercase", letterSpacing: 0.5 }}>Part 11A — Circuit Details</h4>
-          <button onClick={addCircuit} style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.accent, background: C.accentGlow, border: `1px solid rgba(59,130,246,.25)`, borderRadius: 8, padding: "6px 14px", cursor: "pointer", minHeight: 32 }}>+ Add Circuit</button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <button onClick={addCircuit} style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.accent, background: C.accentGlow, border: `1px solid rgba(59,130,246,.25)`, borderRadius: 8, padding: "6px 14px", cursor: "pointer", minHeight: 32 }}>+ Blank Circuit</button>
+            <span style={{ fontFamily: font, fontSize: 11, color: C.textDim }}>or clone last circuit</span>
+            <select value={cloneCount} onChange={e => setCloneCount(Number(e.target.value))} style={{ fontFamily: font, fontSize: 12, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", outline: "none", minHeight: 32, cursor: "pointer" }}>
+              {Array.from({ length: 20 }, (_, i) => i + 1).map(n => <option key={n} value={n}>{n} circuit{n > 1 ? "s" : ""}</option>)}
+            </select>
+            <button onClick={addCircuitsFromTemplate} style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 8, padding: "6px 14px", cursor: "pointer", minHeight: 32 }}>Clone</button>
+          </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 12, padding: 12, background: C.surfaceAlt, borderRadius: 10 }}>
           <EICRField label="DB Designation" value={form.dbDesignation} onChange={v => set("dbDesignation", v)} />
@@ -2730,39 +2755,21 @@ function EICRPage() {
             </div>
             <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "repeat(4,1fr)", gap: 8 }}>
               <EICRField label="Description" value={cir.description} onChange={v => updateCircuit(idx, "description", v)} placeholder="e.g. Lights, Sockets" />
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Live (mm²)</label>
-                <select value={cir.liveCsa} onChange={e => updateCircuit(idx, "liveCsa", e.target.value)}
-                  style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>
-                  {CABLE_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>CPC (mm²)</label>
-                <select value={cir.cpcCsa} onChange={e => updateCircuit(idx, "cpcCsa", e.target.value)}
-                  style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>
-                  {CABLE_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Live (mm²)</label><select value={cir.liveCsa} onChange={e => updateCircuit(idx, "liveCsa", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>{CABLE_SIZES.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>CPC (mm²)</label><select value={cir.cpcCsa} onChange={e => updateCircuit(idx, "cpcCsa", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>{CABLE_SIZES.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
               <EICRField label="Points" value={cir.points} onChange={v => updateCircuit(idx, "points", v)} />
-              <EICRField label="OCP Type" value={cir.ocpType} onChange={v => updateCircuit(idx, "ocpType", v)} />
-              <EICRField label="OCP Rating (A)" value={cir.ocpRating} onChange={v => updateCircuit(idx, "ocpRating", v)} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Reference Method</label><select value={cir.refMethod} onChange={e => updateCircuit(idx, "refMethod", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>{REF_METHODS.map(r => <option key={r} value={r}>{r}</option>)}</select></div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Max Disconnection Time (s)</label><select value={cir.maxDisconnect} onChange={e => updateCircuit(idx, "maxDisconnect", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>{MAX_DISCONNECT_TIMES.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Wiring Type</label><select value={cir.wiringType} onChange={e => updateCircuit(idx, "wiringType", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>{WIRING_TYPES.map(w => <option key={w.value} value={w.value}>{w.label}</option>)}</select></div>
               <EICRField label="Max Zs (Ω)" value={cir.ocpMaxZs} onChange={v => updateCircuit(idx, "ocpMaxZs", v)} />
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Wiring Type</label>
-                <select value={cir.wiringType} onChange={e => updateCircuit(idx, "wiringType", e.target.value)}
-                  style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>
-                  {WIRING_TYPES.map(w => <option key={w.value} value={w.value}>{w.label}</option>)}
-                </select>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>RCD IΔn (mA)</label>
-                <select value={cir.rcdImA} onChange={e => updateCircuit(idx, "rcdImA", e.target.value)}
-                  style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>
-                  <option value="">N/A</option>
-                  {RCD_RATINGS.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
-              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>OCP Type</label><select value={cir.ocpType} onChange={e => updateCircuit(idx, "ocpType", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>{OCP_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>OCP Rating (A)</label><select value={cir.ocpRating} onChange={e => updateCircuit(idx, "ocpRating", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>{OCP_RATINGS.map(r => <option key={r} value={r}>{r}</option>)}</select></div>
+              <EICRField label="OCP Short-circuit (kA)" value={cir.ocpKA} onChange={v => updateCircuit(idx, "ocpKA", v)} />
+              <EICRField label="OCP BS(EN)" value={cir.ocpBSEN} onChange={v => updateCircuit(idx, "ocpBSEN", v)} placeholder="e.g. 60898" />
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>RCD Type</label><select value={cir.rcdType} onChange={e => updateCircuit(idx, "rcdType", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>{RCD_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>RCD Rating (A)</label><select value={cir.rcdRating} onChange={e => updateCircuit(idx, "rcdRating", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>{RCD_RATINGS_A.map(r => <option key={r} value={r}>{r}</option>)}</select></div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>RCD IΔn (mA)</label><select value={cir.rcdImA} onChange={e => updateCircuit(idx, "rcdImA", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}><option value="">N/A</option>{RCD_RATINGS.map(r => <option key={r} value={r}>{r}</option>)}</select></div>
+              <EICRField label="RCD BS(EN)" value={cir.rcdBSEN} onChange={v => updateCircuit(idx, "rcdBSEN", v)} placeholder="e.g. 61008" />
             </div>
           </div>
         ))}
@@ -2775,13 +2782,20 @@ function EICRPage() {
           <div key={idx} style={{ background: C.surfaceAlt, borderRadius: 10, padding: 12, marginBottom: 8 }}>
             <span style={{ fontFamily: font, fontSize: 12, fontWeight: 700, color: C.accent, marginBottom: 8, display: "block" }}>Circuit {tr.num}: {form.circuits[idx]?.description || "—"}</span>
             <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "repeat(4,1fr)", gap: 8 }}>
+              <EICRField label="r1 Line (Ω)" value={tr.r1} onChange={v => updateTestResult(idx, "r1", v)} />
+              <EICRField label="rn Neutral (Ω)" value={tr.rn} onChange={v => updateTestResult(idx, "rn", v)} />
+              <EICRField label="r2 CPC (Ω)" value={tr.r2} onChange={v => updateTestResult(idx, "r2", v)} />
               <EICRField label="R1+R2 (Ω)" value={tr.r1r2} onChange={v => updateTestResult(idx, "r1r2", v)} />
-              <EICRField label="IR L/L (MΩ)" value={tr.irLL} onChange={v => updateTestResult(idx, "irLL", v)} placeholder=">999" />
+              <EICRField label="R2 only (Ω)" value={tr.r2only} onChange={v => updateTestResult(idx, "r2only", v)} />
+              <EICRField label="IR L/L (MΩ)" value={tr.irLL} onChange={v => updateTestResult(idx, "irLL", v)} placeholder="Limitation" />
               <EICRField label="IR L/E (MΩ)" value={tr.irLE} onChange={v => updateTestResult(idx, "irLE", v)} placeholder=">999" />
-              <EICRField label="Test V (DC)" value={tr.testV} onChange={v => updateTestResult(idx, "testV", v)} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Test Voltage DC (V)</label><select value={tr.testV} onChange={e => updateTestResult(idx, "testV", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>{TEST_VOLTAGES.map(v => <option key={v} value={v}>{v}V</option>)}</select></div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Polarity</label><div style={{ display: "flex", gap: 4 }}>{TOGGLE_OPTIONS.map(opt => <button key={opt} onClick={() => updateTestResult(idx, "polarity", opt)} style={{ flex: 1, fontFamily: font, fontSize: 11, fontWeight: tr.polarity === opt ? 700 : 400, color: tr.polarity === opt ? C.white : C.textMuted, background: tr.polarity === opt ? C.accent : C.surfaceAlt, border: `1px solid ${tr.polarity === opt ? C.accent : C.border}`, borderRadius: 6, padding: "6px 4px", cursor: "pointer", minHeight: 38 }}>{opt}</button>)}</div></div>
               <EICRField label="Zs (Ω)" value={tr.zs} onChange={v => updateTestResult(idx, "zs", v)} />
               <EICRField label="RCD Time (ms)" value={tr.rcdTime} onChange={v => updateTestResult(idx, "rcdTime", v)} />
-              <EICRField label="Comments" value={tr.comments} onChange={v => updateTestResult(idx, "comments", v)} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>RCD Test Button</label><div style={{ display: "flex", gap: 4 }}>{TOGGLE_OPTIONS.map(opt => <button key={opt} onClick={() => updateTestResult(idx, "rcdTestBtn", opt)} style={{ flex: 1, fontFamily: font, fontSize: 11, fontWeight: tr.rcdTestBtn === opt ? 700 : 400, color: tr.rcdTestBtn === opt ? C.white : C.textMuted, background: tr.rcdTestBtn === opt ? C.accent : C.surfaceAlt, border: `1px solid ${tr.rcdTestBtn === opt ? C.accent : C.border}`, borderRadius: 6, padding: "6px 4px", cursor: "pointer", minHeight: 38 }}>{opt}</button>)}</div></div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>AFDD Test Button</label><div style={{ display: "flex", gap: 4 }}>{TOGGLE_OPTIONS.map(opt => <button key={opt} onClick={() => updateTestResult(idx, "afddTestBtn", opt)} style={{ flex: 1, fontFamily: font, fontSize: 11, fontWeight: tr.afddTestBtn === opt ? 700 : 400, color: tr.afddTestBtn === opt ? C.white : C.textMuted, background: tr.afddTestBtn === opt ? C.accent : C.surfaceAlt, border: `1px solid ${tr.afddTestBtn === opt ? C.accent : C.border}`, borderRadius: 6, padding: "6px 4px", cursor: "pointer", minHeight: 38 }}>{opt}</button>)}</div></div>
+              <div style={{ gridColumn: "1 / -1" }}><EICRField label="Comments" value={tr.comments} onChange={v => updateTestResult(idx, "comments", v)} /></div>
             </div>
           </div>
         ))}
