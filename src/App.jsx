@@ -101,6 +101,23 @@ const MAX_ZS_LOOKUP = {
   "Type D": { "6A": "1.45", "10A": "0.87", "16A": "0.54", "20A": "0.44", "32A": "0.27", "40A": "0.22", "50A": "0.17", "63A": "0.13" },
 };
 const BS_EN_OPTIONS = ["N/A", "MCB — BS EN 60898-1", "RCBO — BS EN 61009-1", "RCCB — BS EN 61008-1", "RCD (general) — BS EN 61008-1", "AFDD — BS EN 62606", "MCCB — BS EN 60947-2", "Fuses (HRC) — BS EN 60269", "Rewirable Fuse — BS 3036", "Switch Disconnector — BS EN 60947-3", "SPD — BS EN 61643-11"];
+const RCD_TYPES_LIST = RCD_TYPES;
+
+const INSPECTOR_DECLARATION_TEXT = "I, being the person responsible for the inspection and testing of the electrical installation described in this report, having exercised reasonable skill and care when carrying out the inspection and testing, hereby declare that the information in this report, including the observations and the attached schedules, provides an accurate assessment of the condition of the electrical installation, taking into account the stated extent and limitations of this report. I further recommend, subject to the necessary remedial action being taken, that the installation is re-inspected and tested by the date stated.";
+const REVIEWER_DECLARATION_TEXT = "I, being the Qualified Supervisor responsible for reviewing this report on behalf of the contractor, confirm that I have reviewed the inspection and test results recorded herein and am satisfied that the report has been completed in accordance with BS 7671: 2018 (as amended) and reflects an accurate assessment of the installation at the time of inspection.";
+const NOTES_FOR_RECIPIENT = [
+  { heading: "Purpose of this report", body: "This report provides an assessment of the condition of the electrical installation identified overleaf at the time it was inspected and tested, taking into account the stated extent of the installation and the limitations of the inspection and testing. It has been issued in accordance with BS 7671: 2018 (as amended) — Requirements for Electrical Installations." },
+  { heading: "What to do with this report", body: "This report should be retained in a safe place and shown to any person inspecting or undertaking further work on the electrical installation in the future. If you later vacate the property, this report will provide the new user with an assessment of the condition of the electrical installation at the time the periodic inspection was carried out." },
+  { heading: "Remedial action", body: "Where observations have been recorded in this report, the classification code indicates the urgency of any action required. Items classified as C1 (Danger Present) should be made safe immediately. Items classified as C2 (Potentially Dangerous) require urgent remedial action. Items classified as C3 (Improvement Recommended) do not present immediate danger but should be addressed to improve safety. Items marked FI (Further Investigation Required) should be investigated without delay." },
+  { heading: "Re-inspection", body: "For safety reasons, the electrical installation should be re-inspected at appropriate intervals by a competent person. The recommended date by which the next inspection should be carried out is stated in the Declaration section of this report." },
+  { heading: "RCD testing", body: "Where the installation includes a residual current device (RCD), it should be tested every six months by pressing the button marked T or Test. The device should switch off the supply and should then be switched on to restore the supply. If the device does not switch off when the button is pressed, seek expert advice immediately." },
+];
+const CLASSIFICATION_GUIDANCE = [
+  { code: "C1", label: "Danger Present", color: "#dc2626", body: "The safety of those using the installation is at risk. Immediate remedial action is required." },
+  { code: "C2", label: "Potentially Dangerous", color: "#d97706", body: "Those using the installation may not be at immediate risk, but urgent remedial action is required to remove potential danger." },
+  { code: "C3", label: "Improvement Recommended", color: "#2563eb", body: "A non-compliance with the current safety standard which would result in a significant safety improvement if remedied." },
+  { code: "FI", label: "Further Investigation Required", color: "#7c3aed", body: "Further investigation is required without delay to determine whether danger or potential danger exists." },
+];
 
 const isUnsatisfactory = (outcome) => ["unsatisfactory_c2", "unsatisfactory_multiple", "unsatisfactory_specific"].includes(outcome);
 
@@ -315,7 +332,7 @@ function LoginPage() {
             </>
           )}
         </div>
-        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v18.7</p>
+        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v19.0</p>
       </div>
     </div>
   );
@@ -1142,7 +1159,7 @@ function Sidebar({ active, setActive, role, userProfile, onLogout }) {
       <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}` }}>
         <button onClick={onLogout} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.card, display: "grid", placeItems: "center" }}><Icon name="logout" size={16} color={C.textMuted} /></div>
-          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v18.7 — Supabase</div></div>
+          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v19.0 — Supabase</div></div>
         </button>
       </div>
     </div>
@@ -1704,6 +1721,11 @@ function RequestJobModal({ open, onClose, property }) {
 function CertificateRenderer({ job, property, certRef }) {
   if (!job) return null;
   const eicr = job.eicr_data || {};
+  const { engineers } = useContext(DataContext);
+  const inspectorProfile = engineers?.find(e => e.full_name === (eicr.inspectorName || eicr.inspector));
+  const reviewerProfile = engineers?.find(e => e.full_name === eicr.reviewerName);
+  const inspectorSigUrl = inspectorProfile?.signature_url || null;
+  const reviewerSigUrl = reviewerProfile?.signature_url || null;
   const isEICR = job.type === "EICR" || eicr.formType === "EICR" || (!eicr.formType && job.type === "EICR");
   const isEIC = eicr.formType === "EIC" || job.type === "EIC";
 
@@ -1841,18 +1863,52 @@ function CertificateRenderer({ job, property, certRef }) {
 
       {/* Declaration */}
       <div style={secHead}>Declaration</div>
+      <div style={{ fontFamily: "Arial, sans-serif", fontSize: 8, color: "#333", lineHeight: 1.6, marginBottom: 8, padding: "6px 8px", background: "#f7f9fc", border: "1px solid #dde3ec", borderRadius: 3 }}>
+        <strong>Inspection and Testing: </strong>{INSPECTOR_DECLARATION_TEXT}
+      </div>
+      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 10 }}>
+        <tbody>
+          <tr><td style={{ ...headS, width: "25%" }}>Name (Inspector)</td><td style={cellS}>{eicr.inspectorName || "—"}</td><td style={{ ...headS, width: "25%" }}>Company</td><td style={cellS}>{eicr.company || CONTRACTOR.name}</td></tr>
+          <tr><td style={headS}>Signature</td><td style={{ ...cellS, height: 36 }}>{inspectorSigUrl && <img src={inspectorSigUrl} alt="Signature" style={{ maxHeight: 30, maxWidth: 120 }} />}</td><td style={headS}>Date</td><td style={cellS}>{eicr.inspectorDate || eicr.inspectionDate || "—"}</td></tr>
+          <tr><td style={headS}>BS 7671: 2018 Amended To</td><td style={cellS}>{eicr.bs7671AmendedTo || "2024"}</td><td style={headS}>Next Inspection Due</td><td style={cellS}>{eicr.nextInspectionDate || "—"}</td></tr>
+          <tr><td style={headS}>Reason</td><td style={cellS} colSpan={3}>{eicr.nextInspectionReason || "As per IET Guidance Note 3 Table 3.2 or change of tenancy if sooner."}</td></tr>
+        </tbody>
+      </table>
+      <div style={{ fontFamily: "Arial, sans-serif", fontSize: 8, color: "#333", lineHeight: 1.6, marginBottom: 8, padding: "6px 8px", background: "#f7f9fc", border: "1px solid #dde3ec", borderRadius: 3 }}>
+        <strong>Reviewed by the Qualified Supervisor: </strong>{REVIEWER_DECLARATION_TEXT}
+      </div>
       <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14 }}>
         <tbody>
-          <tr><td style={{ ...headS, width: "25%" }}>Inspector Name</td><td style={cellS}>{eicr.inspectorName || "—"}</td><td style={{ ...headS, width: "25%" }}>Company</td><td style={cellS}>{eicr.company || CONTRACTOR.name}</td></tr>
-          <tr><td style={headS}>Inspection Date</td><td style={cellS}>{eicr.inspectionDate || "—"}</td><td style={headS}>Inspector Date</td><td style={cellS}>{eicr.inspectorDate || "—"}</td></tr>
-          <tr><td style={headS}>Inspector Signature</td><td style={{ ...cellS, height: 30 }}></td><td style={headS}>BS 7671 Amended To</td><td style={cellS}>{eicr.bs7671AmendedTo || "—"}</td></tr>
-          <tr><td style={headS}>Reviewed By (QS)</td><td style={cellS}>{eicr.reviewerName || "—"}</td><td style={headS}>Reviewer Date</td><td style={cellS}>{eicr.reviewerDate || "—"}</td></tr>
-          <tr><td style={headS}>Next Inspection Due</td><td style={cellS}>{eicr.nextInspectionDate || "—"}</td><td style={headS}>Reason</td><td style={cellS}>{eicr.nextInspectionReason || "—"}</td></tr>
+          <tr><td style={{ ...headS, width: "25%" }}>Name (Reviewer / QS)</td><td style={cellS}>{eicr.reviewerName || "—"}</td><td style={{ ...headS, width: "25%" }}>Date</td><td style={cellS}>{eicr.reviewerDate || "—"}</td></tr>
+          <tr><td style={headS}>Signature</td><td style={{ ...cellS, height: 36 }} colSpan={3}>{reviewerSigUrl && <img src={reviewerSigUrl} alt="Signature" style={{ maxHeight: 30, maxWidth: 120 }} />}</td></tr>
         </tbody>
       </table>
 
       <div style={{ fontFamily: "Arial, sans-serif", fontSize: 8, color: "#888", textAlign: "center", marginTop: 20, borderTop: "1px solid #ddd", paddingTop: 8 }}>
         Generated by OhmniumIQ Compliance Portal · Ohmnium Electrical Ltd · {new Date().toLocaleDateString("en-GB")}
+      </div>
+
+      {/* Notes for Recipients */}
+      <div style={{ pageBreakBefore: "always", paddingTop: 20 }}>
+        <div style={{ fontFamily: "Arial, sans-serif", fontSize: 13, fontWeight: 700, color: "#1a1a1a", textAlign: "center", marginBottom: 4 }}>NOTES FOR THE RECIPIENT</div>
+        <div style={{ fontFamily: "Arial, sans-serif", fontSize: 9, color: "#555", textAlign: "center", marginBottom: 16 }}>THIS REPORT IS AN IMPORTANT DOCUMENT — PLEASE RETAIN FOR FUTURE USE</div>
+        {NOTES_FOR_RECIPIENT.map((note, i) => (
+          <div key={i} style={{ marginBottom: 12 }}>
+            <div style={{ fontFamily: "Arial, sans-serif", fontSize: 9, fontWeight: 700, color: "#1a1a1a", marginBottom: 3 }}>{note.heading}</div>
+            <div style={{ fontFamily: "Arial, sans-serif", fontSize: 8, color: "#444", lineHeight: 1.6 }}>{note.body}</div>
+          </div>
+        ))}
+        <div style={{ marginTop: 20, borderTop: "2px solid #2a4a8d", paddingTop: 14 }}>
+          <div style={{ fontFamily: "Arial, sans-serif", fontSize: 11, fontWeight: 700, color: "#1a1a1a", marginBottom: 10 }}>GUIDANCE ON CLASSIFICATION CODES</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            {CLASSIFICATION_GUIDANCE.map((g, i) => (
+              <div key={i} style={{ border: `1px solid ${g.color}`, borderRadius: 4, padding: "8px 10px" }}>
+                <div style={{ fontFamily: "Arial, sans-serif", fontSize: 9, fontWeight: 700, color: g.color, marginBottom: 4 }}>Code {g.code} — {g.label}</div>
+                <div style={{ fontFamily: "Arial, sans-serif", fontSize: 8, color: "#444", lineHeight: 1.5 }}>{g.body}</div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -2541,13 +2597,16 @@ function EICRPage() {
     dbDesignation: "Fusebox", dbLocation: "Hallway", dbZdb: "", dbIpf: "",
     dbPolarityConfirmed: true, spdT1: false, spdT2: false, spdT3: false, spdNA: true,
     circuits: [
-      { num: "1", description: "", wiringType: "A", refMethod: "100", points: "", liveCsa: "1.5", cpcCsa: "1", maxDisconnect: "0.4", ocpBSEN: "60898", ocpType: "B", ocpRating: "6", ocpKA: "6", ocpMaxZs: "7.28", rcdBSEN: "", rcdType: "A", rcdRating: "N/A", rcdImA: "30" },
+      { num: "1", description: "", wiringType: "A", refMethod: "100", points: "", liveCsa: "1.5", cpcCsa: "1", maxDisconnect: "0.4", ocpBSEN: "MCB — BS EN 60898-1", ocpType: "Type B", ocpRating: "6A", ocpKA: "6", ocpMaxZs: "5.82", rcdBSEN: "", rcdType: "A", rcdRating: "N/A", rcdImA: "30" },
     ],
     // Part 11B — Test results (dynamic)
     testResults: [
-      { num: "1", r1: "", rn: "", r2: "", r1r2: "", r2only: "", irLL: "Limitation", irLE: ">999", testV: "250", polarity: "\u2713", zs: "", rcdTime: "", rcdTestBtn: "N/A", afddTestBtn: "N/A", comments: "" },
+      { num: "1", r1: "", rn: "", r2: "", r1r2: "", r2only: "", irLL: "LIM", irLE: ">999", testV: "250", polarity: "\u2713", zs: "", rcdTime: "", rcdTestBtn: "N/A", afddTestBtn: "N/A", comments: "" },
     ],
-    testInstrumentMulti: "", testedByName: auth.fullName || "", testedByPosition: "Electrician", testedByDate: "",
+    testInstrumentMulti: "", testInstrumentContinuity: "", testInstrumentInsulation: "",
+    testInstrumentLoop: "", testInstrumentEarth: "", testInstrumentRCD: "",
+    vulnerableCircuits: "",
+    testedByName: auth.fullName || "", testedByPosition: "Electrician", testedByDate: "",
     company: "Ohmnium Electrical",
   });
 
@@ -2616,8 +2675,8 @@ function EICRPage() {
     const n = String(form.circuits.length + 1);
     setForm(prev => ({
       ...prev,
-      circuits: [...prev.circuits, { num: n, description: "", wiringType: "A", refMethod: "100", points: "", liveCsa: "1.5", cpcCsa: "1", maxDisconnect: "0.4", ocpBSEN: "60898", ocpType: "B", ocpRating: "", ocpKA: "6", ocpMaxZs: "", rcdBSEN: "", rcdType: "A", rcdRating: "N/A", rcdImA: "30" }],
-      testResults: [...prev.testResults, { num: n, r1: "", rn: "", r2: "", r1r2: "", r2only: "", irLL: "Limitation", irLE: ">999", testV: "250", polarity: "\u2713", zs: "", rcdTime: "", rcdTestBtn: "N/A", afddTestBtn: "N/A", comments: "" }],
+      circuits: [...prev.circuits, { num: n, description: "", wiringType: "A", refMethod: "100", points: "", liveCsa: "1.5", cpcCsa: "1", maxDisconnect: "0.4", ocpBSEN: "MCB — BS EN 60898-1", ocpType: "Type B", ocpRating: "", ocpKA: "6", ocpMaxZs: "", rcdBSEN: "", rcdType: "A", rcdRating: "N/A", rcdImA: "30" }],
+      testResults: [...prev.testResults, { num: n, r1: "", rn: "", r2: "", r1r2: "", r2only: "", irLL: "LIM", irLE: ">999", testV: "250", polarity: "\u2713", zs: "", rcdTime: "", rcdTestBtn: "N/A", afddTestBtn: "N/A", comments: "" }],
     }));
   };
   const removeCircuit = (idx) => { if (form.circuits.length <= 1) return; setForm(prev => ({ ...prev, circuits: prev.circuits.filter((_, i) => i !== idx), testResults: prev.testResults.filter((_, i) => i !== idx) })); };
@@ -2628,7 +2687,7 @@ function EICRPage() {
     const template = form.circuits[form.circuits.length - 1];
     const startNum = form.circuits.length + 1;
     const newCircuits = Array.from({ length: cloneCount }, (_, i) => ({ ...template, num: String(startNum + i), description: "" }));
-    const newTestResults = Array.from({ length: cloneCount }, (_, i) => ({ num: String(startNum + i), r1: "", rn: "", r2: "", r1r2: "", r2only: "", irLL: "Limitation", irLE: ">999", testV: "250", polarity: "\u2713", zs: "", rcdTime: "", rcdTestBtn: "N/A", afddTestBtn: "N/A", comments: "" }));
+    const newTestResults = Array.from({ length: cloneCount }, (_, i) => ({ num: String(startNum + i), r1: "", rn: "", r2: "", r1r2: "", r2only: "", irLL: "LIM", irLE: ">999", testV: "250", polarity: "\u2713", zs: "", rcdTime: "", rcdTestBtn: "N/A", afddTestBtn: "N/A", comments: "" }));
     setForm(prev => ({ ...prev, circuits: [...prev.circuits, ...newCircuits], testResults: [...prev.testResults, ...newTestResults] }));
   };
 
@@ -2785,14 +2844,27 @@ function EICRPage() {
       </div>
 
       {/* Part 4 — Declaration */}
-      <EICRSection mob={mob} title="Part 4 — Declaration">
-        <EICRField label="Inspector Name" value={form.inspectorName} onChange={v => set("inspectorName", v)} />
-        <EICRField label="Inspector Date" value={form.inspectorDate} onChange={v => set("inspectorDate", v)} type="date" />
-        <EICRField label="Next Inspection By (Date)" value={form.nextInspectionDate} onChange={v => set("nextInspectionDate", v)} type="date" />
-        <div style={{ gridColumn: "1 / -1" }}><EICRField label="Reason for Recommendation" value={form.nextInspectionReason} onChange={v => set("nextInspectionReason", v)} /></div>
-        <EICRField label="Reviewed By (QS Name)" value={form.reviewerName} onChange={v => set("reviewerName", v)} />
-        <EICRField label="Reviewer Date" value={form.reviewerDate} onChange={v => set("reviewerDate", v)} type="date" />
-      </EICRSection>
+      <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
+        <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, margin: "0 0 16px", textTransform: "uppercase", letterSpacing: 0.5 }}>Part 4 — Declaration</h4>
+        <div style={{ background: C.surfaceAlt, borderRadius: 10, padding: "12px 16px", marginBottom: 16, border: `1px solid ${C.border}` }}>
+          <div style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Inspection and Testing Declaration</div>
+          <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, lineHeight: 1.6 }}>{INSPECTOR_DECLARATION_TEXT}</div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap: 12, marginBottom: 16 }}>
+          <EICRField label="Inspector Name" value={form.inspectorName} onChange={v => set("inspectorName", v)} />
+          <EICRField label="Inspector Date" value={form.inspectorDate} onChange={v => set("inspectorDate", v)} type="date" />
+          <EICRField label="Next Inspection By (Date)" value={form.nextInspectionDate} onChange={v => set("nextInspectionDate", v)} type="date" />
+          <div style={{ gridColumn: mob ? "auto" : "1 / -1" }}><EICRField label="Reason for Recommendation" value={form.nextInspectionReason} onChange={v => set("nextInspectionReason", v)} /></div>
+        </div>
+        <div style={{ background: C.surfaceAlt, borderRadius: 10, padding: "12px 16px", marginBottom: 16, border: `1px solid ${C.border}` }}>
+          <div style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Reviewed by the Qualified Supervisor</div>
+          <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, lineHeight: 1.6 }}>{REVIEWER_DECLARATION_TEXT}</div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap: 12 }}>
+          <EICRField label="Reviewed By (QS Name)" value={form.reviewerName} onChange={v => set("reviewerName", v)} />
+          <EICRField label="Reviewer Date" value={form.reviewerDate} onChange={v => set("reviewerDate", v)} type="date" />
+        </div>
+      </div>
 
       {/* Part 5 — Observations */}
       <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
@@ -3109,10 +3181,23 @@ function EICRPage() {
             </div>
           </div>
         ))}
+        <div style={{ marginTop: 16, background: C.surface, borderRadius: 10, padding: 12, border: `1px solid ${C.border}` }}>
+          <div style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>Circuits / Equipment Vulnerable to Damage When Testing</div>
+          <EICRField label="Vulnerable circuits (if any)" value={form.vulnerableCircuits} onChange={v => set("vulnerableCircuits", v)} placeholder="e.g. N/A" />
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr 1fr", gap: 12, marginTop: 12 }}>
           <EICRField label="Tested By" value={form.testedByName} onChange={v => set("testedByName", v)} />
-          <EICRField label="Multi-function Serial" value={form.testInstrumentMulti} onChange={v => set("testInstrumentMulti", v)} />
+          <EICRField label="Position" value={form.testedByPosition} onChange={v => set("testedByPosition", v)} />
           <EICRField label="Date" value={form.testedByDate} onChange={v => set("testedByDate", v)} type="date" />
+        </div>
+        <div style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 14, marginBottom: 8 }}>Test Instrument Serial Numbers</div>
+        <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "repeat(3,1fr)", gap: 10 }}>
+          <EICRField label="Multi-function" value={form.testInstrumentMulti} onChange={v => set("testInstrumentMulti", v)} placeholder="Serial number" />
+          <EICRField label="Continuity" value={form.testInstrumentContinuity} onChange={v => set("testInstrumentContinuity", v)} placeholder="N/A" />
+          <EICRField label="Insulation Resistance" value={form.testInstrumentInsulation} onChange={v => set("testInstrumentInsulation", v)} placeholder="N/A" />
+          <EICRField label="Earth Fault Loop" value={form.testInstrumentLoop} onChange={v => set("testInstrumentLoop", v)} placeholder="N/A" />
+          <EICRField label="Earth Electrode" value={form.testInstrumentEarth} onChange={v => set("testInstrumentEarth", v)} placeholder="N/A" />
+          <EICRField label="RCD Tester" value={form.testInstrumentRCD} onChange={v => set("testInstrumentRCD", v)} placeholder="N/A" />
         </div>
       </div>
 
