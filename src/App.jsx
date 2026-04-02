@@ -332,7 +332,7 @@ function LoginPage() {
             </>
           )}
         </div>
-        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v19.2</p>
+        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v19.3</p>
       </div>
     </div>
   );
@@ -869,6 +869,8 @@ function SignatureModal({ open, onClose, member }) {
 
   const submit = async () => {
     if (!file) { setError("Please select a file"); return; }
+    if (file.size > 2 * 1024 * 1024) { setError("File must be under 2MB"); return; }
+    if (!["image/png", "image/jpeg", "image/svg+xml"].includes(file.type)) { setError("Only PNG, JPEG, or SVG files allowed"); return; }
     setSaving(true);
     const path = `signatures/${member.id}/signature.png`;
     const { error: upErr } = await uploadFile(file, path);
@@ -1014,6 +1016,7 @@ function ChangePasswordModal({ open, onClose }) {
     if (signInErr) { setError("Current password is incorrect"); setSaving(false); return; }
     const { error: updateErr } = await supabase.auth.updateUser({ password: newPw });
     if (updateErr) { setError(updateErr.message); setSaving(false); return; }
+    try { await supabase.auth.signOut({ scope: "others" }); } catch (e) { /* non-critical */ }
     setSaving(false); setDone(true);
   };
 
@@ -1159,7 +1162,7 @@ function Sidebar({ active, setActive, role, userProfile, onLogout }) {
       <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}` }}>
         <button onClick={onLogout} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.card, display: "grid", placeItems: "center" }}><Icon name="logout" size={16} color={C.textMuted} /></div>
-          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v19.2 — Supabase</div></div>
+          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v19.3 — Supabase</div></div>
         </button>
       </div>
     </div>
@@ -1170,7 +1173,7 @@ function Sidebar({ active, setActive, role, userProfile, onLogout }) {
 function MobileTopBar({ userProfile, globalSearch, setGlobalSearch, onSearchSelect }) {
   const { properties } = useContext(DataContext);
   const [showR, setShowR] = useState(false);
-  const results = globalSearch.length > 1 ? properties.filter(p => p.address.toLowerCase().includes(globalSearch.toLowerCase()) || p.tenant_name?.toLowerCase().includes(globalSearch.toLowerCase()) || p.ref?.toLowerCase().includes(globalSearch.toLowerCase())).slice(0, 6) : [];
+  const results = globalSearch.length > 1 ? properties.filter(p => (p.address || "").toLowerCase().includes(globalSearch.toLowerCase()) || p.tenant_name?.toLowerCase().includes(globalSearch.toLowerCase()) || p.ref?.toLowerCase().includes(globalSearch.toLowerCase())).slice(0, 6) : [];
   return (
     <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: "12px 16px", position: "sticky", top: 0, zIndex: 5 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
@@ -1191,7 +1194,7 @@ function MobileTopBar({ userProfile, globalSearch, setGlobalSearch, onSearchSele
                 <button key={pr.id} onMouseDown={() => { onSearchSelect(pr.id); setGlobalSearch(""); setShowR(false); }}
                   style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "12px 14px", border: "none", cursor: "pointer", background: "transparent", textAlign: "left", borderBottom: `1px solid ${C.border}`, minHeight: 48 }}>
                   <span style={{ width: 8, height: 8, borderRadius: 3, background: statusColor(calcStatus(pr.expiry_date)), flexShrink: 0 }} />
-                  <div><div style={{ fontFamily: font, fontSize: 13, color: C.text, fontWeight: 500 }}>{pr.address.split(",")[0]}</div><div style={{ fontFamily: font, fontSize: 11, color: C.textDim }}>{pr.tenant_name} · {pr.ref}</div></div>
+                  <div><div style={{ fontFamily: font, fontSize: 13, color: C.text, fontWeight: 500 }}>{(pr.address || "").split(",")[0]}</div><div style={{ fontFamily: font, fontSize: 11, color: C.textDim }}>{pr.tenant_name} · {pr.ref}</div></div>
                 </button>
               ))}
             </div>
@@ -1434,7 +1437,7 @@ function PropertiesPage({ onRequestJob, onSelectProperty }) {
     const st = overallStatus(p);
     if (filter !== "all" && st !== filter) return false;
     if (clientFilter !== "all" && p.agency_id !== clientFilter) return false;
-    if (search && !p.address.toLowerCase().includes(search.toLowerCase()) && !(p.tenant_name || "").toLowerCase().includes(search.toLowerCase()) && !(p.ref || "").toLowerCase().includes(search.toLowerCase())) return false;
+    if (search && !(p.address || "").toLowerCase().includes(search.toLowerCase()) && !(p.tenant_name || "").toLowerCase().includes(search.toLowerCase()) && !(p.ref || "").toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   }).sort((a, b) => {
     if (sort === "status") return statusOrder[overallStatus(a)] - statusOrder[overallStatus(b)];
@@ -1483,9 +1486,9 @@ function PropertiesPage({ onRequestJob, onSelectProperty }) {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ width: 10, height: 10, borderRadius: 3, background: statusColor(st), flexShrink: 0, boxShadow: `0 0 8px ${statusColor(st)}40` }} />
-                    <span style={{ fontFamily: font, fontSize: 14, color: C.white, fontWeight: 500 }}>{p.address.split(",")[0]}</span>
+                    <span style={{ fontFamily: font, fontSize: 14, color: C.white, fontWeight: 500 }}>{(p.address || "").split(",")[0]}</span>
                   </div>
-                  <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 4, marginLeft: 18 }}>{p.address.split(",").slice(1).join(",").trim()}</div>
+                  <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 4, marginLeft: 18 }}>{(p.address || "").split(",").slice(1).join(",").trim()}</div>
                 </div>
                 <span style={{ fontFamily: font, fontSize: 10, fontWeight: 600, color: statusColor(st), background: statusBg(st), border: `1px solid ${statusBorder(st)}`, padding: "3px 10px", borderRadius: 20, whiteSpace: "nowrap", flexShrink: 0 }}>{st.toUpperCase()}</span>
               </div>
@@ -1631,7 +1634,7 @@ function EditJobModal({ open, job, onClose }) {
     <Modal open={open} onClose={() => onClose(null)} title="Edit Job">
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {prop && <div style={{ background: C.surfaceAlt, borderRadius: 10, padding: 14, border: `1px solid ${C.border}` }}>
-          <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{prop.address.split(",")[0]}</div>
+          <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{(prop?.address || "").split(",")[0]}</div>
           <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 2 }}>{job.ref} · Pending</div>
         </div>}
         <Select label="Service Type" value={type} onChange={setType} options={[{ value: "EICR", label: "EICR" }, { value: "Remedial", label: "Remedial" }, { value: "Smoke Alarm", label: "Smoke Alarm" }, { value: "Fire Alarm", label: "Fire Alarm" }, { value: "Emergency Lighting", label: "Emergency Lighting" }, { value: "PAT", label: "PAT" }, { value: "New Installation", label: "New Installation" }, { value: "Alteration", label: "Alteration" }]} />
@@ -1675,7 +1678,7 @@ function AssignModal({ open, job, onClose }) {
     <Modal open={open} onClose={() => onClose(null)} title={isReassign ? "Reschedule / Reassign" : "Assign Engineer"}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {prop && <div style={{ background: C.surfaceAlt, borderRadius: 10, padding: 14, border: `1px solid ${C.border}` }}>
-          <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{job.type} — {prop.address.split(",")[0]}</div>
+          <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{job.type} — {(prop.address || "").split(",")[0]}</div>
           {isReassign && <div style={{ fontFamily: font, fontSize: 11, color: C.amber, marginTop: 4 }}>Currently: {engineers.find(e => e.id === job.engineer_id)?.full_name || "Unassigned"} · {job.scheduled_date ? formatDate(job.scheduled_date) : "No date"}</div>}
         </div>}
         <Select label="Engineer" value={engId} onChange={setEngId} options={[{ value: "", label: "— Select —" }, ...engineers.filter(e => ["engineer", "junior"].includes(e.role)).map(e => ({ value: e.id, label: `${e.full_name} (${e.role === "junior" ? "Junior" : "Senior"})` }))]} />
@@ -1697,7 +1700,7 @@ function RequestJobModal({ open, onClose, property }) {
     if (!property) return;
     setSaving(true);
     const { data } = await addJob({ propertyId: property.id, type, notes: notes.trim() || "Requested" });
-    await addAudit({ action: `New job ${data?.ref} (${type}) for ${property.address.split(",")[0]}` });
+    await addAudit({ action: `New job ${data?.ref} (${type}) for ${(property.address || "").split(",")[0]}` });
     setSaving(false); setSubmitted(true);
   };
   const reset = () => { setType("EICR"); setNotes(""); setSubmitted(false); };
@@ -2327,6 +2330,7 @@ function UploadCertModal({ open, onClose }) {
 
   const submit = async () => {
     if (!jobId || !file || !expiryDate) { setError("Please select a job, expiry date, and file"); return; }
+    if (file.size > 50 * 1024 * 1024) { setError("File must be under 50MB"); return; }
     setSaving(true); setError("");
     try {
       const filePath = `${auth.orgId}/${jobId}/${Date.now()}_${file.name}`;
@@ -2426,6 +2430,7 @@ function CSVImportModal({ open, onClose }) {
   const parseCSV = (text) => {
     const lines = text.trim().split("\n").filter(Boolean);
     if (lines.length < 2) { setError("CSV must have a header row and at least one data row"); return; }
+    if (lines.length > 5001) { setError("CSV too large — maximum 5000 rows. Please split into smaller files."); return; }
     const headers = lines[0].split(",").map(h => h.trim().toLowerCase().replace(/"/g, ""));
     const addrIdx = headers.findIndex(h => h.includes("address"));
     const tenantIdx = headers.findIndex(h => h.includes("tenant") || h.includes("name"));
@@ -2438,7 +2443,7 @@ function CSVImportModal({ open, onClose }) {
       const tenant = tenantIdx >= 0 ? cols[tenantIdx] || "" : "";
       const phone = phoneIdx >= 0 ? cols[phoneIdx] || "" : "";
       const lastEicr = eicrIdx >= 0 ? cols[eicrIdx] || "" : "";
-      const isDup = properties.some(p => p.address.toLowerCase() === addr.toLowerCase());
+      const isDup = properties.some(p => (p.address || "").toLowerCase() === addr.toLowerCase());
       return { addr, tenant, phone, lastEicr, isDup, row: i + 2 };
     }).filter(r => r.addr);
     setRows(parsed); setPreview(true); setError("");
