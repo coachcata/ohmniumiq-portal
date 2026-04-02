@@ -332,7 +332,7 @@ function LoginPage() {
             </>
           )}
         </div>
-        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v19.3</p>
+        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v19.4</p>
       </div>
     </div>
   );
@@ -436,9 +436,11 @@ function DataProvider({ children, userProfile }) {
   }, []);
 
   const addComment = useCallback(async (comment) => {
+    const job = comment.jobId ? jobs.find(j => j.id === comment.jobId) : null;
+    const orgId = job?.organisation_id || comment.orgId || userProfile.organisation_id;
     const { data, error } = await supabase.from("job_comments").insert({
       job_id: comment.jobId,
-      organisation_id: userProfile.organisation_id,
+      organisation_id: orgId,
       body: comment.body,
       author_id: userProfile.id,
       author_name: userProfile.full_name,
@@ -446,18 +448,20 @@ function DataProvider({ children, userProfile }) {
     }).select().single();
     if (data) setComments(prev => [...prev, data]);
     return { data, error };
-  }, [userProfile]);
+  }, [userProfile, jobs]);
 
   const addJob = useCallback(async (job) => {
+    const prop = job.propertyId ? properties.find(p => p.id === job.propertyId) : null;
+    const orgId = prop?.agency_id || job.orgId || userProfile.organisation_id;
     const { data, error } = await supabase.from("jobs").insert({
       property_id: job.propertyId, type: job.type, status: job.status || "Pending",
       engineer_id: job.engineerId || null, scheduled_date: job.date || null,
       notes: job.notes || null, eicr_data: job.eicrData || null,
-      created_by: userProfile.id, organisation_id: userProfile.organisation_id,
+      created_by: userProfile.id, organisation_id: orgId,
     }).select().single();
     if (data) setJobs(prev => [data, ...prev]);
     return { data, error };
-  }, [userProfile]);
+  }, [userProfile, properties]);
 
   const updateJob = useCallback(async (id, updates) => {
     const mapped = {};
@@ -474,15 +478,17 @@ function DataProvider({ children, userProfile }) {
   }, []);
 
   const addDoc = useCallback(async (doc) => {
+    const prop = doc.propertyId ? properties.find(p => p.id === doc.propertyId) : null;
+    const orgId = prop?.agency_id || doc.orgId || userProfile.organisation_id;
     const { data, error } = await supabase.from("documents").insert({
       job_id: doc.jobId, property_id: doc.propertyId, type: doc.type,
       file_path: doc.filePath || null, file_name: doc.fileName || null,
       expiry_date: doc.expiry || null, uploaded_by: userProfile.id,
-      organisation_id: userProfile.organisation_id,
+      organisation_id: orgId,
     }).select().single();
     if (data) setDocuments(prev => [data, ...prev]);
     return { data, error };
-  }, [userProfile]);
+  }, [userProfile, properties]);
 
   const addAudit = useCallback(async (entry) => {
     const { data, error } = await supabase.from("audit_log").insert({
@@ -490,7 +496,7 @@ function DataProvider({ children, userProfile }) {
       user_id: entry.userId || userProfile.id,
       user_name: entry.userName || userProfile.full_name,
       user_role: entry.userRole || userProfile.role,
-      organisation_id: userProfile.organisation_id,
+      organisation_id: entry.orgId || userProfile.organisation_id,
     }).select().single();
     if (data) setAudit(prev => [data, ...prev]);
     return { data, error };
@@ -1162,7 +1168,7 @@ function Sidebar({ active, setActive, role, userProfile, onLogout }) {
       <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}` }}>
         <button onClick={onLogout} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.card, display: "grid", placeItems: "center" }}><Icon name="logout" size={16} color={C.textMuted} /></div>
-          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v19.3 — Supabase</div></div>
+          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v19.4 — Supabase</div></div>
         </button>
       </div>
     </div>
