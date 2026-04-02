@@ -315,7 +315,7 @@ function LoginPage() {
             </>
           )}
         </div>
-        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v18.4</p>
+        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v18.5</p>
       </div>
     </div>
   );
@@ -710,6 +710,35 @@ function AddUserModal({ open, onClose }) {
   );
 }
 
+function AddAgencyModal({ open, onClose }) {
+  const { fetchAll } = useContext(DataContext);
+  const [name, setName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = async () => {
+    if (!name.trim()) { setError("Agency name is required"); return; }
+    setSaving(true); setError("");
+    const { error: err } = await supabase.from("organisations").insert({ name: name.trim(), type: "agency" });
+    if (err) { setError(err.message); setSaving(false); return; }
+    await fetchAll();
+    setSaving(false); setName(""); onClose("added");
+  };
+
+  return (
+    <Modal open={open} onClose={() => { setName(""); setError(""); onClose(); }} title="Add Agency">
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <Input label="Agency / Company Name" value={name} onChange={setName} placeholder="e.g. Marsh & Co Lettings" />
+        {error && <div style={{ fontFamily: font, fontSize: 12, color: C.red }}>{error}</div>}
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button onClick={() => { setName(""); setError(""); onClose(); }} style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44 }}>Cancel</button>
+          <button onClick={submit} disabled={saving || !name.trim()} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: name.trim() ? C.green : C.textDim, border: "none", borderRadius: 10, padding: "10px 20px", cursor: name.trim() ? "pointer" : "not-allowed", minHeight: 44, opacity: saving ? 0.7 : 1 }}>{saving ? "Creating…" : "Create Agency"}</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function SignatureModal({ open, onClose, member }) {
   const { uploadFile } = useContext(DataContext);
   const [file, setFile] = useState(null);
@@ -759,6 +788,7 @@ function TeamPage() {
   const mob = w < BP.mobile;
   const [showInvite, setShowInvite] = useState(false);
   const [showAddUser, setShowAddUser] = useState(false);
+  const [showAddAgency, setShowAddAgency] = useState(false);
   const [signatureMember, setSignatureMember] = useState(null);
   const [orgFilter, setOrgFilter] = useState("all");
   const [toast, setToast] = useState(null);
@@ -775,6 +805,7 @@ function TeamPage() {
       <Toast message={toast} show={!!toast} />
       <InviteUserModal open={showInvite} onClose={() => { setShowInvite(false); showToast("Invite sent"); }} />
       <AddUserModal open={showAddUser} onClose={() => { setShowAddUser(false); }} />
+      <AddAgencyModal open={showAddAgency} onClose={(r) => { setShowAddAgency(false); if (r === "added") showToast("Agency created"); }} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
         {organisations.length > 1 && (
           <select value={orgFilter} onChange={e => setOrgFilter(e.target.value)} style={{ fontFamily: font, fontSize: 12, color: C.text, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 12px", cursor: "pointer", minHeight: 40, outline: "none" }}>
@@ -785,6 +816,9 @@ function TeamPage() {
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={() => setShowAddUser(true)} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 8, padding: "10px 18px", cursor: "pointer", minHeight: 40 }}>
             <Icon name="plus" size={14} color={C.white} /> Add User
+          </button>
+          <button onClick={() => setShowAddAgency(true)} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: font, fontSize: 13, fontWeight: 600, color: C.green, background: C.greenBg, border: `1px solid ${C.greenBorder}`, borderRadius: 8, padding: "10px 18px", cursor: "pointer", minHeight: 40 }}>
+            <Icon name="plus" size={14} color={C.green} /> Add Agency
           </button>
           <button onClick={() => setShowInvite(true)} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, background: C.accentGlow, border: `1px solid rgba(59,130,246,.25)`, borderRadius: 8, padding: "10px 18px", cursor: "pointer", minHeight: 40 }}>
             Invite via Email
@@ -991,7 +1025,7 @@ function Sidebar({ active, setActive, role, userProfile, onLogout }) {
       <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}` }}>
         <button onClick={onLogout} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.card, display: "grid", placeItems: "center" }}><Icon name="logout" size={16} color={C.textMuted} /></div>
-          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v18.4 — Supabase</div></div>
+          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v18.5 — Supabase</div></div>
         </button>
       </div>
     </div>
