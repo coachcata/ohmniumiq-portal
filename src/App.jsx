@@ -315,7 +315,7 @@ function LoginPage() {
             </>
           )}
         </div>
-        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v18.3</p>
+        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v18.4</p>
       </div>
     </div>
   );
@@ -596,6 +596,120 @@ function InviteUserModal({ open, onClose }) {
   );
 }
 
+function AddUserModal({ open, onClose }) {
+  const auth = useContext(AuthContext);
+  const { organisations, fetchAll } = useContext(DataContext);
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState("engineer");
+  const [orgId, setOrgId] = useState(auth.orgId);
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState("");
+
+  const roles = [
+    { value: "admin", label: "Admin", desc: "Full access to all features" },
+    { value: "agent", label: "Agent", desc: "Manage properties & request jobs" },
+    { value: "supervisor", label: "Supervisor", desc: "Sign off junior EICRs" },
+    { value: "engineer", label: "Engineer", desc: "Run inspections & complete forms" },
+    { value: "junior", label: "Junior Engineer", desc: "Submit forms for sign-off" },
+  ];
+
+  const submit = async () => {
+    if (!email.trim() || !name.trim() || !password.trim()) { setError("Name, email and password are required"); return; }
+    if (password.length < 8) { setError("Password must be at least 8 characters"); return; }
+    setSaving(true); setError("");
+    // Try admin.createUser first (requires service role key)
+    const { data, error: createErr } = await supabase.auth.admin.createUser({
+      email: email.trim(),
+      password: password.trim(),
+      email_confirm: true,
+      user_metadata: { full_name: name.trim(), role, organisation_id: orgId },
+    });
+    if (createErr) {
+      // Fallback: use signUp (sends confirmation email, user gets password set)
+      const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: password.trim(),
+        options: { data: { full_name: name.trim(), role, organisation_id: orgId } },
+      });
+      if (signUpErr) { setError(signUpErr.message); setSaving(false); return; }
+      // Manually create profile if trigger didn't fire
+      if (signUpData?.user) {
+        await supabase.from("profiles").upsert({
+          id: signUpData.user.id,
+          full_name: name.trim(),
+          role,
+          email: email.trim(),
+          organisation_id: orgId,
+        }, { onConflict: "id" });
+      }
+    } else if (data?.user) {
+      // Admin create succeeded — ensure profile exists
+      await supabase.from("profiles").upsert({
+        id: data.user.id,
+        full_name: name.trim(),
+        role,
+        email: email.trim(),
+        organisation_id: orgId,
+      }, { onConflict: "id" });
+    }
+    await fetchAll();
+    setSaving(false); setDone(true);
+  };
+
+  const reset = () => { setEmail(""); setName(""); setPassword(""); setRole("engineer"); setOrgId(auth.orgId); setDone(false); setError(""); };
+
+  return (
+    <Modal open={open} onClose={() => { reset(); onClose(); }} title="Add User">
+      {done ? (
+        <div style={{ textAlign: "center", padding: "10px 0" }}>
+          <Icon name="checkCircle" size={36} color={C.green} />
+          <div style={{ fontFamily: font, fontSize: 14, color: C.white, fontWeight: 600, marginTop: 12 }}>User created</div>
+          <div style={{ fontFamily: font, fontSize: 12, color: C.textMuted, marginTop: 6 }}><strong>{name}</strong> ({email}) has been added as <strong>{roles.find(r => r.value === role)?.label}</strong>.</div>
+          <button onClick={() => { reset(); onClose(); }} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 10, padding: "10px 24px", cursor: "pointer", minHeight: 44, marginTop: 20 }}>Done</button>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <Input label="Full Name" value={name} onChange={setName} placeholder="e.g. James Mitchell" />
+          <Input label="Email Address" type="email" value={email} onChange={setEmail} placeholder="james@example.com" />
+          <Input label="Password" type="password" value={password} onChange={setPassword} placeholder="Minimum 8 characters" />
+          {organisations.length > 1 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Organisation</label>
+              <select value={orgId} onChange={e => setOrgId(e.target.value)} style={{ fontFamily: font, fontSize: 14, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", outline: "none", minHeight: 44, cursor: "pointer" }}>
+                {organisations.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+              </select>
+            </div>
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Role</label>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {roles.map(r => (
+                <label key={r.value} onClick={() => setRole(r.value)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: role === r.value ? C.accentGlow : C.surfaceAlt, border: `1px solid ${role === r.value ? C.accent : C.border}`, borderRadius: 10, cursor: "pointer", transition: "all 0.15s" }}>
+                  <div style={{ width: 18, height: 18, borderRadius: "50%", border: `2px solid ${role === r.value ? C.accent : C.border}`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                    {role === r.value && <div style={{ width: 10, height: 10, borderRadius: "50%", background: C.accent }} />}
+                  </div>
+                  <div>
+                    <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{r.label}</div>
+                    <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 1 }}>{r.desc}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+          {error && <div style={{ fontFamily: font, fontSize: 12, color: C.red, background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 8, padding: "8px 12px" }}>{error}</div>}
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
+            <button onClick={() => { reset(); onClose(); }} style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44 }}>Cancel</button>
+            <button onClick={submit} disabled={saving || !email || !name || !password} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: (email && name && password) ? C.accent : C.textDim, border: "none", borderRadius: 10, padding: "10px 20px", cursor: (email && name && password) ? "pointer" : "not-allowed", minHeight: 44, opacity: saving ? 0.7 : 1 }}>{saving ? "Creating…" : "Create User"}</button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 function SignatureModal({ open, onClose, member }) {
   const { uploadFile } = useContext(DataContext);
   const [file, setFile] = useState(null);
@@ -644,6 +758,7 @@ function TeamPage() {
   const { w } = useWindowSize();
   const mob = w < BP.mobile;
   const [showInvite, setShowInvite] = useState(false);
+  const [showAddUser, setShowAddUser] = useState(false);
   const [signatureMember, setSignatureMember] = useState(null);
   const [orgFilter, setOrgFilter] = useState(auth.orgId);
   const [toast, setToast] = useState(null);
@@ -659,6 +774,7 @@ function TeamPage() {
     <div>
       <Toast message={toast} show={!!toast} />
       <InviteUserModal open={showInvite} onClose={() => { setShowInvite(false); showToast("Invite sent"); }} />
+      <AddUserModal open={showAddUser} onClose={() => { setShowAddUser(false); }} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
         {organisations.length > 1 && (
           <select value={orgFilter} onChange={e => setOrgFilter(e.target.value)} style={{ fontFamily: font, fontSize: 12, color: C.text, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 12px", cursor: "pointer", minHeight: 40, outline: "none" }}>
@@ -666,9 +782,14 @@ function TeamPage() {
             {organisations.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
           </select>
         )}
-        <button onClick={() => setShowInvite(true)} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 8, padding: "10px 18px", cursor: "pointer", minHeight: 40 }}>
-          <Icon name="plus" size={14} color={C.white} /> Invite Member
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => setShowAddUser(true)} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 8, padding: "10px 18px", cursor: "pointer", minHeight: 40 }}>
+            <Icon name="plus" size={14} color={C.white} /> Add User
+          </button>
+          <button onClick={() => setShowInvite(true)} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, background: C.accentGlow, border: `1px solid rgba(59,130,246,.25)`, borderRadius: 8, padding: "10px 18px", cursor: "pointer", minHeight: 40 }}>
+            Invite via Email
+          </button>
+        </div>
       </div>
       <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden" }}>
         {filteredMembers.length === 0 && (
@@ -870,7 +991,7 @@ function Sidebar({ active, setActive, role, userProfile, onLogout }) {
       <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}` }}>
         <button onClick={onLogout} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.card, display: "grid", placeItems: "center" }}><Icon name="logout" size={16} color={C.textMuted} /></div>
-          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v18.3 — Supabase</div></div>
+          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v18.4 — Supabase</div></div>
         </button>
       </div>
     </div>
