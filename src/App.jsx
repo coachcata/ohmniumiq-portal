@@ -315,7 +315,7 @@ function LoginPage() {
             </>
           )}
         </div>
-        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v18.5</p>
+        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v18.6</p>
       </div>
     </div>
   );
@@ -739,6 +739,111 @@ function AddAgencyModal({ open, onClose }) {
   );
 }
 
+function EditAgencyModal({ open, onClose, agency }) {
+  const { fetchAll } = useContext(DataContext);
+  const [name, setName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => { if (agency) setName(agency.name || ""); }, [agency]);
+
+  const submit = async () => {
+    if (!name.trim()) { setError("Agency name is required"); return; }
+    setSaving(true); setError("");
+    const { error: err } = await supabase.from("organisations").update({ name: name.trim() }).eq("id", agency.id);
+    if (err) { setError(err.message); setSaving(false); return; }
+    await fetchAll();
+    setSaving(false); onClose("updated");
+  };
+
+  return (
+    <Modal open={open} onClose={() => { setError(""); onClose(); }} title="Edit Agency">
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <Input label="Agency / Company Name" value={name} onChange={setName} placeholder="e.g. Marsh & Co Lettings" />
+        {error && <div style={{ fontFamily: font, fontSize: 12, color: C.red }}>{error}</div>}
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button onClick={() => { setError(""); onClose(); }} style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44 }}>Cancel</button>
+          <button onClick={submit} disabled={saving || !name.trim()} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: name.trim() ? C.accent : C.textDim, border: "none", borderRadius: 10, padding: "10px 20px", cursor: name.trim() ? "pointer" : "not-allowed", minHeight: 44, opacity: saving ? 0.7 : 1 }}>{saving ? "Saving…" : "Save"}</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function EditUserModal({ open, onClose, member }) {
+  const { organisations, fetchAll } = useContext(DataContext);
+  const [name, setName] = useState("");
+  const [role, setRole] = useState("");
+  const [orgId, setOrgId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const roles = [
+    { value: "admin", label: "Admin", desc: "Full access to all features" },
+    { value: "agent", label: "Agent", desc: "Manage properties & request jobs" },
+    { value: "supervisor", label: "Supervisor", desc: "Sign off junior EICRs" },
+    { value: "engineer", label: "Engineer", desc: "Run inspections & complete forms" },
+    { value: "junior", label: "Junior Engineer", desc: "Submit forms for sign-off" },
+  ];
+
+  useEffect(() => {
+    if (member) { setName(member.full_name || ""); setRole(member.role || "engineer"); setOrgId(member.organisation_id || ""); }
+  }, [member]);
+
+  const submit = async () => {
+    if (!name.trim()) { setError("Name is required"); return; }
+    setSaving(true); setError("");
+    const updates = { full_name: name.trim(), role };
+    if (orgId) updates.organisation_id = orgId;
+    const { error: err } = await supabase.from("profiles").update(updates).eq("id", member.id);
+    if (err) { setError(err.message); setSaving(false); return; }
+    await fetchAll();
+    setSaving(false); onClose("updated");
+  };
+
+  return (
+    <Modal open={open} onClose={() => { setError(""); onClose(); }} title={`Edit — ${member?.full_name || ""}`}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <Input label="Full Name" value={name} onChange={setName} placeholder="e.g. James Mitchell" />
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Email</label>
+          <div style={{ fontFamily: font, fontSize: 13, color: C.textDim, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", minHeight: 40, opacity: 0.6 }}>{member?.email || "—"}</div>
+        </div>
+        {organisations.length > 1 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Organisation</label>
+            <select value={orgId} onChange={e => setOrgId(e.target.value)} style={{ fontFamily: font, fontSize: 14, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", outline: "none", minHeight: 44, cursor: "pointer" }}>
+              <option value="">— Select —</option>
+              {organisations.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </select>
+          </div>
+        )}
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Role</label>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {roles.map(r => (
+              <label key={r.value} onClick={() => setRole(r.value)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: role === r.value ? C.accentGlow : C.surfaceAlt, border: `1px solid ${role === r.value ? C.accent : C.border}`, borderRadius: 10, cursor: "pointer", transition: "all 0.15s" }}>
+                <div style={{ width: 18, height: 18, borderRadius: "50%", border: `2px solid ${role === r.value ? C.accent : C.border}`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                  {role === r.value && <div style={{ width: 10, height: 10, borderRadius: "50%", background: C.accent }} />}
+                </div>
+                <div>
+                  <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{r.label}</div>
+                  <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 1 }}>{r.desc}</div>
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+        {error && <div style={{ fontFamily: font, fontSize: 12, color: C.red, background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 8, padding: "8px 12px" }}>{error}</div>}
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
+          <button onClick={() => { setError(""); onClose(); }} style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44 }}>Cancel</button>
+          <button onClick={submit} disabled={saving || !name.trim()} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: name.trim() ? C.accent : C.textDim, border: "none", borderRadius: 10, padding: "10px 20px", cursor: name.trim() ? "pointer" : "not-allowed", minHeight: 44, opacity: saving ? 0.7 : 1 }}>{saving ? "Saving…" : "Save Changes"}</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function SignatureModal({ open, onClose, member }) {
   const { uploadFile } = useContext(DataContext);
   const [file, setFile] = useState(null);
@@ -789,6 +894,8 @@ function TeamPage() {
   const [showInvite, setShowInvite] = useState(false);
   const [showAddUser, setShowAddUser] = useState(false);
   const [showAddAgency, setShowAddAgency] = useState(false);
+  const [editMember, setEditMember] = useState(null);
+  const [editAgency, setEditAgency] = useState(null);
   const [signatureMember, setSignatureMember] = useState(null);
   const [orgFilter, setOrgFilter] = useState("all");
   const [toast, setToast] = useState(null);
@@ -806,13 +913,20 @@ function TeamPage() {
       <InviteUserModal open={showInvite} onClose={() => { setShowInvite(false); showToast("Invite sent"); }} />
       <AddUserModal open={showAddUser} onClose={() => { setShowAddUser(false); }} />
       <AddAgencyModal open={showAddAgency} onClose={(r) => { setShowAddAgency(false); if (r === "added") showToast("Agency created"); }} />
+      <EditUserModal open={!!editMember} onClose={(r) => { setEditMember(null); if (r === "updated") showToast("User updated"); }} member={editMember} />
+      <EditAgencyModal open={!!editAgency} onClose={(r) => { setEditAgency(null); if (r === "updated") showToast("Agency updated"); }} agency={editAgency} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
-        {organisations.length > 1 && (
-          <select value={orgFilter} onChange={e => setOrgFilter(e.target.value)} style={{ fontFamily: font, fontSize: 12, color: C.text, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 12px", cursor: "pointer", minHeight: 40, outline: "none" }}>
-            <option value="all">All Teams</option>
-            {organisations.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-          </select>
-        )}
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {organisations.length > 1 && (
+            <select value={orgFilter} onChange={e => setOrgFilter(e.target.value)} style={{ fontFamily: font, fontSize: 12, color: C.text, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 12px", cursor: "pointer", minHeight: 40, outline: "none" }}>
+              <option value="all">All Teams</option>
+              {organisations.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </select>
+          )}
+          {orgFilter !== "all" && (
+            <button onClick={() => setEditAgency(organisations.find(o => o.id === orgFilter))} style={{ fontFamily: font, fontSize: 11, color: C.accent, background: C.accentGlow, border: `1px solid rgba(59,130,246,.25)`, borderRadius: 6, padding: "6px 12px", cursor: "pointer", minHeight: 32 }}>Edit Agency</button>
+          )}
+        </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={() => setShowAddUser(true)} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 8, padding: "10px 18px", cursor: "pointer", minHeight: 40 }}>
             <Icon name="plus" size={14} color={C.white} /> Add User
@@ -844,8 +958,11 @@ function TeamPage() {
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: roleColor(member.role), background: `${roleColor(member.role)}18`, padding: "4px 12px", borderRadius: 20, whiteSpace: "nowrap" }}>{roleLabel(member.role)}</span>
+              {auth.role === "admin" && (
+                <button onClick={() => setEditMember(member)} style={{ fontFamily: font, fontSize: 11, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "5px 10px", cursor: "pointer", minHeight: 30 }}>Edit</button>
+              )}
               {auth.role === "admin" && ["engineer", "junior", "supervisor"].includes(member.role) && (
-                <button onClick={() => setSignatureMember(member)} style={{ fontFamily: font, fontSize: 11, color: C.accent, background: C.accentGlow, border: `1px solid rgba(59,130,246,.25)`, borderRadius: 6, padding: "5px 10px", cursor: "pointer", minHeight: 30, marginLeft: 8 }}>
+                <button onClick={() => setSignatureMember(member)} style={{ fontFamily: font, fontSize: 11, color: C.accent, background: C.accentGlow, border: `1px solid rgba(59,130,246,.25)`, borderRadius: 6, padding: "5px 10px", cursor: "pointer", minHeight: 30 }}>
                   {member.signature_url ? "Update Sig" : "Add Sig"}
                 </button>
               )}
@@ -1025,7 +1142,7 @@ function Sidebar({ active, setActive, role, userProfile, onLogout }) {
       <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}` }}>
         <button onClick={onLogout} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.card, display: "grid", placeItems: "center" }}><Icon name="logout" size={16} color={C.textMuted} /></div>
-          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v18.5 — Supabase</div></div>
+          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v18.6 — Supabase</div></div>
         </button>
       </div>
     </div>
