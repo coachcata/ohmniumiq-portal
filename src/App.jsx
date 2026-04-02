@@ -315,7 +315,7 @@ function LoginPage() {
             </>
           )}
         </div>
-        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v18.6</p>
+        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v18.7</p>
       </div>
     </div>
   );
@@ -1142,7 +1142,7 @@ function Sidebar({ active, setActive, role, userProfile, onLogout }) {
       <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}` }}>
         <button onClick={onLogout} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.card, display: "grid", placeItems: "center" }}><Icon name="logout" size={16} color={C.textMuted} /></div>
-          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v18.6 — Supabase</div></div>
+          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v18.7 — Supabase</div></div>
         </button>
       </div>
     </div>
@@ -1759,6 +1759,7 @@ function CertificateRenderer({ job, property, certRef }) {
           <tr><td style={{ ...headS, width: "25%" }}>Agreed Limitations</td><td style={cellS}>{limitationsObj?.text || eicr.agreedLimitations || "N/A"}</td></tr>
           <tr><td style={headS}>Agreed With</td><td style={cellS}>{eicr.agreedWith || "—"}</td></tr>
           <tr><td style={headS}>Operational Limitations</td><td style={cellS}>{OPERATIONAL_LIMITATIONS}</td></tr>
+          <tr><td style={headS}>Extent of Sampling</td><td style={cellS}>{eicr.extentOfSampling || "—"}</td></tr>
         </tbody>
       </table>
 
@@ -1766,46 +1767,49 @@ function CertificateRenderer({ job, property, certRef }) {
       <div style={secHead}>Section C — Supply Characteristics and Earthing Arrangements</div>
       <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14 }}>
         <tbody>
-          <tr><td style={{ ...headS, width: "25%" }}>System Type / Earthing</td><td style={cellS}>{eicr.typeOfEarthingSystem || eicr.earthingSystem || "—"}</td><td style={{ ...headS, width: "25%" }}>Supply Conductors</td><td style={cellS}>{eicr.supplyType || eicr.numberOfLiveConnectors || "—"}</td></tr>
-          <tr><td style={headS}>Nominal Voltage (U)</td><td style={cellS}>{eicr.supplyVoltage || eicr.nominalVoltageEarth || "—"}{(eicr.supplyVoltage || eicr.nominalVoltageEarth) ? " V" : ""}</td><td style={headS}>Nominal Frequency</td><td style={cellS}>{eicr.frequency || "50"} Hz</td></tr>
-          <tr><td style={headS}>Earth Fault Loop Impedance Ze</td><td style={cellS}>{eicr.earthFaultLoop || eicr.externalEarthFaultLoop || "—"}{(eicr.earthFaultLoop || eicr.externalEarthFaultLoop) ? " Ω" : ""}</td><td style={headS}>Prospective Fault Current (Pscc)</td><td style={cellS}>{eicr.pscc || eicr.prospectiveFaultCurrent || "—"}{(eicr.pscc || eicr.prospectiveFaultCurrent) ? " kA" : ""}</td></tr>
-          <tr><td style={headS}>Maximum Demand</td><td style={cellS}>{eicr.maxDemand || "—"}{eicr.maxDemand ? " A" : ""}</td><td style={headS}>Supply Protective Device</td><td style={cellS}>{eicr.supplyProtectiveDevice || "—"}{eicr.supplyProtectiveDeviceRating ? ` · ${eicr.supplyProtectiveDeviceRating} A` : ""}</td></tr>
+          <tr><td style={{ ...headS, width: "25%" }}>System Type / Earthing</td><td style={cellS}>{eicr.earthingSystem || "—"}</td><td style={{ ...headS, width: "25%" }}>Supply Conductors</td><td style={cellS}>{eicr.supplyPhase || "—"}</td></tr>
+          <tr><td style={headS}>Nominal Voltage U₀</td><td style={cellS}>{eicr.nominalVoltageEarth || "—"}{eicr.nominalVoltageEarth ? " V" : ""}</td><td style={headS}>Nominal Frequency</td><td style={cellS}>{eicr.nominalFrequency || "50"} Hz</td></tr>
+          <tr><td style={headS}>External Earth Fault Loop Ze</td><td style={cellS}>{eicr.externalEarthFaultLoop || "—"}{eicr.externalEarthFaultLoop ? " Ω" : ""}</td><td style={headS}>Prospective Fault Current Ipf</td><td style={cellS}>{eicr.prospectiveFaultCurrent || "—"}{eicr.prospectiveFaultCurrent ? " kA" : ""}</td></tr>
+          <tr><td style={headS}>Maximum Demand</td><td style={cellS}>{eicr.maxDemand || "—"}{eicr.maxDemand ? " A" : ""}</td><td style={headS}>Supply Protective Device</td><td style={cellS}>{eicr.supplyProtectiveBSEN ? `BS(EN) ${eicr.supplyProtectiveBSEN}` : ""}{eicr.supplyProtectiveType ? ` Type ${eicr.supplyProtectiveType}` : ""}{eicr.supplyProtectiveRating ? ` ${eicr.supplyProtectiveRating} A` : "—"}</td></tr>
+          <tr><td style={headS}>Means of Earthing</td><td style={cellS}>{eicr.earthingDistributor ? "Distributor's facility" : ""}{eicr.earthingElectrode ? (eicr.earthingDistributor ? " + " : "") + "Installation earth electrode" : ""}{!eicr.earthingDistributor && !eicr.earthingElectrode ? "—" : ""}</td><td style={headS}>Earth Electrode</td><td style={cellS}>{eicr.earthElectrodeType || "—"}{eicr.earthElectrodeResistance ? ` (${eicr.earthElectrodeResistance} Ω)` : ""}</td></tr>
         </tbody>
       </table>
 
-      {/* Section D — Distribution Board */}
-      <div style={secHead}>Section D — Particulars of Installation at the Distribution Board</div>
+      {/* Section D — Particulars of Installation */}
+      <div style={secHead}>Section D — Particulars of Installation</div>
       <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14 }}>
         <tbody>
-          <tr><td style={{ ...headS, width: "25%" }}>DB Designation</td><td style={cellS}>{eicr.dbDesignation || "Main"}</td><td style={{ ...headS, width: "25%" }}>DB Location</td><td style={cellS}>{eicr.dbLocation || "—"}</td></tr>
-          <tr><td style={headS}>DB Make / Model</td><td style={cellS}>{eicr.dbMake || "—"}</td><td style={headS}>No. of Circuits</td><td style={cellS}>{eicr.numberOfCircuits || "—"}</td></tr>
-          <tr><td style={headS}>Main Switch Type</td><td style={cellS}>{eicr.mainSwitchType || "—"}</td><td style={headS}>Main Switch Rating</td><td style={cellS}>{eicr.mainSwitchRating || "—"}{eicr.mainSwitchRating ? " A" : ""}</td></tr>
-          <tr><td style={headS}>RCD Present</td><td style={cellS}>{eicr.rcdPresent || "—"}</td><td style={headS}>RCD Rating / Type</td><td style={cellS}>{eicr.rcdRating || "—"}{eicr.rcdRating ? " mA" : ""}{eicr.rcdType ? ` · ${eicr.rcdType}` : ""}</td></tr>
+          <tr><td style={{ ...headS, width: "25%" }}>Earthing Conductor</td><td style={cellS}>{eicr.earthingConductorMaterial || "Copper"} {eicr.earthingConductorCSA || "—"} mm²{eicr.earthingConductorVerified ? " (verified)" : ""}</td><td style={{ ...headS, width: "25%" }}>Bonding Conductor</td><td style={cellS}>{eicr.bondingConductorMaterial || "Copper"} {eicr.bondingConductorCSA || "—"} mm²{eicr.bondingConductorVerified ? " (verified)" : ""}</td></tr>
+          <tr><td style={headS}>Bonding To</td><td style={cellS} colSpan={3}>{[eicr.bondingWater && "Water", eicr.bondingGas && "Gas", eicr.bondingSteel && "Structural Steel", eicr.bondingOil && "Oil", eicr.bondingLightning && "Lightning"].filter(Boolean).join(", ") || "—"}</td></tr>
+          <tr><td style={headS}>Main Switch Location</td><td style={cellS}>{eicr.mainSwitchLocation || "—"}</td><td style={headS}>Main Switch BS(EN)</td><td style={cellS}>{eicr.mainSwitchBSEN || "—"}</td></tr>
+          <tr><td style={headS}>Main Switch Type</td><td style={cellS}>{eicr.mainSwitchType || "—"}</td><td style={headS}>No. of Poles</td><td style={cellS}>{eicr.mainSwitchPoles || "—"}</td></tr>
+          <tr><td style={headS}>Current Rating</td><td style={cellS}>{eicr.mainSwitchCurrentRating || "—"}{eicr.mainSwitchCurrentRating ? " A" : ""}</td><td style={headS}>Voltage Rating</td><td style={cellS}>{eicr.mainSwitchVoltage || "—"}{eicr.mainSwitchVoltage ? " V" : ""}</td></tr>
+          <tr><td style={headS}>DB Designation</td><td style={cellS}>{eicr.dbDesignation || "Main"}</td><td style={headS}>DB Location</td><td style={cellS}>{eicr.dbLocation || "—"}</td></tr>
         </tbody>
       </table>
 
-      {/* Circuit Schedule (Page 3 content) */}
+      {/* Circuit Schedule */}
       <div style={secHead}>Schedule of Circuit Details and Test Results</div>
       {eicr.circuits && Array.isArray(eicr.circuits) && eicr.circuits.length > 0 ? (
-        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14, fontSize: 8 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14, fontSize: 7 }}>
           <thead>
-            <tr>{["Cct", "Description", "Type", "Ref", "Pts", "OCPD", "R1+R2 Ω", "Zs Ω", "IR MΩ", "Pol", "RCD ms", "Remarks"].map((h, i) => <th key={i} style={{ ...headS, fontSize: 7, padding: "3px 4px", textAlign: "left" }}>{h}</th>)}</tr>
+            <tr>{["Cct", "Description", "Wiring", "Live mm²", "CPC mm²", "OCP", "Rating", "kA", "Zs max", "RCD mA", "R1+R2", "Zs", "IR L/E", "Pol", "RCD ms"].map((h, i) => <th key={i} style={{ ...headS, fontSize: 6, padding: "2px 3px", textAlign: "left" }}>{h}</th>)}</tr>
           </thead>
           <tbody>
-            {eicr.circuits.map((c, i) => (
+            {eicr.circuits.map((c, i) => {
+              const tr = eicr.testResults?.[i] || {};
+              return (
               <tr key={i}>
-                {[c.circuitNo || i + 1, c.description, c.wiringType, c.refMethod, c.noOfPoints, `${c.ocpdType || ""} ${c.ocpdRating || ""}`.trim(), c.r1r2, c.zs, c.insResistance, c.polarity, c.rcdTime, c.remarks].map((v, j) => (
-                  <td key={j} style={{ ...cellS, fontSize: 8, padding: "3px 4px" }}>{v || "—"}</td>
+                {[c.num || i + 1, c.description, c.wiringType, c.liveCsa, c.cpcCsa, c.ocpType, c.ocpRating, c.ocpKA, c.ocpMaxZs, c.rcdImA, tr.r1r2, tr.zs, tr.irLE, tr.polarity, tr.rcdTime].map((v, j) => (
+                  <td key={j} style={{ ...cellS, fontSize: 7, padding: "2px 3px" }}>{v || "—"}</td>
                 ))}
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       ) : (
-        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14 }}>
-          <thead><tr>{["Cct", "Description", "Type", "OCPD", "R1+R2 Ω", "Zs Ω", "IR MΩ", "Pol", "RCD ms", "Remarks"].map((h, i) => <th key={i} style={{ ...headS, fontSize: 7, padding: "3px 4px", textAlign: "left" }}>{h}</th>)}</tr></thead>
-          <tbody>{[1,2,3,4,5,6].map(n => <tr key={n}>{Array(10).fill(0).map((_, j) => <td key={j} style={{ ...cellS, fontSize: 8, padding: "3px 4px", height: 16 }}>{j === 0 ? n : ""}</td>)}</tr>)}</tbody>
-        </table>
+        <div style={{ fontFamily: "Arial, sans-serif", fontSize: 9, color: "#666", padding: "8px 0", marginBottom: 10 }}>No circuit data recorded.</div>
       )}
 
       {/* Section E — Observations */}
@@ -1839,9 +1843,11 @@ function CertificateRenderer({ job, property, certRef }) {
       <div style={secHead}>Declaration</div>
       <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14 }}>
         <tbody>
-          <tr><td style={{ ...headS, width: "25%" }}>Inspector Name</td><td style={cellS}>{eicr.inspector || eicr.inspectorName || "—"}</td><td style={{ ...headS, width: "25%" }}>Company</td><td style={cellS}>{eicr.company || "Ohmnium Electrical"}</td></tr>
-          <tr><td style={headS}>Inspection Date</td><td style={cellS}>{eicr.startDate || eicr.inspectionDate || "—"}</td><td style={headS}>Next Inspection Due</td><td style={cellS}>{eicr.nextInspectionDate || "—"}</td></tr>
-          <tr><td style={headS}>Signature</td><td style={{ ...cellS, height: 30 }}></td><td style={headS}>Date Signed</td><td style={{ ...cellS, height: 30 }}></td></tr>
+          <tr><td style={{ ...headS, width: "25%" }}>Inspector Name</td><td style={cellS}>{eicr.inspectorName || "—"}</td><td style={{ ...headS, width: "25%" }}>Company</td><td style={cellS}>{eicr.company || CONTRACTOR.name}</td></tr>
+          <tr><td style={headS}>Inspection Date</td><td style={cellS}>{eicr.inspectionDate || "—"}</td><td style={headS}>Inspector Date</td><td style={cellS}>{eicr.inspectorDate || "—"}</td></tr>
+          <tr><td style={headS}>Inspector Signature</td><td style={{ ...cellS, height: 30 }}></td><td style={headS}>BS 7671 Amended To</td><td style={cellS}>{eicr.bs7671AmendedTo || "—"}</td></tr>
+          <tr><td style={headS}>Reviewed By (QS)</td><td style={cellS}>{eicr.reviewerName || "—"}</td><td style={headS}>Reviewer Date</td><td style={cellS}>{eicr.reviewerDate || "—"}</td></tr>
+          <tr><td style={headS}>Next Inspection Due</td><td style={cellS}>{eicr.nextInspectionDate || "—"}</td><td style={headS}>Reason</td><td style={cellS}>{eicr.nextInspectionReason || "—"}</td></tr>
         </tbody>
       </table>
 
@@ -3067,6 +3073,7 @@ function EICRPage() {
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>OCP Type</label><select value={cir.ocpType} onChange={e => { const nt = e.target.value; updateCircuit(idx, "ocpType", nt); const zs = MAX_ZS_LOOKUP[nt]?.[cir.ocpRating]; if (zs) updateCircuit(idx, "ocpMaxZs", zs); }} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}><option value="">— Select —</option>{OCP_TYPES_NEW.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>OCP Rating</label><select value={cir.ocpRating} onChange={e => { const nr = e.target.value; updateCircuit(idx, "ocpRating", nr); const zs = MAX_ZS_LOOKUP[cir.ocpType]?.[nr]; if (zs) updateCircuit(idx, "ocpMaxZs", zs); }} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}><option value="">— Select —</option>{OCP_RATINGS_NEW.map(r => <option key={r} value={r}>{r}</option>)}</select></div>
               <EICRField label="Max Zs (Ω)" value={cir.ocpMaxZs} onChange={v => updateCircuit(idx, "ocpMaxZs", v)} placeholder="Auto-calculated" />
+              <EICRField label="Short-circuit capacity (kA)" value={cir.ocpKA} onChange={v => updateCircuit(idx, "ocpKA", v)} placeholder="6" />
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>OCP BS(EN)</label><select value={cir.ocpBSEN} onChange={e => updateCircuit(idx, "ocpBSEN", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>{BS_EN_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}</select></div>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Wiring Type</label><select value={cir.wiringType} onChange={e => updateCircuit(idx, "wiringType", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>{WIRING_TYPES.map(w => <option key={w.value} value={w.value}>{w.label}</option>)}</select></div>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>RCD Type</label><select value={cir.rcdType} onChange={e => updateCircuit(idx, "rcdType", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}><option value="">N/A</option>{["AC", "A", "F", "B"].map(t => <option key={t} value={t}>{t}</option>)}</select></div>
@@ -4281,6 +4288,7 @@ function EIC183CPage() {
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>OCP Type</label><select value={cir.ocpType} onChange={e => { const nt = e.target.value; updateCircuit(idx, "ocpType", nt); const zs = MAX_ZS_LOOKUP[nt]?.[cir.ocpRating]; if (zs) updateCircuit(idx, "ocpMaxZs", zs); }} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}><option value="">— Select —</option>{OCP_TYPES_NEW.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>OCP Rating</label><select value={cir.ocpRating} onChange={e => { const nr = e.target.value; updateCircuit(idx, "ocpRating", nr); const zs = MAX_ZS_LOOKUP[cir.ocpType]?.[nr]; if (zs) updateCircuit(idx, "ocpMaxZs", zs); }} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}><option value="">— Select —</option>{OCP_RATINGS_NEW.map(r => <option key={r} value={r}>{r}</option>)}</select></div>
               <EICRField label="Max Zs (Ω)" value={cir.ocpMaxZs} onChange={v => updateCircuit(idx, "ocpMaxZs", v)} placeholder="Auto-calculated" />
+              <EICRField label="Short-circuit capacity (kA)" value={cir.ocpKA} onChange={v => updateCircuit(idx, "ocpKA", v)} placeholder="6" />
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>OCP BS(EN)</label><select value={cir.ocpBSEN} onChange={e => updateCircuit(idx, "ocpBSEN", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>{BS_EN_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}</select></div>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Wiring Type</label><select value={cir.wiringType} onChange={e => updateCircuit(idx, "wiringType", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>{WIRING_TYPES.map(w => <option key={w.value} value={w.value}>{w.label}</option>)}</select></div>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>RCD Type</label><select value={cir.rcdType} onChange={e => updateCircuit(idx, "rcdType", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}><option value="">N/A</option>{["AC", "A", "F", "B"].map(t => <option key={t} value={t}>{t}</option>)}</select></div>
