@@ -332,7 +332,7 @@ function LoginPage() {
             </>
           )}
         </div>
-        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v19.0</p>
+        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v19.1</p>
       </div>
     </div>
   );
@@ -1159,7 +1159,7 @@ function Sidebar({ active, setActive, role, userProfile, onLogout }) {
       <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}` }}>
         <button onClick={onLogout} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.card, display: "grid", placeItems: "center" }}><Icon name="logout" size={16} color={C.textMuted} /></div>
-          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v19.0 — Supabase</div></div>
+          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v19.1 — Supabase</div></div>
         </button>
       </div>
     </div>
@@ -1955,18 +1955,19 @@ function useGenerateCertificate() {
       const canvas = await html2canvas(certRef.current, { scale: 2, useCORS: true, backgroundColor: "#ffffff", logging: false });
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("p", "mm", "a4");
-      const pdfW = 210;
+      const margin = 12;
+      const pdfW = 210 - (margin * 2);
       const pdfH = (canvas.height * pdfW) / canvas.width;
-      // Handle multi-page if content is taller than A4
       const pageH = 297;
-      if (pdfH <= pageH) {
-        pdf.addImage(imgData, "PNG", 0, 0, pdfW, pdfH);
+      const usablePageH = pageH - (margin * 2);
+      if (pdfH <= usablePageH) {
+        pdf.addImage(imgData, "PNG", margin, margin, pdfW, pdfH);
       } else {
         let yOff = 0;
         let page = 0;
         while (yOff < canvas.height) {
           if (page > 0) pdf.addPage();
-          const sliceH = Math.min(canvas.height - yOff, (pageH / pdfW) * canvas.width);
+          const sliceH = Math.min(canvas.height - yOff, (usablePageH / pdfW) * canvas.width);
           const sliceCanvas = document.createElement("canvas");
           sliceCanvas.width = canvas.width;
           sliceCanvas.height = sliceH;
@@ -1974,7 +1975,7 @@ function useGenerateCertificate() {
           sCtx.drawImage(canvas, 0, yOff, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
           const sliceImg = sliceCanvas.toDataURL("image/png");
           const slicePdfH = (sliceH * pdfW) / canvas.width;
-          pdf.addImage(sliceImg, "PNG", 0, 0, pdfW, slicePdfH);
+          pdf.addImage(sliceImg, "PNG", margin, margin, pdfW, slicePdfH);
           yOff += sliceH;
           page++;
         }
