@@ -332,7 +332,7 @@ function LoginPage() {
             </>
           )}
         </div>
-        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v19.1</p>
+        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v19.2</p>
       </div>
     </div>
   );
@@ -1159,7 +1159,7 @@ function Sidebar({ active, setActive, role, userProfile, onLogout }) {
       <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}` }}>
         <button onClick={onLogout} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.card, display: "grid", placeItems: "center" }}><Icon name="logout" size={16} color={C.textMuted} /></div>
-          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v19.1 — Supabase</div></div>
+          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v19.2 — Supabase</div></div>
         </button>
       </div>
     </div>
@@ -1738,181 +1738,473 @@ function CertificateRenderer({ job, property, certRef }) {
   const conditionObj = CONDITION_OPTIONS.find(o => o.value === eicr.conditionKey);
   const extentObj = EXTENT_OPTIONS.find(o => o.value === eicr.extentKey);
   const limitationsObj = LIMITATIONS_OPTIONS.find(o => o.value === eicr.limitationsKey);
-  const conditionLabel = conditionObj?.label || eicr.overallAssessment || "—";
+  const conditionLabel = conditionObj?.label || eicr.overallAssessment || "\u2014";
   const conditionIsUnsat = isUnsatisfactory(eicr.conditionKey);
+  const A = "Arial, sans-serif";
+  const cell = { border: "1px solid #bbc4d0", padding: "6px 8px", fontSize: 9, color: "#1a1a1a", fontFamily: A, verticalAlign: "top", lineHeight: 1.5 };
+  const head = { ...cell, fontWeight: 700, background: "#e8edf5", fontSize: 8, textTransform: "uppercase", letterSpacing: 0.4, color: "#2a3a5a" };
+  const sh = { fontFamily: A, fontSize: 11, fontWeight: 700, color: "#fff", background: "#2a4a8d", margin: "18px 0 0", padding: "6px 10px", letterSpacing: 0.3 };
+  const sh2 = { fontFamily: A, fontSize: 10, fontWeight: 700, color: "#2a4a8d", margin: "14px 0 4px", padding: "3px 0", borderBottom: "1px solid #2a4a8d" };
+  const tbl = { width: "100%", borderCollapse: "collapse", marginBottom: 4 };
+  const pg = { pageBreakBefore: "always", paddingTop: 16 };
+  const badge = (v) => {
+    if (!v || v === "na") return <span style={{ fontSize: 7, color: "#999", fontFamily: A }}>N/A</span>;
+    if (v === "pass") return <span style={{ fontSize: 9, color: "#15803d", fontWeight: 700, fontFamily: A }}>{"\u2713"}</span>;
+    const colors = { C1: "#dc2626", C2: "#d97706", C3: "#2563eb", FI: "#7c3aed" };
+    return <span style={{ fontSize: 7, fontWeight: 700, color: "#fff", background: colors[v] || "#888", padding: "1px 5px", borderRadius: 3, fontFamily: A }}>{v}</span>;
+  };
+  const iRow = (ref, label, val) => (
+    <tr key={ref + label}>
+      <td style={{ ...cell, width: 36, textAlign: "center", fontSize: 7, fontWeight: 600 }}>{ref}</td>
+      <td style={{ ...cell, fontSize: 8 }}>{label}</td>
+      <td style={{ ...cell, width: 40, textAlign: "center" }}>{badge(val)}</td>
+    </tr>
+  );
   return (
     <div ref={certRef} style={{ width: 794, background: "#fff", padding: "30px 40px", boxSizing: "border-box" }}>
-      {/* PAGE 1 — Header & Summary */}
+      {/* ═══ PAGE 1 — Header, Contractor, Parts 1-4 ═══ */}
       <div style={{ borderBottom: "3px solid #2a4a8d", paddingBottom: 10, marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <div style={{ fontFamily: "Arial, sans-serif", fontSize: 16, fontWeight: 700, color: "#2a4a8d", letterSpacing: 0.5 }}>ELECTRICAL INSTALLATION CONDITION REPORT</div>
-          <div style={{ fontFamily: "Arial, sans-serif", fontSize: 10, color: "#555", marginTop: 2 }}>In accordance with BS 7671 — IET Wiring Regulations 18th Edition</div>
+          <div style={{ fontFamily: A, fontSize: 16, fontWeight: 700, color: "#2a4a8d", letterSpacing: 0.5 }}>ELECTRICAL INSTALLATION CONDITION REPORT</div>
+          <div style={{ fontFamily: A, fontSize: 10, color: "#555", marginTop: 2 }}>In accordance with BS 7671 — IET Wiring Regulations 18th Edition</div>
         </div>
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontFamily: "Arial, sans-serif", fontSize: 9, color: "#555" }}>Certificate No.</div>
-          <div style={{ fontFamily: "Arial, sans-serif", fontSize: 12, fontWeight: 700, color: "#1a1a1a" }}>{job.crn || job.ref}</div>
+          <div style={{ fontFamily: A, fontSize: 9, color: "#555" }}>Certificate No.</div>
+          <div style={{ fontFamily: A, fontSize: 12, fontWeight: 700, color: "#1a1a1a" }}>{job.crn || job.ref}</div>
         </div>
       </div>
 
       {/* Contractor Block */}
-      <div style={{ background: "#f0f2f5", borderRadius: 4, padding: "8px 12px", marginBottom: 14, fontSize: 9, fontFamily: "Arial, sans-serif", color: "#333" }}>
+      <div style={{ background: "#f0f2f5", borderRadius: 4, padding: "8px 12px", marginBottom: 14, fontSize: 9, fontFamily: A, color: "#333" }}>
         <div style={{ fontWeight: 700, marginBottom: 2 }}>{CONTRACTOR.name}</div>
         <div>{CONTRACTOR.address}</div>
         <div>{CONTRACTOR.phone} | {CONTRACTOR.email}</div>
       </div>
 
-      {/* Section A — Details */}
-      <div style={secHead}>Section A — Details of the Client and Installation</div>
-      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14 }}>
-        <tbody>
-          <tr><td style={{ ...headS, width: "25%" }}>Estate Agent / Agency</td><td style={cellS}>{eicr.agencyAddress || eicr.agentName || "—"}</td><td style={{ ...headS, width: "25%" }}>Occupier</td><td style={cellS}>{eicr.occupier || property?.tenant_name || "—"}</td></tr>
-          <tr><td style={headS}>Landlord / Property Address</td><td style={cellS} colSpan={3}>{eicr.landlordDetails || eicr.installationAddress || property?.address || "—"}</td></tr>
-          <tr><td style={headS}>Purpose of Report</td><td style={cellS} colSpan={3}>{purposeObj ? `${purposeObj.label} — ${purposeObj.text}` : eicr.purpose || "—"}</td></tr>
-          <tr><td style={headS}>Description of Premises</td><td style={cellS}>{eicr.premisesType || "—"}</td><td style={headS}>Estimated Age</td><td style={cellS}>{eicr.estimatedAgeRange || eicr.estimatedAge || "—"}</td></tr>
-          <tr><td style={headS}>Evidence of Alterations</td><td style={cellS}>{eicr.evidenceOfAlterations ? "Yes" : "No"}{eicr.alterationsAge ? ` (${eicr.alterationsAge})` : ""}</td><td style={headS}>Date of Last Inspection</td><td style={cellS}>{eicr.dateOfLastInspection || eicr.previousReportDate || "—"}</td></tr>
-        </tbody>
-      </table>
+      {/* Part 1 — Details of the Installation */}
+      <div style={sh}>Part 1 — Details of the Client and Installation</div>
+      <table style={tbl}><tbody>
+        <tr><td style={{ ...head, width: "22%" }}>Trading Title</td><td style={cell}>{eicr.company || CONTRACTOR.name}</td><td style={{ ...head, width: "22%" }}>Occupier</td><td style={cell}>{eicr.occupier || property?.tenant_name || "\u2014"}</td></tr>
+        <tr><td style={head}>Landlord / Owner</td><td style={cell} colSpan={3}>{eicr.landlordDetails || "\u2014"}</td></tr>
+        <tr><td style={head}>Agent</td><td style={cell} colSpan={3}>{eicr.agencyAddress || eicr.agentName || "\u2014"}</td></tr>
+        <tr><td style={head}>Installation Address</td><td style={cell} colSpan={3}>{eicr.installationAddress || property?.address || "\u2014"}</td></tr>
+      </tbody></table>
 
-      {/* Section B — Extent & Limitations */}
-      <div style={secHead}>Section B — Extent and Limitations of the Inspection</div>
-      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14 }}>
-        <tbody>
-          <tr><td style={headS}>Extent of Installation Covered</td><td style={cellS}>{extentObj?.text || eicr.extentDetails || "As agreed with client"}</td></tr>
-          <tr><td style={{ ...headS, width: "25%" }}>Agreed Limitations</td><td style={cellS}>{limitationsObj?.text || eicr.agreedLimitations || "N/A"}</td></tr>
-          <tr><td style={headS}>Agreed With</td><td style={cellS}>{eicr.agreedWith || "—"}</td></tr>
-          <tr><td style={headS}>Operational Limitations</td><td style={cellS}>{OPERATIONAL_LIMITATIONS}</td></tr>
-          <tr><td style={headS}>Extent of Sampling</td><td style={cellS}>{eicr.extentOfSampling || "—"}</td></tr>
-        </tbody>
-      </table>
+      {/* Part 2 — Purpose of the Report */}
+      <div style={sh}>Part 2 — Purpose of the Report</div>
+      <table style={tbl}><tbody>
+        <tr><td style={{ ...head, width: "22%" }}>Purpose</td><td style={cell} colSpan={3}>{purposeObj ? `${purposeObj.label} \u2014 ${purposeObj.text}` : eicr.purpose || "\u2014"}</td></tr>
+        <tr><td style={head}>Date of Inspection</td><td style={cell}>{eicr.inspectionDate || eicr.startDate || "\u2014"}</td><td style={head}>Date of Last Report</td><td style={cell}>{eicr.dateOfLastInspection || eicr.previousReportDate || "\u2014"}</td></tr>
+        <tr><td style={head}>Records Available</td><td style={cell} colSpan={3}>{eicr.recordsAvailable || "Previous EICR / electrical installation certificate where available"}</td></tr>
+      </tbody></table>
 
-      {/* Section C — Supply Characteristics */}
-      <div style={secHead}>Section C — Supply Characteristics and Earthing Arrangements</div>
-      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14 }}>
-        <tbody>
-          <tr><td style={{ ...headS, width: "25%" }}>System Type / Earthing</td><td style={cellS}>{eicr.earthingSystem || "—"}</td><td style={{ ...headS, width: "25%" }}>Supply Conductors</td><td style={cellS}>{eicr.supplyPhase || "—"}</td></tr>
-          <tr><td style={headS}>Nominal Voltage U₀</td><td style={cellS}>{eicr.nominalVoltageEarth || "—"}{eicr.nominalVoltageEarth ? " V" : ""}</td><td style={headS}>Nominal Frequency</td><td style={cellS}>{eicr.nominalFrequency || "50"} Hz</td></tr>
-          <tr><td style={headS}>External Earth Fault Loop Ze</td><td style={cellS}>{eicr.externalEarthFaultLoop || "—"}{eicr.externalEarthFaultLoop ? " Ω" : ""}</td><td style={headS}>Prospective Fault Current Ipf</td><td style={cellS}>{eicr.prospectiveFaultCurrent || "—"}{eicr.prospectiveFaultCurrent ? " kA" : ""}</td></tr>
-          <tr><td style={headS}>Maximum Demand</td><td style={cellS}>{eicr.maxDemand || "—"}{eicr.maxDemand ? " A" : ""}</td><td style={headS}>Supply Protective Device</td><td style={cellS}>{eicr.supplyProtectiveBSEN ? `BS(EN) ${eicr.supplyProtectiveBSEN}` : ""}{eicr.supplyProtectiveType ? ` Type ${eicr.supplyProtectiveType}` : ""}{eicr.supplyProtectiveRating ? ` ${eicr.supplyProtectiveRating} A` : "—"}</td></tr>
-          <tr><td style={headS}>Means of Earthing</td><td style={cellS}>{eicr.earthingDistributor ? "Distributor's facility" : ""}{eicr.earthingElectrode ? (eicr.earthingDistributor ? " + " : "") + "Installation earth electrode" : ""}{!eicr.earthingDistributor && !eicr.earthingElectrode ? "—" : ""}</td><td style={headS}>Earth Electrode</td><td style={cellS}>{eicr.earthElectrodeType || "—"}{eicr.earthElectrodeResistance ? ` (${eicr.earthElectrodeResistance} Ω)` : ""}</td></tr>
-        </tbody>
-      </table>
+      {/* Part 3 — Summary of the Condition of the Installation */}
+      <div style={sh}>Part 3 — Summary of the Condition of the Installation</div>
+      <table style={tbl}><tbody>
+        <tr>
+          <td style={{ ...head, width: "22%" }}>General Condition</td>
+          <td style={{ ...cell, fontSize: 11, fontWeight: 700, color: conditionIsUnsat ? "#dc2626" : "#15803d" }}>{conditionLabel}</td>
+        </tr>
+        {conditionObj?.text && <tr><td style={head}>Details</td><td style={{ ...cell, fontSize: 8, lineHeight: 1.5 }}>{conditionObj.text}</td></tr>}
+        <tr><td style={head}>Description of Premises</td><td style={cell}>{eicr.premisesType || "\u2014"}</td></tr>
+        <tr><td style={head}>Estimated Age of Installation</td><td style={cell}>{eicr.estimatedAgeRange || eicr.estimatedAge || "\u2014"}</td></tr>
+        <tr><td style={head}>Evidence of Alterations</td><td style={cell}>{eicr.evidenceOfAlterations ? "Yes" : "No"}{eicr.alterationsAge ? ` (${eicr.alterationsAge})` : ""}</td></tr>
+        <tr>
+          <td style={head}>Overall Assessment</td>
+          <td style={cell}>
+            <span style={{ display: "inline-block", marginRight: 20 }}>Satisfactory <span style={{ fontWeight: 700, fontSize: 11, color: conditionIsUnsat ? "#999" : "#15803d" }}>{conditionIsUnsat ? "\u25A1" : "\u2611"}</span></span>
+            <span>Unsatisfactory <span style={{ fontWeight: 700, fontSize: 11, color: conditionIsUnsat ? "#dc2626" : "#999" }}>{conditionIsUnsat ? "\u2611" : "\u25A1"}</span></span>
+          </td>
+        </tr>
+      </tbody></table>
 
-      {/* Section D — Particulars of Installation */}
-      <div style={secHead}>Section D — Particulars of Installation</div>
-      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14 }}>
-        <tbody>
-          <tr><td style={{ ...headS, width: "25%" }}>Earthing Conductor</td><td style={cellS}>{eicr.earthingConductorMaterial || "Copper"} {eicr.earthingConductorCSA || "—"} mm²{eicr.earthingConductorVerified ? " (verified)" : ""}</td><td style={{ ...headS, width: "25%" }}>Bonding Conductor</td><td style={cellS}>{eicr.bondingConductorMaterial || "Copper"} {eicr.bondingConductorCSA || "—"} mm²{eicr.bondingConductorVerified ? " (verified)" : ""}</td></tr>
-          <tr><td style={headS}>Bonding To</td><td style={cellS} colSpan={3}>{[eicr.bondingWater && "Water", eicr.bondingGas && "Gas", eicr.bondingSteel && "Structural Steel", eicr.bondingOil && "Oil", eicr.bondingLightning && "Lightning"].filter(Boolean).join(", ") || "—"}</td></tr>
-          <tr><td style={headS}>Main Switch Location</td><td style={cellS}>{eicr.mainSwitchLocation || "—"}</td><td style={headS}>Main Switch BS(EN)</td><td style={cellS}>{eicr.mainSwitchBSEN || "—"}</td></tr>
-          <tr><td style={headS}>Main Switch Type</td><td style={cellS}>{eicr.mainSwitchType || "—"}</td><td style={headS}>No. of Poles</td><td style={cellS}>{eicr.mainSwitchPoles || "—"}</td></tr>
-          <tr><td style={headS}>Current Rating</td><td style={cellS}>{eicr.mainSwitchCurrentRating || "—"}{eicr.mainSwitchCurrentRating ? " A" : ""}</td><td style={headS}>Voltage Rating</td><td style={cellS}>{eicr.mainSwitchVoltage || "—"}{eicr.mainSwitchVoltage ? " V" : ""}</td></tr>
-          <tr><td style={headS}>DB Designation</td><td style={cellS}>{eicr.dbDesignation || "Main"}</td><td style={headS}>DB Location</td><td style={cellS}>{eicr.dbLocation || "—"}</td></tr>
-        </tbody>
-      </table>
-
-      {/* Circuit Schedule */}
-      <div style={secHead}>Schedule of Circuit Details and Test Results</div>
-      {eicr.circuits && Array.isArray(eicr.circuits) && eicr.circuits.length > 0 ? (
-        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14, fontSize: 7 }}>
-          <thead>
-            <tr>{["Cct", "Description", "Wiring", "Live mm²", "CPC mm²", "OCP", "Rating", "kA", "Zs max", "RCD mA", "R1+R2", "Zs", "IR L/E", "Pol", "RCD ms"].map((h, i) => <th key={i} style={{ ...headS, fontSize: 6, padding: "2px 3px", textAlign: "left" }}>{h}</th>)}</tr>
-          </thead>
-          <tbody>
-            {eicr.circuits.map((c, i) => {
-              const tr = eicr.testResults?.[i] || {};
-              return (
-              <tr key={i}>
-                {[c.num || i + 1, c.description, c.wiringType, c.liveCsa, c.cpcCsa, c.ocpType, c.ocpRating, c.ocpKA, c.ocpMaxZs, c.rcdImA, tr.r1r2, tr.zs, tr.irLE, tr.polarity, tr.rcdTime].map((v, j) => (
-                  <td key={j} style={{ ...cellS, fontSize: 7, padding: "2px 3px" }}>{v || "—"}</td>
-                ))}
-              </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      ) : (
-        <div style={{ fontFamily: "Arial, sans-serif", fontSize: 9, color: "#666", padding: "8px 0", marginBottom: 10 }}>No circuit data recorded.</div>
-      )}
-
-      {/* Section E — Observations */}
-      <div style={secHead}>Section E — Observations and Recommendations</div>
-      {eicr.observations && Array.isArray(eicr.observations) && eicr.observations.length > 0 ? (
-        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14 }}>
-          <thead><tr><th style={{ ...headS, width: 35 }}>Item</th><th style={{ ...headS, width: 40 }}>Ref</th><th style={{ ...headS, width: 40 }}>Code</th><th style={headS}>Location / Details</th></tr></thead>
-          <tbody>
-            {eicr.observations.map((obs, i) => (
-              <tr key={i}><td style={{ ...cellS, textAlign: "center" }}>{obs.itemNumber || i + 1}</td><td style={{ ...cellS, textAlign: "center" }}>{obs.refCode || obs.ref || "—"}</td><td style={{ ...cellS, textAlign: "center", fontWeight: 700, color: obs.classification === "C1" || obs.code === "C1" ? "#dc2626" : obs.classification === "C2" || obs.code === "C2" ? "#d97706" : obs.classification === "C3" || obs.code === "C3" ? "#2563eb" : obs.classification === "FI" || obs.code === "FI" ? "#7c3aed" : "#333" }}>{obs.classification || obs.code || "—"}</td><td style={cellS}>{obs.location || obs.observation || "—"}</td></tr>
-            ))}
-          </tbody>
-        </table>
-      ) : (
-        <div style={{ fontFamily: "Arial, sans-serif", fontSize: 9, color: "#666", padding: "8px 0", marginBottom: 10 }}>No observations recorded.</div>
-      )}
-
-      {/* Section F — General Condition */}
-      <div style={secHead}>Section F — General Condition of the Installation</div>
-      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14 }}>
-        <tbody>
-          <tr>
-            <td style={{ ...headS, width: "25%" }}>General Condition</td>
-            <td style={{ ...cellS, fontSize: 11, fontWeight: 700, color: conditionIsUnsat ? "#dc2626" : "#15803d" }}>{conditionLabel}</td>
-          </tr>
-          {conditionObj?.text && <tr><td style={headS}>Details</td><td style={{ ...cellS, fontSize: 8, lineHeight: 1.5 }}>{conditionObj.text}</td></tr>}
-        </tbody>
-      </table>
-
-      {/* Declaration */}
-      <div style={secHead}>Declaration</div>
-      <div style={{ fontFamily: "Arial, sans-serif", fontSize: 8, color: "#333", lineHeight: 1.6, marginBottom: 8, padding: "6px 8px", background: "#f7f9fc", border: "1px solid #dde3ec", borderRadius: 3 }}>
+      {/* Part 4 — Declaration */}
+      <div style={sh}>Part 4 — Declaration</div>
+      <div style={{ fontFamily: A, fontSize: 8, color: "#333", lineHeight: 1.6, marginTop: 8, marginBottom: 8, padding: "6px 8px", background: "#f7f9fc", border: "1px solid #dde3ec", borderRadius: 3 }}>
         <strong>Inspection and Testing: </strong>{INSPECTOR_DECLARATION_TEXT}
       </div>
-      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 10 }}>
-        <tbody>
-          <tr><td style={{ ...headS, width: "25%" }}>Name (Inspector)</td><td style={cellS}>{eicr.inspectorName || "—"}</td><td style={{ ...headS, width: "25%" }}>Company</td><td style={cellS}>{eicr.company || CONTRACTOR.name}</td></tr>
-          <tr><td style={headS}>Signature</td><td style={{ ...cellS, height: 36 }}>{inspectorSigUrl && <img src={inspectorSigUrl} alt="Signature" style={{ maxHeight: 30, maxWidth: 120 }} />}</td><td style={headS}>Date</td><td style={cellS}>{eicr.inspectorDate || eicr.inspectionDate || "—"}</td></tr>
-          <tr><td style={headS}>BS 7671: 2018 Amended To</td><td style={cellS}>{eicr.bs7671AmendedTo || "2024"}</td><td style={headS}>Next Inspection Due</td><td style={cellS}>{eicr.nextInspectionDate || "—"}</td></tr>
-          <tr><td style={headS}>Reason</td><td style={cellS} colSpan={3}>{eicr.nextInspectionReason || "As per IET Guidance Note 3 Table 3.2 or change of tenancy if sooner."}</td></tr>
-        </tbody>
-      </table>
-      <div style={{ fontFamily: "Arial, sans-serif", fontSize: 8, color: "#333", lineHeight: 1.6, marginBottom: 8, padding: "6px 8px", background: "#f7f9fc", border: "1px solid #dde3ec", borderRadius: 3 }}>
+      <table style={tbl}><tbody>
+        <tr><td style={{ ...head, width: "22%" }}>Inspector Name</td><td style={cell}>{eicr.inspectorName || "\u2014"}</td><td style={{ ...head, width: "22%" }}>Company</td><td style={cell}>{eicr.company || CONTRACTOR.name}</td></tr>
+        <tr><td style={head}>Signature</td><td style={{ ...cell, height: 36 }}>{inspectorSigUrl && <img src={inspectorSigUrl} alt="Signature" style={{ maxHeight: 30, maxWidth: 120 }} />}</td><td style={head}>Date</td><td style={cell}>{eicr.inspectorDate || eicr.inspectionDate || "\u2014"}</td></tr>
+        <tr><td style={head}>BS 7671: 2018 Amended To</td><td style={cell}>{eicr.bs7671AmendedTo || "2024"}</td><td style={head}>Next Inspection Due</td><td style={cell}>{eicr.nextInspectionDate || "\u2014"}</td></tr>
+        <tr><td style={head}>Reason for Recommendation</td><td style={cell} colSpan={3}>{eicr.nextInspectionReason || "As per IET Guidance Note 3 Table 3.2 or change of tenancy if sooner."}</td></tr>
+      </tbody></table>
+      <div style={{ fontFamily: A, fontSize: 8, color: "#333", lineHeight: 1.6, marginBottom: 8, padding: "6px 8px", background: "#f7f9fc", border: "1px solid #dde3ec", borderRadius: 3 }}>
         <strong>Reviewed by the Qualified Supervisor: </strong>{REVIEWER_DECLARATION_TEXT}
       </div>
-      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14 }}>
-        <tbody>
-          <tr><td style={{ ...headS, width: "25%" }}>Name (Reviewer / QS)</td><td style={cellS}>{eicr.reviewerName || "—"}</td><td style={{ ...headS, width: "25%" }}>Date</td><td style={cellS}>{eicr.reviewerDate || "—"}</td></tr>
-          <tr><td style={headS}>Signature</td><td style={{ ...cellS, height: 36 }} colSpan={3}>{reviewerSigUrl && <img src={reviewerSigUrl} alt="Signature" style={{ maxHeight: 30, maxWidth: 120 }} />}</td></tr>
-        </tbody>
-      </table>
+      <table style={tbl}><tbody>
+        <tr><td style={{ ...head, width: "22%" }}>Reviewer / QS Name</td><td style={cell}>{eicr.reviewerName || "\u2014"}</td><td style={{ ...head, width: "22%" }}>Date</td><td style={cell}>{eicr.reviewerDate || "\u2014"}</td></tr>
+        <tr><td style={head}>Signature</td><td style={{ ...cell, height: 36 }} colSpan={3}>{reviewerSigUrl && <img src={reviewerSigUrl} alt="Signature" style={{ maxHeight: 30, maxWidth: 120 }} />}</td></tr>
+      </tbody></table>
 
-      <div style={{ fontFamily: "Arial, sans-serif", fontSize: 8, color: "#888", textAlign: "center", marginTop: 20, borderTop: "1px solid #ddd", paddingTop: 8 }}>
-        Generated by OhmniumIQ Compliance Portal · Ohmnium Electrical Ltd · {new Date().toLocaleDateString("en-GB")}
+      {/* ═══ PAGE 2 — Parts 5-8 ═══ */}
+      <div style={pg}>
+        {/* Part 5 — Observations */}
+        <div style={sh}>Part 5 — Observations and Recommendations</div>
+        {eicr.observations && Array.isArray(eicr.observations) && eicr.observations.length > 0 ? (
+          <table style={{ ...tbl, marginTop: 6 }}>
+            <thead><tr>
+              <th style={{ ...head, width: 35 }}>Item</th>
+              <th style={{ ...head, width: 50 }}>Ref</th>
+              <th style={{ ...head, width: 40 }}>Code</th>
+              <th style={head}>Observation</th>
+              <th style={{ ...head, width: 100 }}>Location</th>
+            </tr></thead>
+            <tbody>
+              {eicr.observations.map((obs, i) => (
+                <tr key={i}>
+                  <td style={{ ...cell, textAlign: "center" }}>{obs.itemNumber || i + 1}</td>
+                  <td style={{ ...cell, textAlign: "center" }}>{obs.refCode || obs.ref || "\u2014"}</td>
+                  <td style={{ ...cell, textAlign: "center" }}>{badge(obs.classification || obs.code)}</td>
+                  <td style={cell}>{obs.observation || obs.location || "\u2014"}</td>
+                  <td style={cell}>{obs.location || "\u2014"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div style={{ fontFamily: A, fontSize: 9, color: "#666", padding: "8px 0" }}>No observations recorded.</div>
+        )}
+
+        {/* Part 6 — Extent and Limitations */}
+        <div style={sh}>Part 6 — Extent and Limitations of the Inspection</div>
+        <table style={tbl}><tbody>
+          <tr><td style={{ ...head, width: "22%" }}>Extent Covered</td><td style={cell}>{extentObj?.text || eicr.extentDetails || "As agreed with client"}</td></tr>
+          <tr><td style={head}>Agreed Limitations</td><td style={cell}>{limitationsObj?.text || eicr.agreedLimitations || "N/A"}</td></tr>
+          <tr><td style={head}>Agreed With</td><td style={cell}>{eicr.agreedWith || "\u2014"}</td></tr>
+          <tr><td style={head}>Extent of Sampling</td><td style={cell}>{eicr.extentOfSampling || "\u2014"}</td></tr>
+          <tr><td style={head}>Operational Limitations</td><td style={{ ...cell, fontSize: 8, lineHeight: 1.5 }}>{OPERATIONAL_LIMITATIONS}</td></tr>
+        </tbody></table>
+
+        {/* Part 7 — Supply Characteristics */}
+        <div style={sh}>Part 7 — Supply Characteristics and Earthing Arrangements</div>
+        <table style={tbl}><tbody>
+          <tr><td style={{ ...head, width: "22%" }}>System Type / Earthing</td><td style={cell}>{eicr.earthingSystem || "\u2014"}</td><td style={{ ...head, width: "22%" }}>Supply Conductors</td><td style={cell}>{eicr.supplyPhase || "\u2014"}</td></tr>
+          <tr><td style={head}>Nominal Voltage U&#x2080;</td><td style={cell}>{eicr.nominalVoltageEarth || "\u2014"}{eicr.nominalVoltageEarth ? " V" : ""}</td><td style={head}>Nominal Frequency</td><td style={cell}>{eicr.nominalFrequency || "50"} Hz</td></tr>
+          <tr><td style={head}>External Earth Fault Loop Ze</td><td style={cell}>{eicr.externalEarthFaultLoop || "\u2014"}{eicr.externalEarthFaultLoop ? " \u03A9" : ""}</td><td style={head}>Prospective Fault Current Ipf</td><td style={cell}>{eicr.prospectiveFaultCurrent || "\u2014"}{eicr.prospectiveFaultCurrent ? " kA" : ""}</td></tr>
+          <tr><td style={head}>Maximum Demand</td><td style={cell}>{eicr.maxDemand || "\u2014"}{eicr.maxDemand ? " A" : ""}</td><td style={head}>Supply Protective Device</td><td style={cell}>{eicr.supplyProtectiveBSEN ? `BS(EN) ${eicr.supplyProtectiveBSEN}` : ""}{eicr.supplyProtectiveType ? ` Type ${eicr.supplyProtectiveType}` : ""}{eicr.supplyProtectiveRating ? ` ${eicr.supplyProtectiveRating} A` : "\u2014"}</td></tr>
+          <tr><td style={head}>Means of Earthing</td><td style={cell}>{eicr.earthingDistributor ? "Distributor's facility" : ""}{eicr.earthingElectrode ? (eicr.earthingDistributor ? " + " : "") + "Installation earth electrode" : ""}{!eicr.earthingDistributor && !eicr.earthingElectrode ? "\u2014" : ""}</td><td style={head}>Earth Electrode</td><td style={cell}>{eicr.earthElectrodeType || "\u2014"}{eicr.earthElectrodeResistance ? ` (${eicr.earthElectrodeResistance} \u03A9)` : ""}</td></tr>
+        </tbody></table>
+
+        {/* Part 8 — Particulars of Installation */}
+        <div style={sh}>Part 8 — Particulars of Installation at the Distribution Board</div>
+        <table style={tbl}><tbody>
+          <tr><td style={{ ...head, width: "22%" }}>Earthing Conductor</td><td style={cell}>{eicr.earthingConductorMaterial || "Copper"} {eicr.earthingConductorCSA || "\u2014"} mm\u00B2{eicr.earthingConductorVerified ? " (verified)" : ""}</td><td style={{ ...head, width: "22%" }}>Bonding Conductor</td><td style={cell}>{eicr.bondingConductorMaterial || "Copper"} {eicr.bondingConductorCSA || "\u2014"} mm\u00B2{eicr.bondingConductorVerified ? " (verified)" : ""}</td></tr>
+          <tr><td style={head}>Bonding Connections</td><td style={cell} colSpan={3}>{[eicr.bondingWater && "Water", eicr.bondingGas && "Gas", eicr.bondingSteel && "Structural Steel", eicr.bondingOil && "Oil", eicr.bondingLightning && "Lightning"].filter(Boolean).join(", ") || "\u2014"}</td></tr>
+          <tr><td style={head}>Main Switch Location</td><td style={cell}>{eicr.mainSwitchLocation || "\u2014"}</td><td style={head}>BS(EN)</td><td style={cell}>{eicr.mainSwitchBSEN || "\u2014"}</td></tr>
+          <tr><td style={head}>Main Switch Type</td><td style={cell}>{eicr.mainSwitchType || "\u2014"}</td><td style={head}>No. of Poles</td><td style={cell}>{eicr.mainSwitchPoles || "\u2014"}</td></tr>
+          <tr><td style={head}>Current Rating</td><td style={cell}>{eicr.mainSwitchCurrentRating || "\u2014"}{eicr.mainSwitchCurrentRating ? " A" : ""}</td><td style={head}>Voltage Rating</td><td style={cell}>{eicr.mainSwitchVoltage || "\u2014"}{eicr.mainSwitchVoltage ? " V" : ""}</td></tr>
+          <tr><td style={head}>DB Designation</td><td style={cell}>{eicr.dbDesignation || "Main"}</td><td style={head}>DB Location</td><td style={cell}>{eicr.dbLocation || "\u2014"}</td></tr>
+          <tr><td style={head}>Zdb (\u03A9)</td><td style={cell}>{eicr.zdb || "\u2014"}</td><td style={head}>Ipf at DB (kA)</td><td style={cell}>{eicr.ipfAtDb || "\u2014"}</td></tr>
+        </tbody></table>
       </div>
 
-      {/* Notes for Recipients */}
-      <div style={{ pageBreakBefore: "always", paddingTop: 20 }}>
-        <div style={{ fontFamily: "Arial, sans-serif", fontSize: 13, fontWeight: 700, color: "#1a1a1a", textAlign: "center", marginBottom: 4 }}>NOTES FOR THE RECIPIENT</div>
-        <div style={{ fontFamily: "Arial, sans-serif", fontSize: 9, color: "#555", textAlign: "center", marginBottom: 16 }}>THIS REPORT IS AN IMPORTANT DOCUMENT — PLEASE RETAIN FOR FUTURE USE</div>
+
+      {/* ═══ PAGE 3 — Part 9 Inspection Schedule (Sections 1-5) ═══ */}
+      <div style={pg}>
+        <div style={sh}>Part 9 — Inspection Schedule (Condition of Installation)</div>
+        <div style={{ fontFamily: A, fontSize: 7, color: "#666", margin: "6px 0 10px", lineHeight: 1.4 }}>
+          Tick pass (\u2713), N/A, or record classification code C1 / C2 / C3 / FI against each item inspected.
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          {/* Left column */}
+          <div style={{ flex: 1 }}>
+            <div style={sh2}>1.0 — Intake Equipment (Supply Undertaking)</div>
+            <table style={tbl}><tbody>
+              {iRow("1.1", "Service cable", eicr.s1_1_serviceCable)}
+              {iRow("1.1", "Service head", eicr.s1_1_serviceHead)}
+              {iRow("1.1", "Earthing arrangement", eicr.s1_1_earthingArrangement)}
+              {iRow("1.1", "Meter tails", eicr.s1_1_meterTails)}
+              {iRow("1.1", "Metering equipment", eicr.s1_1_metering)}
+              {iRow("1.1", "Isolator, where present", eicr.s1_1_isolator)}
+              {iRow("1.2", "Consumer's isolator", eicr.s1_2_consumerIsolator)}
+              {iRow("1.3", "Consumer's meter tails", eicr.s1_3_consumerMeterTails)}
+            </tbody></table>
+
+            <div style={sh2}>2.0 — Parallel / Switched Alternative Sources</div>
+            <table style={tbl}><tbody>
+              {iRow("2.1", "Generating set \u2014 switched alternative", eicr.s2_1_genSetSwitched)}
+              {iRow("2.2", "Generating set \u2014 parallel with supply", eicr.s2_2_genSetParallel)}
+            </tbody></table>
+
+            <div style={sh2}>3.0 — Earthing and Bonding Arrangements</div>
+            <table style={tbl}><tbody>
+              {iRow("3.1", "Main earthing / bonding arrangement", eicr.s3_1_mainEarthBonding)}
+              {iRow("3.1", "Distributor's earthing arrangement", eicr.s3_1_distributorEarth)}
+              {iRow("3.1", "Earthing conductor size", eicr.s3_1_earthingConductorSize)}
+              {iRow("3.1", "Earthing conductor connections", eicr.s3_1_earthingConnections)}
+              {iRow("3.1", "Earthing conductor accessibility", eicr.s3_1_earthingAccessibility)}
+              {iRow("3.1", "Bonding conductor sizes", eicr.s3_1_bondingSize)}
+              {iRow("3.1", "Bonding conductor location", eicr.s3_1_bondingLocation)}
+              {iRow("3.1", "Bonding accessibility", eicr.s3_1_bondingAccessibility)}
+              {iRow("3.1", "Earthing/bonding labels", eicr.s3_1_earthingLabels)}
+              {iRow("3.2", "FELV requirements", eicr.s3_2_felv)}
+            </tbody></table>
+
+            <div style={sh2}>5.0 — Distribution Circuits (Submains)</div>
+            <table style={tbl}><tbody>
+              {iRow("5.1", "Conductor identification", eicr.s5_1_conductorId)}
+              {iRow("5.2", "Cables correctly supported", eicr.s5_2_cablesSupported)}
+              {iRow("5.3", "Insulation of live parts", eicr.s5_3_insulationLive)}
+              {iRow("5.7", "Cable damage / deterioration", eicr.s5_7_cableDamage)}
+              {iRow("5.8", "Current-carrying capacity", eicr.s5_8_currentCapacity)}
+            </tbody></table>
+          </div>
+
+          {/* Right column */}
+          <div style={{ flex: 1 }}>
+            <div style={sh2}>4.0 — Consumer Unit / Distribution Board</div>
+            <table style={tbl}><tbody>
+              {iRow("4.1", "Working space / accessibility", eicr.s4_1_workingSpace)}
+              {iRow("4.2", "Security of fixing", eicr.s4_2_security)}
+              {iRow("4.3", "Insulation of live parts", eicr.s4_3_insulationLive)}
+              {iRow("4.4", "Barriers / enclosures", eicr.s4_4_barriers)}
+              {iRow("4.5", "IP rating", eicr.s4_5_ipRating)}
+              {iRow("4.6", "Fire rating of enclosure", eicr.s4_6_fireRating)}
+              {iRow("4.7", "Enclosure not damaged", eicr.s4_7_enclosureDamage)}
+              {iRow("4.9", "Main switch(es) present", eicr.s4_9_mainSwitches)}
+              {iRow("4.10", "Main switch operation", eicr.s4_10_mainSwitchOp)}
+              {iRow("4.11", "CB / RCD / AFDD manual operation", eicr.s4_11_cbRcdOperation)}
+              {iRow("4.12", "RCD test button trip", eicr.s4_12_rcdTestButton)}
+              {iRow("4.13", "RCD for fault protection", eicr.s4_13_rcdFaultProtection)}
+              {iRow("4.14", "RCD for additional protection", eicr.s4_14_rcdAdditional)}
+              {iRow("4.15", "RCD 6-monthly test notice", eicr.s4_15_rcdTestNotice)}
+              {iRow("4.16", "AFDD test button", eicr.s4_16_afddTestButton)}
+              {iRow("4.17", "Diagrams / charts / schedules", eicr.s4_17_diagrams)}
+              {iRow("4.19", "Next inspection label", eicr.s4_19_nextInspectionLabel)}
+              {iRow("4.21", "Compatibility of protective devices", eicr.s4_21_compatibility)}
+              {iRow("4.22", "Single-pole switching in line conductors only", eicr.s4_22_singlePole)}
+              {iRow("4.25", "All connections tight and secure", eicr.s4_25_connections)}
+            </tbody></table>
+          </div>
+        </div>
+      </div>
+
+
+      {/* ═══ PAGE 4 — Part 9 Continued (Sections 6-10) ═══ */}
+      <div style={pg}>
+        <div style={sh}>Part 9 — Inspection Schedule (Continued)</div>
+        <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+          {/* Left column */}
+          <div style={{ flex: 1 }}>
+            <div style={sh2}>6.0 — Final Circuits</div>
+            <table style={tbl}><tbody>
+              {iRow("6.1", "Conductor identification", eicr.s6_1_conductorId)}
+              {iRow("6.2", "Cables correctly supported", eicr.s6_2_cablesSupported)}
+              {iRow("6.3", "Insulation of live parts", eicr.s6_3_insulationLive)}
+              {iRow("6.6", "Current-carrying capacity", eicr.s6_6_currentCapacity)}
+              {iRow("6.7", "Protective devices adequate", eicr.s6_7_protectiveDevices)}
+              {iRow("6.8", "Circuit protective conductors", eicr.s6_8_cpc)}
+              {iRow("6.13", "RCD \u226430mA \u2014 all sockets \u226432A", eicr.s6_13_rcd30mA_sockets)}
+              {iRow("6.13", "RCD \u226430mA \u2014 outdoor mobile equip", eicr.s6_13_rcd30mA_outdoor)}
+              {iRow("6.13", "RCD \u226430mA \u2014 concealed cables <50mm", eicr.s6_13_rcd30mA_concealed)}
+              {iRow("6.13", "RCD \u226430mA \u2014 luminaires (domestic)", eicr.s6_13_rcd30mA_luminaires)}
+              {iRow("6.18", "Accessories condition", eicr.s6_18_accessories)}
+            </tbody></table>
+
+            <div style={sh2}>7.0 — Isolation and Switching</div>
+            <table style={tbl}><tbody>
+              {iRow("7.1", "Isolators", eicr.s7_1_isolators)}
+              {iRow("7.2", "Switching off for mechanical maintenance", eicr.s7_2_mechMaintenance)}
+              {iRow("7.3", "Emergency switching off", eicr.s7_3_emergencySwitching)}
+              {iRow("7.4", "Functional switching", eicr.s7_4_functionalSwitching)}
+            </tbody></table>
+          </div>
+
+          {/* Right column */}
+          <div style={{ flex: 1 }}>
+            <div style={sh2}>8.0 — Current-Using Equipment (Fixed)</div>
+            <table style={tbl}><tbody>
+              {iRow("8.1", "IP rating", eicr.s8_1_ipRating)}
+              {iRow("8.2", "Not a fire hazard", eicr.s8_2_fireHazard)}
+              {iRow("8.3", "Enclosure not damaged", eicr.s8_3_enclosure)}
+              {iRow("8.4", "Suitability for environment", eicr.s8_4_environment)}
+              {iRow("8.5", "Security of fixing", eicr.s8_5_security)}
+              {iRow("8.7", "Recessed luminaires (downlighters)", eicr.s8_7_recessedLuminaires)}
+            </tbody></table>
+
+            <div style={sh2}>9.0 — Special Locations</div>
+            <table style={tbl}><tbody>
+              {iRow("9.1", "Bath/shower \u2014 RCD \u226430mA", eicr.s9_1_bathRcd)}
+              {iRow("9.1", "SELV / PELV requirements", eicr.s9_1_selvPelv)}
+              {iRow("9.1", "Shaver supply unit", eicr.s9_1_shaver)}
+              {iRow("9.1", "Supplementary bonding", eicr.s9_1_suppBonding)}
+              {iRow("9.1", "IP rating for zone", eicr.s9_1_ipRating)}
+              {iRow("9.1", "Accessories suitable for zone", eicr.s9_1_zoneAccessories)}
+              {iRow("9.1", "Equipment suitable for zone", eicr.s9_1_zoneEquipment)}
+            </tbody></table>
+
+            <div style={sh2}>10.0 — Prosumer&apos;s Installation</div>
+            <table style={tbl}><tbody>
+              {iRow("10.0", "Prosumer\u2019s low voltage installation", eicr.s10_prosumer)}
+            </tbody></table>
+
+            <div style={{ marginTop: 14, padding: "8px 10px", background: "#f0f2f5", borderRadius: 4, fontFamily: A, fontSize: 8 }}>
+              <div style={{ fontWeight: 700, marginBottom: 4, color: "#2a3a5a" }}>INSPECTED BY</div>
+              <div>Name: {eicr.inspectorName || "\u2014"}</div>
+              <div>Date: {eicr.inspectorDate || eicr.inspectionDate || "\u2014"}</div>
+              {inspectorSigUrl && <div style={{ marginTop: 4 }}><img src={inspectorSigUrl} alt="Sig" style={{ maxHeight: 24, maxWidth: 100 }} /></div>}
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      {/* ═══ PAGE 5 — Part 11A Circuit Details ═══ */}
+      <div style={pg}>
+        <div style={sh}>Part 11A — Schedule of Circuit Details</div>
+
+        {/* DB details mini-table */}
+        <table style={{ ...tbl, marginTop: 8, marginBottom: 10 }}><tbody>
+          <tr>
+            <td style={{ ...head, width: "14%" }}>DB Designation</td><td style={cell}>{eicr.dbDesignation || "Main"}</td>
+            <td style={{ ...head, width: "14%" }}>Location</td><td style={cell}>{eicr.dbLocation || "\u2014"}</td>
+            <td style={{ ...head, width: "10%" }}>Zdb (\u03A9)</td><td style={cell}>{eicr.zdb || "\u2014"}</td>
+          </tr>
+          <tr>
+            <td style={head}>Ipf (kA)</td><td style={cell}>{eicr.ipfAtDb || "\u2014"}</td>
+            <td style={head}>Polarity</td><td style={cell}>{eicr.dbPolarity || "\u2014"}</td>
+            <td style={head}>SPD</td><td style={cell}>{eicr.spd || "\u2014"}</td>
+          </tr>
+        </tbody></table>
+
+        {eicr.circuits && Array.isArray(eicr.circuits) && eicr.circuits.length > 0 ? (
+          <table style={{ ...tbl, fontSize: 7 }}>
+            <thead>
+              <tr>
+                {["Cct", "Description", "Wiring", "Ref", "Pts", "Live mm\u00B2", "CPC mm\u00B2", "Disc(s)", "OCP BS(EN)", "Type", "Rating", "kA", "Max Zs", "RCD BS(EN)", "Type", "Rating A", "I\u0394n mA"].map((h, i) => (
+                  <th key={i} style={{ ...head, fontSize: 6, padding: "2px 3px", textAlign: "left" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {eicr.circuits.map((c, i) => (
+                <tr key={i} style={{ background: i % 2 === 0 ? "#fff" : "#f8f9fc" }}>
+                  <td style={{ ...cell, fontSize: 7, padding: "2px 3px", textAlign: "center" }}>{c.num || i + 1}</td>
+                  <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{c.description || "\u2014"}</td>
+                  <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{c.wiringType || "\u2014"}</td>
+                  <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{c.refMethod || "\u2014"}</td>
+                  <td style={{ ...cell, fontSize: 7, padding: "2px 3px", textAlign: "center" }}>{c.points || "\u2014"}</td>
+                  <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{c.liveCsa || "\u2014"}</td>
+                  <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{c.cpcCsa || "\u2014"}</td>
+                  <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{c.disconnectionTime || "\u2014"}</td>
+                  <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{c.ocpBSEN || "\u2014"}</td>
+                  <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{c.ocpType || "\u2014"}</td>
+                  <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{c.ocpRating || "\u2014"}</td>
+                  <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{c.ocpKA || "\u2014"}</td>
+                  <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{c.ocpMaxZs || "\u2014"}</td>
+                  <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{c.rcdBSEN || "\u2014"}</td>
+                  <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{c.rcdType || "\u2014"}</td>
+                  <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{c.rcdRating || "\u2014"}</td>
+                  <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{c.rcdImA || "\u2014"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div style={{ fontFamily: A, fontSize: 9, color: "#666", padding: "8px 0" }}>No circuit data recorded.</div>
+        )}
+      </div>
+
+
+      {/* ═══ PAGE 6 — Part 11B Test Results ═══ */}
+      <div style={pg}>
+        <div style={sh}>Part 11B — Schedule of Test Results</div>
+
+        {eicr.circuits && Array.isArray(eicr.circuits) && eicr.circuits.length > 0 ? (
+          <table style={{ ...tbl, fontSize: 7, marginTop: 6 }}>
+            <thead>
+              <tr>
+                {["Cct", "r1 m\u03A9", "rn m\u03A9", "r2 m\u03A9", "R1+R2 \u03A9", "R2 \u03A9", "IR L/L M\u03A9", "IR L/E M\u03A9", "Test V", "Pol", "Zs \u03A9", "RCD ms", "Test Btn", "AFDD", "Comments"].map((h, i) => (
+                  <th key={i} style={{ ...head, fontSize: 6, padding: "2px 3px", textAlign: "left" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {eicr.circuits.map((c, i) => {
+                const tr = eicr.testResults?.[i] || {};
+                return (
+                  <tr key={i} style={{ background: i % 2 === 0 ? "#fff" : "#f8f9fc" }}>
+                    <td style={{ ...cell, fontSize: 7, padding: "2px 3px", textAlign: "center" }}>{c.num || i + 1}</td>
+                    <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{tr.r1 || "\u2014"}</td>
+                    <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{tr.rn || "\u2014"}</td>
+                    <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{tr.r2 || "\u2014"}</td>
+                    <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{tr.r1r2 || "\u2014"}</td>
+                    <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{tr.r2Measured || "\u2014"}</td>
+                    <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{tr.irLL || "\u2014"}</td>
+                    <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{tr.irLE || "\u2014"}</td>
+                    <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{tr.testVoltage || "\u2014"}</td>
+                    <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{tr.polarity || "\u2014"}</td>
+                    <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{tr.zs || "\u2014"}</td>
+                    <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{tr.rcdTime || "\u2014"}</td>
+                    <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{tr.rcdTestButton || "\u2014"}</td>
+                    <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{tr.afdd || "\u2014"}</td>
+                    <td style={{ ...cell, fontSize: 7, padding: "2px 3px" }}>{tr.comments || "\u2014"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        ) : (
+          <div style={{ fontFamily: A, fontSize: 9, color: "#666", padding: "8px 0" }}>No test results recorded.</div>
+        )}
+
+        {/* Vulnerable circuits */}
+        {eicr.vulnerableCircuits && (
+          <div style={{ marginTop: 10 }}>
+            <div style={sh2}>Vulnerable Circuits</div>
+            <div style={{ fontFamily: A, fontSize: 8, color: "#333", lineHeight: 1.5, padding: "4px 0" }}>{eicr.vulnerableCircuits}</div>
+          </div>
+        )}
+
+        {/* Test Instruments */}
+        <div style={{ marginTop: 14 }}>
+          <div style={sh2}>Test Instruments</div>
+          <table style={tbl}><tbody>
+            <tr><td style={{ ...head, width: "22%" }}>Multi-Function (Serial)</td><td style={cell}>{eicr.instrumentMultiSerial || "\u2014"}</td><td style={{ ...head, width: "22%" }}>Continuity (Serial)</td><td style={cell}>{eicr.instrumentContinuitySerial || "\u2014"}</td></tr>
+            <tr><td style={head}>Insulation Resistance (Serial)</td><td style={cell}>{eicr.instrumentInsulationSerial || "\u2014"}</td><td style={head}>Earth Fault Loop (Serial)</td><td style={cell}>{eicr.instrumentEarthLoopSerial || "\u2014"}</td></tr>
+            <tr><td style={head}>RCD (Serial)</td><td style={cell}>{eicr.instrumentRcdSerial || "\u2014"}</td><td style={head}>Earth Electrode (Serial)</td><td style={cell}>{eicr.instrumentEarthElectrodeSerial || "\u2014"}</td></tr>
+          </tbody></table>
+        </div>
+
+        {/* Tested by */}
+        <div style={{ marginTop: 10, padding: "8px 10px", background: "#f0f2f5", borderRadius: 4, fontFamily: A, fontSize: 8 }}>
+          <div style={{ fontWeight: 700, marginBottom: 4, color: "#2a3a5a" }}>TESTED BY</div>
+          <div>Name: {eicr.inspectorName || "\u2014"} | Date: {eicr.inspectorDate || eicr.inspectionDate || "\u2014"}</div>
+          {inspectorSigUrl && <div style={{ marginTop: 4 }}><img src={inspectorSigUrl} alt="Sig" style={{ maxHeight: 24, maxWidth: 100 }} /></div>}
+        </div>
+      </div>
+
+
+      {/* ═══ PAGE 7 — Notes for Recipients + Classification Guidance ═══ */}
+      <div style={pg}>
+        <div style={{ fontFamily: A, fontSize: 13, fontWeight: 700, color: "#1a1a1a", textAlign: "center", marginBottom: 4 }}>NOTES FOR THE RECIPIENT</div>
+        <div style={{ fontFamily: A, fontSize: 9, color: "#555", textAlign: "center", marginBottom: 16 }}>THIS REPORT IS AN IMPORTANT DOCUMENT — PLEASE RETAIN FOR FUTURE USE</div>
         {NOTES_FOR_RECIPIENT.map((note, i) => (
           <div key={i} style={{ marginBottom: 12 }}>
-            <div style={{ fontFamily: "Arial, sans-serif", fontSize: 9, fontWeight: 700, color: "#1a1a1a", marginBottom: 3 }}>{note.heading}</div>
-            <div style={{ fontFamily: "Arial, sans-serif", fontSize: 8, color: "#444", lineHeight: 1.6 }}>{note.body}</div>
+            <div style={{ fontFamily: A, fontSize: 9, fontWeight: 700, color: "#1a1a1a", marginBottom: 3 }}>{note.heading}</div>
+            <div style={{ fontFamily: A, fontSize: 8, color: "#444", lineHeight: 1.6 }}>{note.body}</div>
           </div>
         ))}
         <div style={{ marginTop: 20, borderTop: "2px solid #2a4a8d", paddingTop: 14 }}>
-          <div style={{ fontFamily: "Arial, sans-serif", fontSize: 11, fontWeight: 700, color: "#1a1a1a", marginBottom: 10 }}>GUIDANCE ON CLASSIFICATION CODES</div>
+          <div style={{ fontFamily: A, fontSize: 11, fontWeight: 700, color: "#1a1a1a", marginBottom: 10 }}>GUIDANCE ON CLASSIFICATION CODES</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             {CLASSIFICATION_GUIDANCE.map((g, i) => (
-              <div key={i} style={{ border: `1px solid ${g.color}`, borderRadius: 4, padding: "8px 10px" }}>
-                <div style={{ fontFamily: "Arial, sans-serif", fontSize: 9, fontWeight: 700, color: g.color, marginBottom: 4 }}>Code {g.code} — {g.label}</div>
-                <div style={{ fontFamily: "Arial, sans-serif", fontSize: 8, color: "#444", lineHeight: 1.5 }}>{g.body}</div>
+              <div key={i} style={{ borderLeft: `4px solid ${g.color}`, border: `1px solid ${g.color}`, borderRadius: 4, padding: "8px 10px" }}>
+                <div style={{ fontFamily: A, fontSize: 9, fontWeight: 700, color: g.color, marginBottom: 4 }}>Code {g.code} — {g.label}</div>
+                <div style={{ fontFamily: A, fontSize: 8, color: "#444", lineHeight: 1.5 }}>{g.body}</div>
               </div>
             ))}
           </div>
+        </div>
+        <div style={{ fontFamily: A, fontSize: 8, color: "#888", textAlign: "center", marginTop: 30, borderTop: "1px solid #ddd", paddingTop: 8 }}>
+          Generated by OhmniumIQ Compliance Portal · Ohmnium Electrical Ltd · {new Date().toLocaleDateString("en-GB")}
         </div>
       </div>
     </div>
   );
   }
+
 
   // Default fallback for non-EICR job types — basic job summary cert
   return (
