@@ -315,7 +315,7 @@ function LoginPage() {
             </>
           )}
         </div>
-        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v18.2</p>
+        <p style={{ fontFamily: font, fontSize: 11, color: C.textDim, textAlign: "center", marginTop: 20 }}>Ohmnium Electrical Ltd · Compliance Portal v18.3</p>
       </div>
     </div>
   );
@@ -639,40 +639,52 @@ function SignatureModal({ open, onClose, member }) {
 }
 
 function TeamPage() {
-  const { engineers, fetchAll } = useContext(DataContext);
+  const { engineers, organisations, fetchAll } = useContext(DataContext);
   const auth = useContext(AuthContext);
   const { w } = useWindowSize();
   const mob = w < BP.mobile;
   const [showInvite, setShowInvite] = useState(false);
   const [signatureMember, setSignatureMember] = useState(null);
+  const [orgFilter, setOrgFilter] = useState(auth.orgId);
   const [toast, setToast] = useState(null);
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
   const roleLabel = (r) => ({ admin: "Admin", agent: "Agent", engineer: "Engineer", junior: "Junior Engineer", supervisor: "Supervisor" }[r] || r);
   const roleColor = (r) => ({ admin: C.white, agent: C.accent, engineer: C.green, junior: C.purple, supervisor: C.amber }[r] || C.textMuted);
 
+  const filteredMembers = orgFilter === "all" ? engineers : engineers.filter(m => m.organisation_id === orgFilter);
+  const selectedOrgName = organisations.find(o => o.id === orgFilter)?.name || "All";
+
   return (
     <div>
       <Toast message={toast} show={!!toast} />
       <InviteUserModal open={showInvite} onClose={() => { setShowInvite(false); showToast("Invite sent"); }} />
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+        {organisations.length > 1 && (
+          <select value={orgFilter} onChange={e => setOrgFilter(e.target.value)} style={{ fontFamily: font, fontSize: 12, color: C.text, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 12px", cursor: "pointer", minHeight: 40, outline: "none" }}>
+            <option value="all">All Teams</option>
+            {organisations.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+          </select>
+        )}
         <button onClick={() => setShowInvite(true)} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 8, padding: "10px 18px", cursor: "pointer", minHeight: 40 }}>
           <Icon name="plus" size={14} color={C.white} /> Invite Member
         </button>
       </div>
       <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden" }}>
-        {engineers.length === 0 && (
-          <div style={{ padding: 40, textAlign: "center" }}><span style={{ fontFamily: font, fontSize: 13, color: C.textDim }}>No team members yet — invite your first engineer</span></div>
+        {filteredMembers.length === 0 && (
+          <div style={{ padding: 40, textAlign: "center" }}><span style={{ fontFamily: font, fontSize: 13, color: C.textDim }}>{orgFilter === "all" ? "No team members yet" : `No members in ${selectedOrgName}`}</span></div>
         )}
-        {engineers.map((member, i) => (
-          <div key={member.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: i < engineers.length - 1 ? `1px solid ${C.border}` : "none", gap: 10 }}>
+        {filteredMembers.map((member, i) => {
+          const memberOrg = organisations.find(o => o.id === member.organisation_id);
+          return (
+          <div key={member.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: i < filteredMembers.length - 1 ? `1px solid ${C.border}` : "none", gap: 10 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <div style={{ width: 40, height: 40, borderRadius: "50%", background: `${roleColor(member.role)}22`, display: "grid", placeItems: "center", flexShrink: 0 }}>
                 <span style={{ fontFamily: font, fontSize: 14, fontWeight: 700, color: roleColor(member.role) }}>{(member.full_name || "?")[0].toUpperCase()}</span>
               </div>
               <div>
                 <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{member.full_name}</div>
-                <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 2 }}>{member.email || ""}</div>
+                <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 2 }}>{member.email || ""}{orgFilter === "all" && memberOrg ? ` · ${memberOrg.name}` : ""}</div>
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -684,7 +696,8 @@ function TeamPage() {
               )}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
       <SignatureModal open={!!signatureMember} onClose={(r) => { setSignatureMember(null); if (r === "saved") { fetchAll(); } }} member={signatureMember} />
     </div>
@@ -857,7 +870,7 @@ function Sidebar({ active, setActive, role, userProfile, onLogout }) {
       <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}` }}>
         <button onClick={onLogout} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.card, display: "grid", placeItems: "center" }}><Icon name="logout" size={16} color={C.textMuted} /></div>
-          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v18.2 — Supabase</div></div>
+          <div style={{ textAlign: "left" }}><div style={{ fontFamily: font, fontSize: 12, color: C.text }}>Sign Out</div><div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>v18.3 — Supabase</div></div>
         </button>
       </div>
     </div>
@@ -4394,6 +4407,12 @@ function PropertyDetailPage({ propertyId, onBack, onRequestJob }) {
             <div style={{ fontFamily: font, fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5 }}>Phone</div>
             <div style={{ fontFamily: font, fontSize: 13, color: C.white, marginTop: 3 }}>{property.tenant_phone || "—"}</div>
           </div>
+          {property.landlord_name && (
+          <div style={{ background: C.surfaceAlt, borderRadius: 8, padding: "8px 12px", flex: 1, minWidth: 160 }}>
+            <div style={{ fontFamily: font, fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5 }}>Landlord</div>
+            <div style={{ fontFamily: font, fontSize: 13, color: C.white, marginTop: 3 }}>{property.landlord_name}</div>
+          </div>
+          )}
         </div>
       </div>
 
