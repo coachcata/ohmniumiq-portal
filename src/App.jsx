@@ -2740,9 +2740,9 @@ function EICRField({ label, value, onChange, type = "text", placeholder = "", di
   );
 }
 
-function EICRSection({ title, children, mob }) {
+function EICRSection({ title, children, mob, id }) {
   return (
-    <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
+    <div id={id} style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
       <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, margin: "0 0 16px", textTransform: "uppercase", letterSpacing: 0.5 }}>{title}</h4>
       <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap: 12 }}>{children}</div>
     </div>
@@ -2944,6 +2944,15 @@ function EICRPage() {
         agencyAddress: "",
         landlordDetails: prop.address || "",
       }));
+      // #10 Check for previous completed EICR on same property
+      const prevJob = jobs.find(j =>
+        j.id !== id &&
+        j.property_id === prop.id &&
+        j.type === "EICR" &&
+        j.eicr_data &&
+        !j.eicr_data.isDraft
+      );
+      setPrevEICRJob(prevJob || null);
     }
   };
 
@@ -2985,7 +2994,17 @@ function EICRPage() {
   };
   const removeCircuit = (idx) => { if (form.circuits.length <= 1) return; setForm(prev => ({ ...prev, circuits: prev.circuits.filter((_, i) => i !== idx), testResults: prev.testResults.filter((_, i) => i !== idx) })); };
   const updateCircuit = (idx, key, val) => setForm(prev => { const c = [...prev.circuits]; c[idx] = { ...c[idx], [key]: val }; return { ...prev, circuits: c }; });
-  const updateTestResult = (idx, key, val) => setForm(prev => { const t = [...prev.testResults]; t[idx] = { ...t[idx], [key]: val }; return { ...prev, testResults: t }; });
+  const updateTestResult = (idx, key, val) => setForm(prev => {
+    const t = [...prev.testResults];
+    t[idx] = { ...t[idx], [key]: val };
+    // #4 Auto R1+R2: compute when either r1 or r2 changes
+    if (key === "r1" || key === "r2") {
+      const r1 = parseFloat(key === "r1" ? val : t[idx].r1);
+      const r2 = parseFloat(key === "r2" ? val : t[idx].r2);
+      if (!isNaN(r1) && !isNaN(r2)) t[idx].r1r2 = (r1 + r2).toFixed(2);
+    }
+    return { ...prev, testResults: t };
+  });
 
   const addCircuitsFromTemplate = () => {
     const template = form.circuits[form.circuits.length - 1];
@@ -3012,12 +3031,128 @@ function EICRPage() {
   const [openSections, setOpenSections] = useState({});
   const toggleSection = (s) => setOpenSections(prev => ({ ...prev, [s]: !prev[s] }));
 
+  // #10 Previous EICR carry-forward state
+  const [prevEICRJob, setPrevEICRJob] = useState(null);
+
+  // #2 Mark All Pass — sets all Part 9 inspection fields to "pass" and clears linked obs
+  const markAllPass = () => {
+    setForm(prev => {
+      const updates = {};
+      Object.keys(prev).forEach(k => { if (/^s\d+_/.test(k)) updates[k] = "pass"; });
+      return { ...prev, ...updates, observations: prev.observations.filter(o => !o.linkedFromPart9) };
+    });
+    showToast("All inspection items set to pass");
+  };
+
+  // #1 Typical Domestic Template — pre-fills 7 common circuits
+  const loadDomesticTemplate = () => {
+    const mkCircuit = (num, description, liveCsa, cpcCsa, ocpRating, ocpMaxZs, points) => ({
+      num, description, wiringType: "A", refMethod: "100", points, liveCsa, cpcCsa, maxDisconnect: "0.4",
+      ocpBSEN: "MCB — BS EN 60898-1", ocpType: "Type B", ocpRating, ocpKA: "6", ocpMaxZs,
+      rcdBSEN: "", rcdType: "A", rcdRating: "N/A", rcdImA: "30",
+    });
+    const circuits = [
+      mkCircuit("1", "Lighting circuit – ground floor",  "1.5", "1",   "6A",  "5.82", "8"),
+      mkCircuit("2", "Lighting circuit – first floor",   "1.5", "1",   "6A",  "5.82", "8"),
+      mkCircuit("3", "Sockets ground floor",              "2.5", "1.5", "32A", "1.09", "6"),
+      mkCircuit("4", "Sockets first floor",               "2.5", "1.5", "32A", "1.09", "6"),
+      mkCircuit("5", "Cooker",                            "6.0", "2.5", "32A", "1.09", "1"),
+      mkCircuit("6", "Boiler",                            "1.5", "1",   "6A",  "5.82", "1"),
+      mkCircuit("7", "Smoke alarm",                       "1.0", "1",   "6A",  "5.82", "1"),
+    ];
+    const mkTest = (num) => ({ num, r1: "", rn: "", r2: "", r1r2: "", r2only: "", irLL: "LIM", irLE: ">999", testV: "250", polarity: "\u2713", zs: "", rcdTime: "", rcdTestBtn: "N/A", afddTestBtn: "N/A", comments: "" });
+    setForm(prev => ({ ...prev, circuits, testResults: circuits.map(c => mkTest(c.num)) }));
+    showToast("Domestic template loaded — 7 circuits pre-filled");
+  };
+
+  // #3 / #13 Copy first circuit's IR / polarity to all circuits
+  const copyIRToAll = () => {
+    if (!form.testResults.length) return;
+    const { irLL, irLE, testV } = form.testResults[0];
+    setForm(prev => ({ ...prev, testResults: prev.testResults.map(tr => ({ ...tr, irLL, irLE, testV })) }));
+    showToast("IR values & test voltage copied to all circuits");
+  };
+  const copyPolarityToAll = () => {
+    if (!form.testResults.length) return;
+    const { polarity } = form.testResults[0];
+    setForm(prev => ({ ...prev, testResults: prev.testResults.map(tr => ({ ...tr, polarity })) }));
+    showToast("Polarity copied to all circuits");
+  };
+
+  // #11 Common observation suggestion texts
+  const COMMON_OBS = [
+    { code: "C1", text: "Live parts accessible — immediate remedial action required to provide adequate protection against direct contact" },
+    { code: "C2", text: "No RCD protection to socket outlets — all sockets require RCD ≤30mA protection per BS 7671:2018 Reg 411.3.3" },
+    { code: "C2", text: "Consumer unit has a combustible plastic enclosure — replacement with non-combustible enclosure required per BS 7671:2018 Reg 421.1.201" },
+    { code: "C2", text: "No supplementary bonding in bathroom — equipotential bonding required to simultaneously accessible metalwork per BS 7671:2018 Reg 415.2" },
+    { code: "C2", text: "Earth fault loop impedance (Zs) exceeds maximum permitted — protection may not disconnect within required time" },
+    { code: "C3", text: "No RCD protection to lighting circuits — addition of RCD protection to lighting circuits is recommended" },
+    { code: "C3", text: "Bonding conductors not labelled — labelling required per BS 7671:2018 Reg 514.13" },
+    { code: "C3", text: "No circuit chart or schedule present — provision recommended per BS 7671:2018 Reg 514.9" },
+    { code: "C3", text: "No smoke alarm on every floor — interlinked smoke alarms on every floor recommended per BS 5839-6" },
+    { code: "FI", text: "Partial inspection only — further investigation required to assess concealed or inaccessible wiring" },
+  ];
+  const addObsFromSuggestion = (suggestion) => {
+    setForm(prev => {
+      const newObs = { itemNo: String(prev.observations.length + 1), ref: "", observation: suggestion.text, code: suggestion.code, location: "" };
+      return { ...prev, observations: [...prev.observations, newObs] };
+    });
+    setShowObsSuggestions(false);
+  };
+  const [showObsSuggestions, setShowObsSuggestions] = useState(false);
+
+  // #6 / #14 Derived observation counts
+  const obsCounts = form.observations.reduce((acc, o) => { acc[o.code] = (acc[o.code] || 0) + 1; return acc; }, {});
+
+  // #12 Form progress indicator (key required fields)
+  const progressFields = [form.purposeKey, form.inspectionDate, form.conditionKey, form.inspectorName, form.nextInspectionDate, form.installationAddress, form.circuits[0]?.description];
+  const progressPct = Math.round(progressFields.filter(Boolean).length / progressFields.length * 100);
+
+  // #5 Auto-compute next inspection date (5 years from inspection date) — via useEffect
+  useEffect(() => {
+    if (form.inspectionDate && !form.nextInspectionDate) {
+      const d = new Date(form.inspectionDate);
+      d.setFullYear(d.getFullYear() + 5);
+      set("nextInspectionDate", d.toISOString().split("T")[0]);
+    }
+  }, [form.inspectionDate]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div>
       {toast && <Toast message={toast.msg} type={toast.type} show />}
 
+      {/* #8 Floating Save Draft button */}
+      {selectedJobId && (
+        <div style={{ position: "fixed", bottom: 24, right: 20, zIndex: 90, display: "flex", gap: 8 }}>
+          <button onClick={() => submit(true)} disabled={saving}
+            style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.white, background: C.surface, border: `1px solid ${C.borderLight}`, borderRadius: 10, padding: "10px 18px", cursor: "pointer", minHeight: 44, boxShadow: "0 4px 20px rgba(0,0,0,.5)", opacity: saving ? 0.7 : 1 }}>
+            {saving ? "Saving…" : "💾 Save Draft"}
+          </button>
+        </div>
+      )}
+
+      {/* #7 Sticky section navigation */}
+      <div style={{ position: "sticky", top: 0, zIndex: 50, background: C.bg, borderBottom: `1px solid ${C.border}`, padding: "8px 0 8px", marginBottom: 16, display: "flex", gap: 5, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+        {[["eicr-p1","Part 1"],["eicr-p2","Part 2"],["eicr-p3","Part 3"],["eicr-p4","Part 4"],["eicr-p5","Part 5"],["eicr-p6","Part 6"],["eicr-p7","Part 7"],["eicr-p8","Part 8"],["eicr-p9","Part 9"],["eicr-p11a","Part 11A"],["eicr-p11b","Part 11B"]].map(([id, label]) => (
+          <a key={id} href={`#${id}`} style={{ fontFamily: font, fontSize: 10, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 6, padding: "4px 9px", textDecoration: "none", flexShrink: 0, lineHeight: 1.6 }}>{label}</a>
+        ))}
+      </div>
+
+      {/* #12 Form progress indicator */}
+      <div style={{ background: C.card, borderRadius: 10, padding: "10px 16px", marginBottom: 12, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 12 }}>
+        <span style={{ fontFamily: font, fontSize: 11, color: C.textMuted, flexShrink: 0 }}>Form progress</span>
+        <div style={{ flex: 1, height: 6, background: C.surfaceAlt, borderRadius: 3, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${progressPct}%`, background: progressPct === 100 ? C.green : C.accent, borderRadius: 3, transition: "width .4s ease" }} />
+        </div>
+        <span style={{ fontFamily: font, fontSize: 11, fontWeight: 700, color: progressPct === 100 ? C.green : C.accent, flexShrink: 0 }}>{progressPct}%</span>
+        {obsCounts.C1 > 0 && <span style={{ fontFamily: font, fontSize: 10, fontWeight: 700, color: "#fff", background: "#dc2626", borderRadius: 5, padding: "2px 7px" }}>C1×{obsCounts.C1}</span>}
+        {obsCounts.C2 > 0 && <span style={{ fontFamily: font, fontSize: 10, fontWeight: 700, color: "#fff", background: C.amber, borderRadius: 5, padding: "2px 7px" }}>C2×{obsCounts.C2}</span>}
+        {obsCounts.C3 > 0 && <span style={{ fontFamily: font, fontSize: 10, fontWeight: 700, color: "#fff", background: C.accent, borderRadius: 5, padding: "2px 7px" }}>C3×{obsCounts.C3}</span>}
+        {obsCounts.FI > 0 && <span style={{ fontFamily: font, fontSize: 10, fontWeight: 700, color: "#fff", background: C.purple, borderRadius: 5, padding: "2px 7px" }}>FI×{obsCounts.FI}</span>}
+      </div>
+
       {/* Header */}
-      <div style={{ background: `linear-gradient(135deg, rgba(59,130,246,.1), rgba(59,130,246,.02))`, border: `1px solid rgba(59,130,246,.2)`, borderRadius: 14, padding: "14px 20px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
+      <div id="eicr-p1" style={{ background: `linear-gradient(135deg, rgba(59,130,246,.1), rgba(59,130,246,.02))`, border: `1px solid rgba(59,130,246,.2)`, borderRadius: 14, padding: "14px 20px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
         <Icon name="clipboard" size={20} color={C.accent} />
         <div>
           <div style={{ fontFamily: font, fontSize: 14, fontWeight: 700, color: C.accent }}>EICR18.3C — Electrical Installation Condition Report</div>
@@ -3042,6 +3177,20 @@ function EICRPage() {
           <div style={{ marginTop: 14, background: C.redBg, border: `1px solid ${C.redBorder}`, borderRadius: 10, padding: "12px 14px" }}>
             <div style={{ fontFamily: font, fontSize: 11, fontWeight: 700, color: C.red, textTransform: "uppercase", marginBottom: 4 }}>Returned by supervisor</div>
             <div style={{ fontFamily: font, fontSize: 13, color: C.white }}>{selectedJob.eicr_data.rejectionReason}</div>
+          </div>
+        )}
+        {/* #10 Previous EICR carry-forward banner */}
+        {prevEICRJob && (
+          <div style={{ marginTop: 10, background: C.amberBg, border: `1px solid ${C.amberBorder}`, borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+            <Icon name="clock" size={16} color={C.amber} />
+            <span style={{ fontFamily: font, fontSize: 12, color: C.amber, flex: 1 }}>Previous EICR found ({prevEICRJob.ref}) — load reference data to carry forward circuit details?</span>
+            <button onClick={() => {
+              const { isDraft, submittedAt, submittedBy, rejectionReason, rejectedBy, rejectedAt, ...saved } = prevEICRJob.eicr_data;
+              setForm(prev => ({ ...prev, ...saved, inspectionDate: prev.inspectionDate, inspectorDate: "", nextInspectionDate: "", reviewerDate: "" }));
+              setPrevEICRJob(null);
+              showToast("Previous EICR reference data loaded");
+            }} style={{ fontFamily: font, fontSize: 11, fontWeight: 700, color: C.amber, background: "none", border: `1px solid ${C.amberBorder}`, borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>Load</button>
+            <button onClick={() => setPrevEICRJob(null)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMuted, padding: 4, fontSize: 14 }}>✕</button>
           </div>
         )}
       </div>
@@ -3084,7 +3233,7 @@ function EICRPage() {
       </EICRSection>
 
       {/* Part 2 — Purpose */}
-      <EICRSection mob={mob} title="Part 2 — Purpose of the Report">
+      <EICRSection id="eicr-p2" mob={mob} title="Part 2 — Purpose of the Report">
         <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: 4 }}>
           <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Purpose</label>
           <select value={form.purposeKey} onChange={e => set("purposeKey", e.target.value)}
@@ -3103,7 +3252,7 @@ function EICRPage() {
       </EICRSection>
 
       {/* Part 3 — Summary */}
-      <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
+      <div id="eicr-p3" style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
         <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, margin: "0 0 16px", textTransform: "uppercase", letterSpacing: 0.5 }}>Part 3 — Summary of Condition</h4>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr" : "1fr 1fr", gap: 12 }}>
@@ -3148,7 +3297,7 @@ function EICRPage() {
       </div>
 
       {/* Part 4 — Declaration */}
-      <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
+      <div id="eicr-p4" style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
         <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, margin: "0 0 16px", textTransform: "uppercase", letterSpacing: 0.5 }}>Part 4 — Declaration</h4>
         <div style={{ background: C.surfaceAlt, borderRadius: 10, padding: "12px 16px", marginBottom: 16, border: `1px solid ${C.border}` }}>
           <div style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Inspection and Testing Declaration</div>
@@ -3171,10 +3320,30 @@ function EICRPage() {
       </div>
 
       {/* Part 5 — Observations */}
-      <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+      <div id="eicr-p5" style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
           <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, margin: 0, textTransform: "uppercase", letterSpacing: 0.5 }}>Part 5 — Observations</h4>
-          <button onClick={addObs} style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.accent, background: C.accentGlow, border: `1px solid rgba(59,130,246,.25)`, borderRadius: 8, padding: "6px 14px", cursor: "pointer", minHeight: 32 }}>+ Add observation manually</button>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {/* #14 Obs count summary badges */}
+            {["C1","C2","C3","FI"].map(code => obsCounts[code] ? (
+              <span key={code} style={{ fontFamily: font, fontSize: 10, fontWeight: 700, color: "#fff", background: code === "C1" ? "#dc2626" : code === "C2" ? C.amber : code === "C3" ? C.accent : C.purple, borderRadius: 5, padding: "3px 8px" }}>{code} × {obsCounts[code]}</span>
+            ) : null)}
+            {/* #11 Quick observation suggestions */}
+            <div style={{ position: "relative" }}>
+              <button onClick={() => setShowObsSuggestions(v => !v)} style={{ fontFamily: font, fontSize: 12, color: C.purple, background: C.purpleBg, border: `1px solid rgba(139,92,246,.3)`, borderRadius: 8, padding: "6px 12px", cursor: "pointer", minHeight: 32 }}>⚡ Common obs</button>
+              {showObsSuggestions && (
+                <div style={{ position: "absolute", right: 0, top: 36, zIndex: 60, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 8, minWidth: 340, maxHeight: 280, overflowY: "auto", boxShadow: "0 8px 30px rgba(0,0,0,.5)" }}>
+                  {COMMON_OBS.map((obs, i) => (
+                    <button key={i} onClick={() => addObsFromSuggestion(obs)} style={{ display: "flex", alignItems: "flex-start", gap: 8, width: "100%", background: "none", border: "none", borderBottom: `1px solid ${C.border}`, padding: "8px 4px", cursor: "pointer", textAlign: "left" }}>
+                      <span style={{ fontFamily: font, fontSize: 9, fontWeight: 700, color: "#fff", background: obs.code === "C1" ? "#dc2626" : obs.code === "C2" ? C.amber : obs.code === "C3" ? C.accent : C.purple, borderRadius: 4, padding: "2px 5px", flexShrink: 0 }}>{obs.code}</span>
+                      <span style={{ fontFamily: font, fontSize: 11, color: C.text, lineHeight: 1.4 }}>{obs.text}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button onClick={addObs} style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.accent, background: C.accentGlow, border: `1px solid rgba(59,130,246,.25)`, borderRadius: 8, padding: "6px 14px", cursor: "pointer", minHeight: 32 }}>+ Manual</button>
+          </div>
         </div>
         <div style={{ fontFamily: font, fontSize: 10, color: C.textDim, marginBottom: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
           <span style={{ color: "#dc2626" }}>C1 = Danger Present</span>
@@ -3224,7 +3393,7 @@ function EICRPage() {
       </div>
 
       {/* Part 6 — Details and Limitations */}
-      <EICRSection mob={mob} title="Part 6 — Details & Limitations">
+      <EICRSection id="eicr-p6" mob={mob} title="Part 6 — Details & Limitations">
         <EICRField label="BS 7671: 2018 Amended To" value={form.bs7671AmendedTo} onChange={v => set("bs7671AmendedTo", v)} placeholder="2024" />
         <EICRField label="Agreed With" value={form.agreedWith} onChange={v => set("agreedWith", v)} placeholder="CLIENT" />
         <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: 4 }}>
@@ -3261,7 +3430,7 @@ function EICRPage() {
       </EICRSection>
 
       {/* Part 7 — Supply Characteristics */}
-      <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
+      <div id="eicr-p7" style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
         <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, margin: "0 0 16px", textTransform: "uppercase", letterSpacing: 0.5 }}>Part 7 — Supply Characteristics</h4>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div>
@@ -3283,7 +3452,7 @@ function EICRPage() {
       </div>
 
       {/* Part 8 — Particulars */}
-      <EICRSection mob={mob} title="Part 8 — Particulars of Installation">
+      <EICRSection id="eicr-p8" mob={mob} title="Part 8 — Particulars of Installation">
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Earthing Conductor (mm²)</label>
           <select value={form.earthingConductorCSA} onChange={e => set("earthingConductorCSA", e.target.value)}
@@ -3311,8 +3480,12 @@ function EICRPage() {
       </EICRSection>
 
       {/* Part 9 — Schedule of Items Inspected */}
-      <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
-        <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: 0.5 }}>Part 9 — Schedule of Items Inspected</h4>
+      <div id="eicr-p9" style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, flexWrap: "wrap", gap: 8 }}>
+          <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, margin: 0, textTransform: "uppercase", letterSpacing: 0.5 }}>Part 9 — Schedule of Items Inspected</h4>
+          {/* #2 Mark All Pass */}
+          <button onClick={markAllPass} style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: C.green, background: C.greenBg, border: `1px solid ${C.greenBorder}`, borderRadius: 8, padding: "6px 14px", cursor: "pointer", minHeight: 32 }}>✓ Mark all pass</button>
+        </div>
         <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginBottom: 12 }}>Tap ✓, classification code (C1/C2/C3/FI) or N/A. Sections collapse for easier navigation.</div>
 
         <EICRSISection id="s1" title="1.0 Intake Equipment" isOpen={openSections["s1"] !== false} onToggle={() => toggleSection("s1")}>
@@ -3417,10 +3590,12 @@ function EICRPage() {
       </div>
 
       {/* Part 11A — Circuit Details */}
-      <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+      <div id="eicr-p11a" style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
           <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, margin: 0, textTransform: "uppercase", letterSpacing: 0.5 }}>Part 11A — Circuit Details</h4>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {/* #1 Domestic template */}
+            <button onClick={loadDomesticTemplate} style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.amber, background: C.amberBg, border: `1px solid ${C.amberBorder}`, borderRadius: 8, padding: "6px 14px", cursor: "pointer", minHeight: 32 }}>🏠 Domestic template</button>
             <button onClick={addCircuit} style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.accent, background: C.accentGlow, border: `1px solid rgba(59,130,246,.25)`, borderRadius: 8, padding: "6px 14px", cursor: "pointer", minHeight: 32 }}>+ Blank Circuit</button>
             <span style={{ fontFamily: font, fontSize: 11, color: C.textDim }}>or clone last circuit</span>
             <select value={cloneCount} onChange={e => setCloneCount(Number(e.target.value))} style={{ fontFamily: font, fontSize: 12, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", outline: "none", minHeight: 32, cursor: "pointer" }}>
@@ -3462,8 +3637,15 @@ function EICRPage() {
       </div>
 
       {/* Part 11B — Test Results */}
-      <div style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
-        <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, margin: "0 0 16px", textTransform: "uppercase", letterSpacing: 0.5 }}>Part 11B — Test Results</h4>
+      <div id="eicr-p11b" style={{ background: C.card, borderRadius: 14, padding: mob ? 16 : 24, border: `1px solid ${C.border}`, marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
+          <h4 style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.accent, margin: 0, textTransform: "uppercase", letterSpacing: 0.5 }}>Part 11B — Test Results</h4>
+          {/* #3 / #13 Copy-to-all buttons */}
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={copyIRToAll} style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "5px 12px", cursor: "pointer", minHeight: 30 }}>Copy IR to all</button>
+            <button onClick={copyPolarityToAll} style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "5px 12px", cursor: "pointer", minHeight: 30 }}>Copy polarity to all</button>
+          </div>
+        </div>
         {form.testResults.map((tr, idx) => (
           <div key={idx} style={{ background: C.surfaceAlt, borderRadius: 10, padding: 12, marginBottom: 8 }}>
             <span style={{ fontFamily: font, fontSize: 12, fontWeight: 700, color: C.accent, marginBottom: 8, display: "block" }}>Circuit {tr.num}: {form.circuits[idx]?.description || "—"}</span>
@@ -3477,7 +3659,19 @@ function EICRPage() {
               <EICRField label="IR L/E (MΩ)" value={tr.irLE} onChange={v => updateTestResult(idx, "irLE", v)} placeholder=">999" />
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Test Voltage DC (V)</label><select value={tr.testV} onChange={e => updateTestResult(idx, "testV", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>{TEST_VOLTAGES.map(v => <option key={v} value={v}>{v}V</option>)}</select></div>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Polarity</label><div style={{ display: "flex", gap: 4 }}>{TOGGLE_OPTIONS.map(opt => <button key={opt} onClick={() => updateTestResult(idx, "polarity", opt)} style={{ flex: 1, fontFamily: font, fontSize: 11, fontWeight: tr.polarity === opt ? 700 : 400, color: tr.polarity === opt ? C.white : C.textMuted, background: tr.polarity === opt ? C.accent : C.surfaceAlt, border: `1px solid ${tr.polarity === opt ? C.accent : C.border}`, borderRadius: 6, padding: "6px 4px", cursor: "pointer", minHeight: 38 }}>{opt}</button>)}</div></div>
-              <EICRField label="Zs (Ω)" value={tr.zs} onChange={v => updateTestResult(idx, "zs", v)} />
+              {/* #9 Zs pass/fail indicator */}
+              <div>
+                <EICRField label="Zs (Ω)" value={tr.zs} onChange={v => updateTestResult(idx, "zs", v)} />
+                {(() => {
+                  const maxZs = parseFloat(form.circuits[idx]?.ocpMaxZs);
+                  const zs = parseFloat(tr.zs);
+                  if (tr.zs && !isNaN(maxZs) && !isNaN(zs)) {
+                    const pass = zs <= maxZs;
+                    return <div style={{ marginTop: 4, fontFamily: font, fontSize: 10, fontWeight: 700, color: pass ? C.green : C.red, background: pass ? C.greenBg : C.redBg, border: `1px solid ${pass ? C.greenBorder : C.redBorder}`, borderRadius: 5, padding: "3px 8px", textAlign: "center" }}>{pass ? "✓ PASS" : "✗ FAIL"} — max {maxZs}Ω</div>;
+                  }
+                  return null;
+                })()}
+              </div>
               <EICRField label="RCD Time (ms)" value={tr.rcdTime} onChange={v => updateTestResult(idx, "rcdTime", v)} />
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>RCD Test Button</label><div style={{ display: "flex", gap: 4 }}>{TOGGLE_OPTIONS.map(opt => <button key={opt} onClick={() => updateTestResult(idx, "rcdTestBtn", opt)} style={{ flex: 1, fontFamily: font, fontSize: 11, fontWeight: tr.rcdTestBtn === opt ? 700 : 400, color: tr.rcdTestBtn === opt ? C.white : C.textMuted, background: tr.rcdTestBtn === opt ? C.accent : C.surfaceAlt, border: `1px solid ${tr.rcdTestBtn === opt ? C.accent : C.border}`, borderRadius: 6, padding: "6px 4px", cursor: "pointer", minHeight: 38 }}>{opt}</button>)}</div></div>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>AFDD Test Button</label><div style={{ display: "flex", gap: 4 }}>{TOGGLE_OPTIONS.map(opt => <button key={opt} onClick={() => updateTestResult(idx, "afddTestBtn", opt)} style={{ flex: 1, fontFamily: font, fontSize: 11, fontWeight: tr.afddTestBtn === opt ? 700 : 400, color: tr.afddTestBtn === opt ? C.white : C.textMuted, background: tr.afddTestBtn === opt ? C.accent : C.surfaceAlt, border: `1px solid ${tr.afddTestBtn === opt ? C.accent : C.border}`, borderRadius: 6, padding: "6px 4px", cursor: "pointer", minHeight: 38 }}>{opt}</button>)}</div></div>
