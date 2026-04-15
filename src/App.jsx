@@ -3084,6 +3084,28 @@ function EICRPage() {
     }));
   };
   const removeCircuit = (idx) => { if (form.circuits.length <= 1) return; setForm(prev => ({ ...prev, circuits: prev.circuits.filter((_, i) => i !== idx), testResults: prev.testResults.filter((_, i) => i !== idx) })); };
+  const moveCircuit = (idx, dir) => {
+    setForm(prev => {
+      const cs = [...prev.circuits]; const ts = [...prev.testResults];
+      const target = idx + dir;
+      if (target < 0 || target >= cs.length) return prev;
+      [cs[idx], cs[target]] = [cs[target], cs[idx]];
+      [ts[idx], ts[target]] = [ts[target], ts[idx]];
+      const renumbered = cs.map((c, i) => ({ ...c, num: String(i + 1) }));
+      const renumberedT = ts.map((t, i) => ({ ...t, num: String(i + 1) }));
+      return { ...prev, circuits: renumbered, testResults: renumberedT };
+    });
+  };
+  const fillAllNA = () => {
+    if (!window.confirm("Fill all blank/unanswered Part 9 items with N/A across the entire certificate?")) return;
+    const p9Keys = Object.keys(form).filter(k => k.startsWith("s") && (form[k] === "" || form[k] === null || form[k] === undefined));
+    setForm(prev => {
+      const updates = {};
+      p9Keys.forEach(k => { updates[k] = "na"; });
+      return { ...prev, ...updates };
+    });
+    showToast("Blank Part 9 fields filled with N/A");
+  };
   const updateCircuit = (idx, key, val) => setForm(prev => { const c = [...prev.circuits]; c[idx] = { ...c[idx], [key]: val }; return { ...prev, circuits: c }; });
   const updateTestResult = (idx, key, val) => setForm(prev => {
     const t = [...prev.testResults];
@@ -3798,6 +3820,7 @@ function EICRPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             {/* #1 Domestic template */}
             <button onClick={loadDomesticTemplate} style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.amber, background: C.amberBg, border: `1px solid ${C.amberBorder}`, borderRadius: 8, padding: "6px 14px", cursor: "pointer", minHeight: 32 }}>🏠 Domestic template</button>
+            <button onClick={fillAllNA} style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 14px", cursor: "pointer", minHeight: 32 }}>Fill N/A</button>
             <button onClick={addCircuit} style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.accent, background: C.accentGlow, border: `1px solid rgba(59,130,246,.25)`, borderRadius: 8, padding: "6px 14px", cursor: "pointer", minHeight: 32 }}>+ Blank Circuit</button>
             <span style={{ fontFamily: font, fontSize: 11, color: C.textDim }}>or clone last circuit</span>
             <select value={cloneCount} onChange={e => setCloneCount(Number(e.target.value))} style={{ fontFamily: font, fontSize: 12, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", outline: "none", minHeight: 32, cursor: "pointer" }}>
@@ -3815,7 +3838,13 @@ function EICRPage() {
         {form.circuits.map((cir, idx) => (
           <div key={idx} style={{ background: C.surfaceAlt, borderRadius: 10, padding: 12, marginBottom: 8 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <span style={{ fontFamily: font, fontSize: 12, fontWeight: 700, color: C.accent }}>Circuit {cir.num}: {cir.description || "—"}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <button onClick={() => moveCircuit(idx, -1)} disabled={idx === 0} style={{ fontFamily: font, fontSize: 11, color: idx === 0 ? C.textDim : C.text, background: "none", border: `1px solid ${C.border}`, borderRadius: 4, padding: "1px 6px", cursor: idx === 0 ? "not-allowed" : "pointer", lineHeight: 1.2 }}>▲</button>
+                  <button onClick={() => moveCircuit(idx, 1)} disabled={idx === form.circuits.length - 1} style={{ fontFamily: font, fontSize: 11, color: idx === form.circuits.length - 1 ? C.textDim : C.text, background: "none", border: `1px solid ${C.border}`, borderRadius: 4, padding: "1px 6px", cursor: idx === form.circuits.length - 1 ? "not-allowed" : "pointer", lineHeight: 1.2 }}>▼</button>
+                </div>
+                <span style={{ fontFamily: font, fontSize: 12, fontWeight: 700, color: C.accent }}>Circuit {cir.num}: {cir.description || "—"}</span>
+              </div>
               {form.circuits.length > 1 && <button onClick={() => removeCircuit(idx)} style={{ fontFamily: font, fontSize: 10, color: C.red, background: "transparent", border: "none", cursor: "pointer" }}>Remove</button>}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: mob ? "1fr 1fr" : "repeat(4,1fr)", gap: 8 }}>
@@ -3829,6 +3858,7 @@ function EICRPage() {
               <EICRField label="Short-circuit capacity (kA)" value={cir.ocpKA} onChange={v => updateCircuit(idx, "ocpKA", v)} placeholder="6" />
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>OCP BS(EN)</label><select value={cir.ocpBSEN} onChange={e => updateCircuit(idx, "ocpBSEN", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>{BS_EN_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}</select></div>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Wiring Type</label><select value={cir.wiringType} onChange={e => updateCircuit(idx, "wiringType", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>{WIRING_TYPES.map(w => <option key={w.value} value={w.value}>{w.label}</option>)}</select></div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Ref Method</label><select value={cir.refMethod} onChange={e => updateCircuit(idx, "refMethod", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>{REF_METHODS.map(m => <option key={m} value={m}>{m}</option>)}</select></div>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>RCD Type</label><select value={cir.rcdType} onChange={e => updateCircuit(idx, "rcdType", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}><option value="">N/A</option>{["AC", "A", "F", "B"].map(t => <option key={t} value={t}>{t}</option>)}</select></div>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>RCD Rating (A)</label><select value={cir.rcdRating} onChange={e => updateCircuit(idx, "rcdRating", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}><option value="">N/A</option>{["6", "10", "16", "20", "25", "32", "40", "63"].map(r => <option key={r} value={r}>{r}A</option>)}</select></div>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}><label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>RCD IΔn (mA)</label><select value={cir.rcdImA} onChange={e => updateCircuit(idx, "rcdImA", e.target.value)} style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}><option value="">N/A</option>{RCD_RATINGS.map(r => <option key={r} value={r}>{r}</option>)}</select></div>
