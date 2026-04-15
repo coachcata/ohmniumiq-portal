@@ -2858,9 +2858,10 @@ function EICRPage() {
   const { w } = useWindowSize();
   const mob = w < BP.mobile;
 
+  const isAdminOrSupervisor = ["supervisor", "admin"].includes(auth.role);
   const myJobs = jobs.filter(j =>
-    (j.engineer_id === auth.id || ["supervisor", "admin"].includes(auth.role)) &&
-    j.status === "In Progress"
+    (j.engineer_id === auth.id || isAdminOrSupervisor) &&
+    (j.status === "In Progress" || (isAdminOrSupervisor && ["Completed", "Awaiting Sign-Off"].includes(j.status)))
   );
 
   const [selectedJobId, setSelectedJobId] = useState("");
@@ -2868,6 +2869,50 @@ function EICRPage() {
   const [cloneCount, setCloneCount] = useState(1);
   const [toast, setToast] = useState(null);
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
+
+  // Postcode / UPRN lookup state
+  const [postcodeInput, setPostcodeInput] = useState("");
+  const [uprnInput, setUprnInput] = useState("");
+  const [postcodeStatus, setPostcodeStatus] = useState(null); // { ok, msg }
+  const [uprnStatus, setUprnStatus] = useState(null);
+
+  const lookupPostcode = async () => {
+    const pc = postcodeInput.trim().toUpperCase().replace(/\s+/g, "");
+    if (!pc) return;
+    setPostcodeStatus({ ok: null, msg: "Looking up…" });
+    try {
+      const res = await fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(pc)}`);
+      const json = await res.json();
+      if (json.status === 200) {
+        const canonical = json.result.postcode;
+        setForm(prev => ({ ...prev, installationPostcode: canonical }));
+        setPostcodeStatus({ ok: true, msg: `✓ ${canonical} — ${json.result.admin_district || ""}` });
+      } else {
+        setPostcodeStatus({ ok: false, msg: "Postcode not found." });
+      }
+    } catch {
+      setPostcodeStatus({ ok: false, msg: "Lookup failed — check connection." });
+    }
+  };
+
+  const lookupUPRN = async () => {
+    const uprn = uprnInput.trim();
+    if (!uprn) return;
+    setUprnStatus({ ok: null, msg: "Looking up…" });
+    try {
+      const res = await fetch(`https://api.postcodes.io/uprn/${encodeURIComponent(uprn)}`);
+      const json = await res.json();
+      if (json.status === 200) {
+        const canonical = json.result.postcode;
+        setForm(prev => ({ ...prev, installationPostcode: canonical, uprn }));
+        setUprnStatus({ ok: true, msg: `✓ Postcode: ${canonical}` });
+      } else {
+        setUprnStatus({ ok: false, msg: "UPRN not found." });
+      }
+    } catch {
+      setUprnStatus({ ok: false, msg: "Lookup failed — check connection." });
+    }
+  };
 
   const [form, setForm] = useState({
     // Part 1 — Contractor (read-only from CONTRACTOR constant)
@@ -3116,6 +3161,12 @@ function EICRPage() {
       const r2 = parseFloat(key === "r2" ? val : t[idx].r2);
       if (!isNaN(r1) && !isNaN(r2)) t[idx].r1r2 = ((r1 + r2) / 4).toFixed(2);
     }
+    // Auto R1+R2 from Zs: compute R1+R2 = Zs - Zdb when Zs is entered
+    if (key === "zs") {
+      const zdb = parseFloat(prev.dbZdb);
+      const zsVal = parseFloat(val);
+      if (!isNaN(zdb) && !isNaN(zsVal) && zsVal >= zdb) t[idx].r1r2 = (zsVal - zdb).toFixed(2);
+    }
     return { ...prev, testResults: t };
   });
 
@@ -3138,6 +3189,17 @@ function EICRPage() {
     showToast(asDraft ? "Draft saved" : auth.role === "junior" ? "Submitted for Supervisor sign-off" : "EICR completed");
     setSaving(false);
     if (!asDraft) setSelectedJobId("");
+  };
+
+  const reopenJob = async () => {
+    if (!selectedJobId) return;
+    if (!window.confirm("Re-open this job and set status back to 'In Progress'? The EICR data will be preserved as a draft.")) return;
+    setSaving(true);
+    const eicrData = { ...form, formType: "EICR183C", isDraft: true };
+    await updateJob(selectedJobId, { status: "In Progress", eicrData });
+    await addAudit({ action: `EICR re-opened (status reset to In Progress) — ${selectedProp?.address?.split(",")[0]}` });
+    showToast("Job re-opened — status set to In Progress");
+    setSaving(false);
   };
 
   // Collapsible section state for Part 9
@@ -3332,6 +3394,29 @@ function EICRPage() {
       </EICRSection>
 
       <EICRSection mob={mob} title="Part 1 — Installation Details">
+        {/* Postcode / UPRN lookup widget */}
+        <div style={{ gridColumn: "1 / -1", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Postcode / UPRN Finder</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 140 }}>
+              <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Enter Postcode</label>
+              <input value={postcodeInput} onChange={e => setPostcodeInput(e.target.value)} onKeyDown={e => e.key === "Enter" && lookupPostcode()} placeholder="e.g. SW1A 1AA"
+                style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 12px", outline: "none", minHeight: 38 }} />
+            </div>
+            <button onClick={lookupPostcode} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 8, padding: "8px 18px", cursor: "pointer", minHeight: 38, whiteSpace: "nowrap" }}>Find</button>
+            {postcodeStatus && <span style={{ fontFamily: font, fontSize: 11, color: postcodeStatus.ok === true ? C.green : postcodeStatus.ok === false ? C.red : C.textMuted, alignSelf: "center" }}>{postcodeStatus.msg}</span>}
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 140 }}>
+              <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Enter UPRN</label>
+              <input value={uprnInput} onChange={e => setUprnInput(e.target.value)} onKeyDown={e => e.key === "Enter" && lookupUPRN()} placeholder="e.g. 100023336956"
+                style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 12px", outline: "none", minHeight: 38 }} />
+            </div>
+            <button onClick={lookupUPRN} style={{ fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 8, padding: "8px 18px", cursor: "pointer", minHeight: 38, whiteSpace: "nowrap" }}>Lookup</button>
+            {uprnStatus && <span style={{ fontFamily: font, fontSize: 11, color: uprnStatus.ok === true ? C.green : uprnStatus.ok === false ? C.red : C.textMuted, alignSelf: "center" }}>{uprnStatus.msg}</span>}
+          </div>
+          <div style={{ fontFamily: font, fontSize: 10, color: C.textDim }}>Powered by postcodes.io — validates &amp; canonicalises postcodes. Full address lookup requires OS Places (not available).</div>
+        </div>
         <div style={{ gridColumn: "1 / -1" }}><EICRField label="Installation Address" value={form.installationAddress} onChange={v => set("installationAddress", v)} /></div>
         <EICRField label="Postcode" value={form.installationPostcode} onChange={v => set("installationPostcode", v)} />
         <EICRField label="UPRN" value={form.uprn} onChange={v => set("uprn", v)} />
@@ -3937,6 +4022,12 @@ function EICRPage() {
           <div style={{ flex: 1, fontFamily: font, fontSize: 11, color: C.purple, background: C.purpleBg, border: "1px solid rgba(139,92,246,.3)", borderRadius: 8, padding: "8px 12px" }}>
             ℹ️ As a Junior Engineer, your completed EICRs are sent to a Supervisor for sign-off before being finalised.
           </div>
+        )}
+        {["supervisor", "admin"].includes(auth.role) && selectedJob && ["Completed", "Awaiting Sign-Off"].includes(selectedJob.status) && (
+          <button onClick={reopenJob} disabled={saving}
+            style={{ fontFamily: font, fontSize: 13, color: C.amber, background: C.amberBg, border: `1px solid rgba(245,158,11,.4)`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44, opacity: saving ? 0.7 : 1 }}>
+            Re-open Job
+          </button>
         )}
         <button onClick={() => submit(true)} disabled={saving || !selectedJobId}
           style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: selectedJobId ? "pointer" : "not-allowed", minHeight: 44, opacity: saving ? 0.7 : 1 }}>
