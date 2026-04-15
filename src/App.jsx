@@ -43,7 +43,7 @@ const CONDITION_OPTIONS = [
 ];
 
 const EXTENT_OPTIONS = [
-  { value: "full_property", label: "Full property", text: "The inspection and testing covered the fixed electrical installation within the property, including all accessible circuits, accessories, and distribution equipment. No inspection was carried out on concealed wiring or parts of the installation not readily accessible." },
+  { value: "full_property", label: "Full property", text: "The inspection and testing covered the fixed electrical installation within the dwelling, including all accessible circuits, accessories, and distribution equipment. No access was available to concealed wiring or parts of the installation not readily accessible." },
   { value: "flat_only", label: "Flat only", text: "The inspection covered the fixed electrical installation within the flat only and did not include any communal or landlord-controlled installations." },
 ];
 
@@ -85,13 +85,14 @@ const TEST_VOLTAGES = ["250", "500", "1000"];
 const TOGGLE_OPTIONS = ["\u2713", "N/A", "LIM", "X"];
 
 const CIRCUIT_DESCRIPTIONS = [
-  { group: "Lighting Circuits", options: ["Lighting circuit – ground floor", "Lighting circuit – first floor", "Lighting circuit – second floor / loft", "External lighting circuit", "Emergency lighting circuit"] },
-  { group: "Socket Circuits", options: ["Sockets ground floor", "Sockets first floor", "Kitchen sockets", "Utility room socket", "External socket"] },
+  { group: "Lighting Circuits", options: ["Lights", "Lighting circuit – ground floor", "Lighting circuit – first floor", "Lighting circuit – second floor / loft", "External lighting circuit", "Emergency lighting circuit"] },
+  { group: "Socket Circuits", options: ["Sockets", "Sockets ground floor", "Sockets first floor", "Kitchen sockets", "Utility room socket", "External socket"] },
   { group: "Dedicated Appliance Circuits", options: ["Cooker", "Oven", "Hob", "Dishwasher", "Washing machine", "Tumble dryer", "Fridge / freezer"] },
   { group: "Heating & Ventilation", options: ["Boiler", "Central heating controls", "Immersion heater", "Electric shower", "Extractor fan", "MVHR / MEV unit"] },
   { group: "Special Installations", options: ["Smoke alarm", "Heat alarm", "Fire alarm system", "EV charger", "Solar PV inverter", "Battery storage system"] },
   { group: "Outdoor / Ancillary", options: ["Shed / outbuilding supply", "Garage consumer unit", "Garden lighting", "Pond / water feature supply", "Gate / intercom system"] },
   { group: "Misc / Common", options: ["Spare way", "Not in use", "Unknown circuit (investigation required)", "Landlord supply", "Communal supply"] },
+  { group: "Distribution / Protection", options: ["RCD", "Main Switch"] },
 ];
 const OCP_TYPES_NEW = ["Type B", "Type C", "Type D"];
 const OCP_RATINGS_NEW = ["6A", "10A", "16A", "20A", "32A", "40A", "50A", "63A"];
@@ -1835,7 +1836,7 @@ function CertificateRenderer({ job, property, certRef }) {
       <table style={tbl}><tbody>
         <tr><td style={{ ...head, width: "22%" }}>Inspector Name</td><td style={cell}>{eicr.inspectorName || "\u2014"}</td><td style={{ ...head, width: "22%" }}>Company</td><td style={cell}>{eicr.company || CONTRACTOR.name}</td></tr>
         <tr><td style={head}>Signature</td><td style={{ ...cell, height: 36 }}>{inspectorSigUrl && <img src={inspectorSigUrl} alt="Signature" style={{ maxHeight: 30, maxWidth: 120 }} />}</td><td style={head}>Date</td><td style={cell}>{eicr.inspectorDate || eicr.inspectionDate || "\u2014"}</td></tr>
-        <tr><td style={head}>BS 7671: 2018 Amended To</td><td style={cell}>{eicr.bs7671AmendedTo || "2024"}</td><td style={head}>Next Inspection Due</td><td style={cell}>{eicr.nextInspectionDate || "\u2014"}</td></tr>
+        <tr><td style={head}>BS 7671: 2018 Amended To</td><td style={cell}>{eicr.bs7671AmendedTo || "2026"}</td><td style={head}>Next Inspection Due</td><td style={cell}>{eicr.nextInspectionDate || "\u2014"}</td></tr>
         <tr><td style={head}>Reason for Recommendation</td><td style={cell} colSpan={3}>{eicr.nextInspectionReason || "As per IET Guidance Note 3 Table 3.2 or change of tenancy if sooner."}</td></tr>
       </tbody></table>
       <div style={{ fontFamily: A, fontSize: 8, color: "#333", lineHeight: 1.6, marginBottom: 8, padding: "6px 8px", background: "#f7f9fc", border: "1px solid #dde3ec", borderRadius: 3 }}>
@@ -2831,11 +2832,11 @@ function EICRPage() {
     noRemedialRequired: false,
     c1Items: "", c2Items: "", c3Items: "", fiItems: "",
     // Part 6 — Details and limitations
-    bs7671AmendedTo: "2024",
+    bs7671AmendedTo: "2026",
     extentKey: "full_property",
     limitationsKey: "na",
     agreedWith: "CLIENT",
-    extentOfSampling: "100% visual. 30% of accessories removed for inspection.",
+    extentOfSampling: "Inspection and testing carried out on a sampling basis in accordance with BS 7671, with the extent determined by the condition and accessibility of the installation. Sampling was representative of the installation and increased where necessary.",
     // Part 7 — Supply characteristics
     earthingSystem: "TN-S",
     supplyProtectiveBSEN: "", supplyProtectiveType: "", supplyProtectiveRating: "",
@@ -3001,7 +3002,7 @@ function EICRPage() {
     if (key === "r1" || key === "r2") {
       const r1 = parseFloat(key === "r1" ? val : t[idx].r1);
       const r2 = parseFloat(key === "r2" ? val : t[idx].r2);
-      if (!isNaN(r1) && !isNaN(r2)) t[idx].r1r2 = (r1 + r2).toFixed(2);
+      if (!isNaN(r1) && !isNaN(r2)) t[idx].r1r2 = ((r1 + r2) / 4).toFixed(2);
     }
     return { ...prev, testResults: t };
   });
@@ -3272,7 +3273,17 @@ function EICRPage() {
                 {ESTIMATED_AGE_OPTIONS.map(o => <option key={o} value={o}>{o} years</option>)}
               </select>
             </div>
-            <EICRField label="Alterations Age (years)" value={form.alterationsAge} onChange={v => set("alterationsAge", v)} placeholder="e.g. 5" />
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Alteration Age</label>
+              <select value={form.alterationsAge} onChange={e => set("alterationsAge", e.target.value)}
+                style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>
+                <option value="">— Select —</option>
+                <option value="&lt;5">&lt;5 years</option>
+                <option value="&lt;10">&lt;10 years</option>
+                <option value="&lt;15">&lt;15 years</option>
+                <option value="&lt;20">&lt;20 years</option>
+              </select>
+            </div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>General Condition (Electrical Safety)</label>
@@ -3307,7 +3318,16 @@ function EICRPage() {
           <EICRField label="Inspector Name" value={form.inspectorName} onChange={v => set("inspectorName", v)} />
           <EICRField label="Inspector Date" value={form.inspectorDate} onChange={v => set("inspectorDate", v)} type="date" />
           <EICRField label="Next Inspection By (Date)" value={form.nextInspectionDate} onChange={v => set("nextInspectionDate", v)} type="date" />
-          <div style={{ gridColumn: mob ? "auto" : "1 / -1" }}><EICRField label="Reason for Recommendation" value={form.nextInspectionReason} onChange={v => set("nextInspectionReason", v)} /></div>
+          <div style={{ gridColumn: mob ? "auto" : "1 / -1", display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Reason for Recommendation</label>
+            <select value={form.nextInspectionReason} onChange={e => set("nextInspectionReason", e.target.value)}
+              style={{ fontFamily: font, fontSize: 13, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", outline: "none", minHeight: 40, cursor: "pointer" }}>
+              <option value="As per IET Guidance Note 3 Table 3.2 or change of tenancy if sooner.">As per IET Guidance Note 3 Table 3.2 or change of tenancy if sooner.</option>
+              <option value="To ensure the continued safety of persons and property, taking into account the age, condition, and usage of the installation.">To ensure the continued safety of persons and property, taking into account the age, condition, and usage of the installation.</option>
+              <option value="Due to the condition of the existing wiring and installation, a reduced inspection interval is recommended to allow closer monitoring.">Due to the condition of the existing wiring and installation, a reduced inspection interval is recommended to allow closer monitoring.</option>
+              <option value="Remedial works are required within 28 days in accordance with current regulations. Upon completion, a satisfactory report will be issued.">Remedial works are required within 28 days in accordance with current regulations. Upon completion, a satisfactory report will be issued.</option>
+            </select>
+          </div>
         </div>
         <div style={{ background: C.surfaceAlt, borderRadius: 10, padding: "12px 16px", marginBottom: 16, border: `1px solid ${C.border}` }}>
           <div style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Reviewed by the Qualified Supervisor</div>
@@ -3328,19 +3348,18 @@ function EICRPage() {
             {["C1","C2","C3","FI"].map(code => obsCounts[code] ? (
               <span key={code} style={{ fontFamily: font, fontSize: 10, fontWeight: 700, color: "#fff", background: code === "C1" ? "#dc2626" : code === "C2" ? C.amber : code === "C3" ? C.accent : C.purple, borderRadius: 5, padding: "3px 8px" }}>{code} × {obsCounts[code]}</span>
             ) : null)}
-            {/* #11 Quick observation suggestions */}
-            <div style={{ position: "relative" }}>
-              <button onClick={() => setShowObsSuggestions(v => !v)} style={{ fontFamily: font, fontSize: 12, color: C.purple, background: C.purpleBg, border: `1px solid rgba(139,92,246,.3)`, borderRadius: 8, padding: "6px 12px", cursor: "pointer", minHeight: 32 }}>⚡ Common obs</button>
-              {showObsSuggestions && (
-                <div style={{ position: "absolute", right: 0, top: 36, zIndex: 60, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 8, minWidth: 340, maxHeight: 280, overflowY: "auto", boxShadow: "0 8px 30px rgba(0,0,0,.5)" }}>
-                  {COMMON_OBS.map((obs, i) => (
-                    <button key={i} onClick={() => addObsFromSuggestion(obs)} style={{ display: "flex", alignItems: "flex-start", gap: 8, width: "100%", background: "none", border: "none", borderBottom: `1px solid ${C.border}`, padding: "8px 4px", cursor: "pointer", textAlign: "left" }}>
-                      <span style={{ fontFamily: font, fontSize: 9, fontWeight: 700, color: "#fff", background: obs.code === "C1" ? "#dc2626" : obs.code === "C2" ? C.amber : obs.code === "C3" ? C.accent : C.purple, borderRadius: 4, padding: "2px 5px", flexShrink: 0 }}>{obs.code}</span>
-                      <span style={{ fontFamily: font, fontSize: 11, color: C.text, lineHeight: 1.4 }}>{obs.text}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
+            {/* Common observations — always visible panel */}
+            <div style={{ width: "100%", gridColumn: "1 / -1", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 10, marginBottom: 4 }}>
+              <div style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Common Observations — click to add</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 220, overflowY: "auto" }}>
+                {COMMON_OBS.map((obs, i) => (
+                  <button key={i} onClick={() => addObsFromSuggestion(obs)}
+                    style={{ display: "flex", alignItems: "flex-start", gap: 8, width: "100%", background: "none", border: `1px solid ${C.border}`, borderRadius: 6, padding: "7px 10px", cursor: "pointer", textAlign: "left" }}>
+                    <span style={{ fontFamily: font, fontSize: 9, fontWeight: 700, color: "#fff", background: obs.code === "C1" ? "#dc2626" : obs.code === "C2" ? C.amber : obs.code === "C3" ? C.accent : C.purple, borderRadius: 4, padding: "2px 5px", flexShrink: 0, minWidth: 22, textAlign: "center" }}>{obs.code}</span>
+                    <span style={{ fontFamily: font, fontSize: 11, color: C.text, lineHeight: 1.4 }}>{obs.text}</span>
+                  </button>
+                ))}
+              </div>
             </div>
             <button onClick={addObs} style={{ fontFamily: font, fontSize: 12, fontWeight: 600, color: C.accent, background: C.accentGlow, border: `1px solid rgba(59,130,246,.25)`, borderRadius: 8, padding: "6px 14px", cursor: "pointer", minHeight: 32 }}>+ Manual</button>
           </div>
@@ -3381,7 +3400,25 @@ function EICRPage() {
                   </div>
                 )}
               </div>
-              <EICRField label="Location" value={obs.location} onChange={v => updateObs(idx, "location", v)} placeholder="e.g. Fusebox" />
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Location</label>
+                <select value={obs.location} onChange={e => updateObs(idx, "location", e.target.value)}
+                  style={{ fontFamily: font, fontSize: 12, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", outline: "none", minHeight: 40, cursor: "pointer" }}>
+                  <option value="">— Select —</option>
+                  <option value="Fusebox">Fusebox</option>
+                  <option value="Throughout">Throughout</option>
+                  <option value="Gas bonding">Gas bonding</option>
+                  <option value="Water bonding">Water bonding</option>
+                  {[...new Set(CIRCUIT_DESCRIPTIONS.flatMap(g => g.options))].map(o => (
+                    <option key={o} value={o}>{o}</option>
+                  ))}
+                  <option value="Other">Other</option>
+                </select>
+                {obs.location === "Other" && (
+                  <input type="text" placeholder="Describe location…" value={obs.locationOther || ""} onChange={e => updateObs(idx, "locationOther", e.target.value)}
+                    style={{ fontFamily: font, fontSize: 12, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", outline: "none", marginTop: 4 }} />
+                )}
+              </div>
               {!obs.linkedFromPart9 ? (
                 <button onClick={() => removeObs(idx)} style={{ fontFamily: font, fontSize: 14, color: C.red, background: "transparent", border: "none", cursor: "pointer", minHeight: 40 }}>✕</button>
               ) : (
@@ -3394,7 +3431,7 @@ function EICRPage() {
 
       {/* Part 6 — Details and Limitations */}
       <EICRSection id="eicr-p6" mob={mob} title="Part 6 — Details & Limitations">
-        <EICRField label="BS 7671: 2018 Amended To" value={form.bs7671AmendedTo} onChange={v => set("bs7671AmendedTo", v)} placeholder="2024" />
+        <EICRField label="BS 7671: 2018 Amended To" value={form.bs7671AmendedTo} onChange={v => set("bs7671AmendedTo", v)} placeholder="2026" />
         <EICRField label="Agreed With" value={form.agreedWith} onChange={v => set("agreedWith", v)} placeholder="CLIENT" />
         <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: 4 }}>
           <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Details of Installation Covered</label>
