@@ -1949,6 +1949,12 @@ function CertificateRenderer({ job, property, certRef }) {
               {iRow("3.1", "Bonding accessibility", eicr.s3_1_bondingAccessibility)}
               {iRow("3.1", "Earthing/bonding labels", eicr.s3_1_earthingLabels)}
               {iRow("3.2", "FELV requirements", eicr.s3_2_felv)}
+              {iRow("3.3", "RCD \u226430mA \u2014 socket-outlets \u226420A general use", eicr.s3_3a_rcdSocketOutlets)}
+              {iRow("3.3", "RCD \u226430mA \u2014 cables concealed in walls <50mm depth", eicr.s3_3b_rcdConcealed)}
+              {iRow("3.3", "RCD \u226430mA \u2014 bath/shower circuits", eicr.s3_3c_rcdBathShower)}
+              {iRow("3.3", "RCD \u226430mA \u2014 mobile equipment outdoors (\u226432A)", eicr.s3_3d_rcdOutdoor)}
+              {iRow("3.3", "RCD \u226430mA \u2014 heating conductors embedded in floors/ceilings", eicr.s3_3e_rcdHeating)}
+              {iRow("3.3", "AFDD provided where required", eicr.s3_3f_afdd)}
             </tbody></table>
 
             <div style={sh2}>5.0 — Distribution Circuits (Submains)</div>
@@ -1956,8 +1962,28 @@ function CertificateRenderer({ job, property, certRef }) {
               {iRow("5.1", "Conductor identification", eicr.s5_1_conductorId)}
               {iRow("5.2", "Cables correctly supported", eicr.s5_2_cablesSupported)}
               {iRow("5.3", "Insulation of live parts", eicr.s5_3_insulationLive)}
+              {iRow("5.4", "Non-sheathed cables in conduit/trunking/ducting", eicr.s5_4_nonSheathed)}
+              {iRow("5.5", "Adequacy for current-carrying capacity (containment)", eicr.s5_5_containment)}
+              {iRow("5.6", "Cables correctly terminated at all connection points", eicr.s5_6_terminated)}
               {iRow("5.7", "Cable damage / deterioration", eicr.s5_7_cableDamage)}
               {iRow("5.8", "Current-carrying capacity", eicr.s5_8_currentCapacity)}
+              {iRow("5.9", "Voltage drop within acceptable limits", eicr.s5_9_voltageDrop)}
+              {iRow("5.10", "Selection of cables to minimise thermal damage", eicr.s5_10_thermalEffects)}
+              {iRow("5.11", "Cables not liable to mechanical damage", eicr.s5_11_cablesParallel)}
+              {iRow("5.12", "Cable routes identified / accessible", eicr.s5_12_cableRoutes)}
+              {iRow("5.13", "Adequacy of conductor cross-sectional area", eicr.s5_13_cableSize)}
+              {iRow("5.14", "Condition of insulation \u2014 live conductors", eicr.s5_14a_insulationCondition)}
+              {iRow("5.14", "Presence and adequacy of fire barriers / cable seals", eicr.s5_14b_fireBarriers)}
+              {iRow("5.15", "Protection against radiant heat / thermal effects", eicr.s5_15_radiantHeat)}
+              {iRow("5.16", "Absence of undue electromagnetic / electrostatic effects", eicr.s5_16_emEffects)}
+              {iRow("5.17", "Adequate working space / accessibility to cables", eicr.s5_17_workingSpace)}
+              {iRow("5.18", "Adequacy of circuit protective conductors (CPC)", eicr.s5_18_cpcSize)}
+              {iRow("5.19", "Visual condition of insulation \u2014 not damaged", eicr.s5_19_insulationVisual)}
+              {iRow("5.20", "Correct wiring system for the environment", eicr.s5_20_correctSystem)}
+              {iRow("5.21", "Cables not exposed to harmful substances", eicr.s5_21_harmfulSubstances)}
+              {iRow("5.22", "Cables installed to minimise mutual heating", eicr.s5_22_mutualHeating)}
+              {iRow("5.23", "Cable routes marked where concealed", eicr.s5_23_concealed)}
+              {iRow("5.24", "Earthing / bonding connections present and secure", eicr.s5_24_earthBonding)}
             </tbody></table>
           </div>
 
@@ -1972,6 +1998,7 @@ function CertificateRenderer({ job, property, certRef }) {
               {iRow("4.5", "IP rating", eicr.s4_5_ipRating)}
               {iRow("4.6", "Fire rating of enclosure", eicr.s4_6_fireRating)}
               {iRow("4.7", "Enclosure not damaged", eicr.s4_7_enclosureDamage)}
+              {iRow("4.8", "Overcurrent devices present where CSA reduces", eicr.s4_8_obstacles)}
               {iRow("4.9", "Main switch(es) present", eicr.s4_9_mainSwitches)}
               {iRow("4.10", "Main switch operation", eicr.s4_10_mainSwitchOp)}
               {iRow("4.11", "CB / RCD / AFDD manual operation", eicr.s4_11_cbRcdOperation)}
@@ -1981,9 +2008,13 @@ function CertificateRenderer({ job, property, certRef }) {
               {iRow("4.15", "RCD 6-monthly test notice", eicr.s4_15_rcdTestNotice)}
               {iRow("4.16", "AFDD test button", eicr.s4_16_afddTestButton)}
               {iRow("4.17", "Diagrams / charts / schedules", eicr.s4_17_diagrams)}
+              {iRow("4.18", "Alternative / dual supply warning notice", eicr.s4_18_altSupplyWarning)}
               {iRow("4.19", "Next inspection label", eicr.s4_19_nextInspectionLabel)}
+              {iRow("4.20", "Correct selection and installation of SPD", eicr.s4_20_otherLabelling)}
               {iRow("4.21", "Compatibility of protective devices", eicr.s4_21_compatibility)}
               {iRow("4.22", "Single-pole switching in line conductors only", eicr.s4_22_singlePole)}
+              {iRow("4.23", "Protection against mechanical damage", eicr.s4_23_mechDamage)}
+              {iRow("4.24", "Protection against electromagnetic effects", eicr.s4_24_emEffects)}
               {iRow("4.25", "All connections tight and secure", eicr.s4_25_connections)}
             </tbody></table>
           </div>
@@ -2001,23 +2032,53 @@ function CertificateRenderer({ job, property, certRef }) {
             <table style={tbl}><tbody>
               {iRow("6.1", "Conductor identification", eicr.s6_1_conductorId)}
               {iRow("6.2", "Cables correctly supported", eicr.s6_2_cablesSupported)}
-              {iRow("6.3", "Insulation of live parts", eicr.s6_3_insulationLive)}
+              {iRow("6.3", "Insulation of live parts \u2014 condition", eicr.s6_3_insulationLive)}
+              {iRow("6.4", "Non-sheathed cables in conduit/trunking", eicr.s6_4_nonSheathed)}
+              {iRow("6.5", "Cables correctly terminated at accessories", eicr.s6_5_terminated)}
               {iRow("6.6", "Current-carrying capacity", eicr.s6_6_currentCapacity)}
               {iRow("6.7", "Protective devices adequate", eicr.s6_7_protectiveDevices)}
               {iRow("6.8", "Circuit protective conductors", eicr.s6_8_cpc)}
+              {iRow("6.9", "Voltage drop within acceptable limits", eicr.s6_9_voltageDrop)}
+              {iRow("6.10", "Selection of cables to minimise thermal damage", eicr.s6_10_thermalEffects)}
+              {iRow("6.11", "Cables not liable to mechanical damage", eicr.s6_11_cablesRouted)}
+              {iRow("6.12", "Condition and security of accessories", eicr.s6_12a_accessories)}
+              {iRow("6.12", "Adequacy of boxes and other enclosures", eicr.s6_12b_enclosures)}
               {iRow("6.13", "RCD \u226430mA \u2014 all sockets \u226432A", eicr.s6_13_rcd30mA_sockets)}
               {iRow("6.13", "RCD \u226430mA \u2014 outdoor mobile equip", eicr.s6_13_rcd30mA_outdoor)}
               {iRow("6.13", "RCD \u226430mA \u2014 concealed cables <50mm", eicr.s6_13_rcd30mA_concealed)}
               {iRow("6.13", "RCD \u226430mA \u2014 luminaires (domestic)", eicr.s6_13_rcd30mA_luminaires)}
+              {iRow("6.14", "Ring final circuit conductors \u2014 continuity verified", eicr.s6_14_ringConductors)}
+              {iRow("6.15", "Adequate number of socket-outlets per circuit", eicr.s6_15_socketCount)}
+              {iRow("6.16", "Lighting circuit arrangements", eicr.s6_16_lighting)}
+              {iRow("6.17", "Fixed equipment correctly connected", eicr.s6_17a_fixedEquip)}
+              {iRow("6.17", "Heating equipment suitable for installation", eicr.s6_17b_heating)}
+              {iRow("6.17", "Flexible cables / cords adequate size and type", eicr.s6_17c_flexibles)}
+              {iRow("6.17", "Accessories suitable for their location", eicr.s6_17d_accessories)}
               {iRow("6.18", "Accessories condition", eicr.s6_18_accessories)}
+              {iRow("6.19", "SPD provided where required", eicr.s6_19_spd)}
+              {iRow("6.20", "General condition of wiring and accessories", eicr.s6_20_conditionWiring)}
             </tbody></table>
 
             <div style={sh2}>7.0 — Isolation and Switching</div>
             <table style={tbl}><tbody>
-              {iRow("7.1", "Isolators", eicr.s7_1_isolators)}
-              {iRow("7.2", "Switching off for mechanical maintenance", eicr.s7_2_mechMaintenance)}
-              {iRow("7.3", "Emergency switching off", eicr.s7_3_emergencySwitching)}
-              {iRow("7.4", "Functional switching", eicr.s7_4_functionalSwitching)}
+              {iRow("7.1", "Isolators \u2014 provision", eicr.s7_1a_provision)}
+              {iRow("7.1", "Isolators \u2014 location", eicr.s7_1b_location)}
+              {iRow("7.1", "Isolators \u2014 accessibility", eicr.s7_1c_accessibility)}
+              {iRow("7.1", "Isolators \u2014 rating", eicr.s7_1d_rating)}
+              {iRow("7.1", "Isolators \u2014 labelling", eicr.s7_1e_labelling)}
+              {iRow("7.1", "Isolators \u2014 operation", eicr.s7_1f_operation)}
+              {iRow("7.2", "Mech. maintenance switching \u2014 provision", eicr.s7_2a_provision)}
+              {iRow("7.2", "Mech. maintenance switching \u2014 location", eicr.s7_2b_location)}
+              {iRow("7.2", "Mech. maintenance switching \u2014 inadvertent reconnection", eicr.s7_2c_prevention)}
+              {iRow("7.2", "Mech. maintenance switching \u2014 labelling", eicr.s7_2d_labelling)}
+              {iRow("7.3", "Emergency switching off \u2014 provision", eicr.s7_3a_provision)}
+              {iRow("7.3", "Emergency switching off \u2014 location", eicr.s7_3b_location)}
+              {iRow("7.3", "Emergency switching off \u2014 accessibility", eicr.s7_3c_accessibility)}
+              {iRow("7.3", "Emergency switching off \u2014 labelling", eicr.s7_3d_labelling)}
+              {iRow("7.4", "Functional switching \u2014 provision", eicr.s7_4a_provision)}
+              {iRow("7.4", "Functional switching \u2014 location", eicr.s7_4b_location)}
+              {iRow("7.4", "Functional switching \u2014 type/suitability", eicr.s7_4c_type)}
+              {iRow("7.4", "Functional switching \u2014 labelling", eicr.s7_4d_labelling)}
             </tbody></table>
           </div>
 
@@ -2028,9 +2089,14 @@ function CertificateRenderer({ job, property, certRef }) {
               {iRow("8.1", "IP rating", eicr.s8_1_ipRating)}
               {iRow("8.2", "Not a fire hazard", eicr.s8_2_fireHazard)}
               {iRow("8.3", "Enclosure not damaged", eicr.s8_3_enclosure)}
-              {iRow("8.4", "Suitability for environment", eicr.s8_4_environment)}
+              {iRow("8.4", "Suitable for environment / external influences", eicr.s8_4_environment)}
               {iRow("8.5", "Security of fixing", eicr.s8_5_security)}
-              {iRow("8.7", "Recessed luminaires (downlighters)", eicr.s8_7_recessedLuminaires)}
+              {iRow("8.6", "Luminaires: type and installation suitability", eicr.s8_6_luminaireCount)}
+              {eicr.s8_6_luminaireList ? <tr key="8.6list"><td colSpan={3} style={{ fontFamily: "Arial, sans-serif", fontSize: 7, padding: "2px 4px", color: "#555", fontStyle: "italic" }}>Luminaires: {eicr.s8_6_luminaireList}</td></tr> : null}
+              {iRow("8.7", "Recessed luminaires \u2014 fire protection", eicr.s8_7a_fireProt)}
+              {iRow("8.7", "Recessed luminaires \u2014 thermal clearances", eicr.s8_7b_clearances)}
+              {iRow("8.7", "Recessed luminaires \u2014 wiring terminations", eicr.s8_7c_wiring)}
+              {iRow("8.7", "Recessed luminaires \u2014 accessibility", eicr.s8_7d_access)}
             </tbody></table>
 
             <div style={sh2}>9.0 — Special Locations</div>
@@ -2039,8 +2105,9 @@ function CertificateRenderer({ job, property, certRef }) {
               {iRow("9.1", "SELV / PELV requirements", eicr.s9_1_selvPelv)}
               {iRow("9.1", "Shaver supply unit", eicr.s9_1_shaver)}
               {iRow("9.1", "Supplementary bonding", eicr.s9_1_suppBonding)}
+              {iRow("9.1", "LV socket-outlets sited \u22652.5m from zone 1", eicr.s9_1_socketDistance)}
               {iRow("9.1", "IP rating for zone", eicr.s9_1_ipRating)}
-              {iRow("9.1", "Accessories suitable for zone", eicr.s9_1_zoneAccessories)}
+              {iRow("9.1", "Suitability of equipment for position within location", eicr.s9_1_zoneAccessories)}
               {iRow("9.1", "Equipment suitable for zone", eicr.s9_1_zoneEquipment)}
             </tbody></table>
 
@@ -2864,6 +2931,9 @@ function EICRPage() {
     s3_1_earthingConnections: "pass", s3_1_earthingAccessibility: "pass",
     s3_1_bondingSize: "pass", s3_1_bondingLocation: "pass", s3_1_bondingAccessibility: "pass",
     s3_1_earthingLabels: "pass", s3_2_felv: "na",
+    // Section 3.3 Additional protection
+    s3_3a_rcdSocketOutlets: "na", s3_3b_rcdConcealed: "na", s3_3c_rcdBathShower: "na",
+    s3_3d_rcdOutdoor: "na", s3_3e_rcdHeating: "na", s3_3f_afdd: "na",
     // Section 4.0 Distribution equipment
     s4_1_workingSpace: "pass", s4_2_security: "pass", s4_3_insulationLive: "pass",
     s4_4_barriers: "pass", s4_5_ipRating: "pass", s4_6_fireRating: "pass",
@@ -2878,19 +2948,39 @@ function EICRPage() {
     s5_1_conductorId: "pass", s5_2_cablesSupported: "pass", s5_3_insulationLive: "pass",
     s5_4_nonSheathed: "na", s5_5_containment: "pass", s5_6_terminated: "pass",
     s5_7_cableDamage: "pass", s5_8_currentCapacity: "pass",
+    s5_9_voltageDrop: "na", s5_10_thermalEffects: "na", s5_11_cablesParallel: "na",
+    s5_12_cableRoutes: "na", s5_13_cableSize: "na",
+    s5_14a_insulationCondition: "na", s5_14b_fireBarriers: "na",
+    s5_15_radiantHeat: "na", s5_16_emEffects: "na", s5_17_workingSpace: "na",
+    s5_18_cpcSize: "na", s5_19_insulationVisual: "na", s5_20_correctSystem: "na",
+    s5_21_harmfulSubstances: "na", s5_22_mutualHeating: "na", s5_23_concealed: "na",
+    s5_24_earthBonding: "na",
     // Section 6.0 Final circuits
     s6_1_conductorId: "pass", s6_2_cablesSupported: "pass", s6_3_insulationLive: "pass",
     s6_6_currentCapacity: "pass", s6_7_protectiveDevices: "pass", s6_8_cpc: "pass",
     s6_13_rcd30mA_sockets: "pass", s6_13_rcd30mA_outdoor: "pass",
     s6_13_rcd30mA_concealed: "pass", s6_13_rcd30mA_luminaires: "pass",
     s6_18_accessories: "pass",
+    s6_4_nonSheathed: "na", s6_5_terminated: "na",
+    s6_9_voltageDrop: "na", s6_10_thermalEffects: "na", s6_11_cablesRouted: "na",
+    s6_12a_accessories: "na", s6_12b_enclosures: "na",
+    s6_14_ringConductors: "na", s6_15_socketCount: "na", s6_16_lighting: "na",
+    s6_17a_fixedEquip: "na", s6_17b_heating: "na", s6_17c_flexibles: "na",
+    s6_17d_accessories: "na", s6_19_spd: "na", s6_20_conditionWiring: "pass",
     // Section 7.0 Isolation and switching
     s7_1_isolators: "pass", s7_2_mechMaintenance: "pass", s7_3_emergencySwitching: "pass",
     s7_4_functionalSwitching: "pass",
+    s7_1a_provision: "pass", s7_1b_location: "pass", s7_1c_accessibility: "pass",
+    s7_1d_rating: "pass", s7_1e_labelling: "pass", s7_1f_operation: "pass",
+    s7_2a_provision: "pass", s7_2b_location: "pass", s7_2c_prevention: "pass", s7_2d_labelling: "pass",
+    s7_3a_provision: "pass", s7_3b_location: "pass", s7_3c_accessibility: "pass", s7_3d_labelling: "pass",
+    s7_4a_provision: "pass", s7_4b_location: "pass", s7_4c_type: "pass", s7_4d_labelling: "pass",
     // Section 8.0 Current-using equipment
     s8_1_ipRating: "pass", s8_2_fireHazard: "pass", s8_3_enclosure: "pass",
     s8_4_environment: "pass", s8_5_security: "pass",
+    s8_6_luminaireCount: "na", s8_6_luminaireList: "",
     s8_7_recessedLuminaires: "pass",
+    s8_7a_fireProt: "na", s8_7b_clearances: "na", s8_7c_wiring: "na", s8_7d_access: "na",
     // Section 9.0 Special locations
     s9_1_bathRcd: "pass", s9_1_selvPelv: "na", s9_1_shaver: "pass",
     s9_1_suppBonding: "pass", s9_1_socketDistance: "na",
@@ -3552,6 +3642,12 @@ function EICRPage() {
           <EICRInspectionItem id="3.1" label="Bonding accessibility" value={form.s3_1_bondingAccessibility} onChange={(v) => { set("s3_1_bondingAccessibility", v); handlePart9Classification("3.1h", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="3.1" label="Earthing/bonding labels" value={form.s3_1_earthingLabels} onChange={(v) => { set("s3_1_earthingLabels", v); handlePart9Classification("3.1i", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="3.2" label="FELV requirements" value={form.s3_2_felv} onChange={(v) => { set("s3_2_felv", v); handlePart9Classification("3.2", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="3.3" label="RCD ≤30mA — socket-outlets rated ≤20A for general use" value={form.s3_3a_rcdSocketOutlets} onChange={(v) => { set("s3_3a_rcdSocketOutlets", v); handlePart9Classification("3.3a", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="3.3" label="RCD ≤30mA — cables concealed in walls/partitions at <50mm depth" value={form.s3_3b_rcdConcealed} onChange={(v) => { set("s3_3b_rcdConcealed", v); handlePart9Classification("3.3b", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="3.3" label="RCD ≤30mA — circuits in locations containing a bath or shower" value={form.s3_3c_rcdBathShower} onChange={(v) => { set("s3_3c_rcdBathShower", v); handlePart9Classification("3.3c", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="3.3" label="RCD ≤30mA — mobile equipment used outdoors (≤32A)" value={form.s3_3d_rcdOutdoor} onChange={(v) => { set("s3_3d_rcdOutdoor", v); handlePart9Classification("3.3d", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="3.3" label="RCD ≤30mA — heating conductors embedded in floors/ceilings" value={form.s3_3e_rcdHeating} onChange={(v) => { set("s3_3e_rcdHeating", v); handlePart9Classification("3.3e", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="3.3" label="Arc Fault Detection Device (AFDD) provided where required" value={form.s3_3f_afdd} onChange={(v) => { set("s3_3f_afdd", v); handlePart9Classification("3.3f", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
         </EICRSISection>
 
         <EICRSISection id="s4" title="4.0 Distribution Equipment" isOpen={openSections["s4"] !== false} onToggle={() => toggleSection("s4")}>
@@ -3562,6 +3658,7 @@ function EICRPage() {
           <EICRInspectionItem id="4.5" label="IP rating" value={form.s4_5_ipRating} onChange={(v) => { set("s4_5_ipRating", v); handlePart9Classification("4.5", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="4.6" label="Fire rating of enclosure" value={form.s4_6_fireRating} onChange={(v) => { set("s4_6_fireRating", v); handlePart9Classification("4.6", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="4.7" label="Enclosure not damaged" value={form.s4_7_enclosureDamage} onChange={(v) => { set("s4_7_enclosureDamage", v); handlePart9Classification("4.7", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="4.8" label="Presence and adequacy of overcurrent devices where CSA reduces" value={form.s4_8_obstacles} onChange={(v) => { set("s4_8_obstacles", v); handlePart9Classification("4.8", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="4.9" label="Main switch(es) present" value={form.s4_9_mainSwitches} onChange={(v) => { set("s4_9_mainSwitches", v); handlePart9Classification("4.9", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="4.10" label="Main switch operation" value={form.s4_10_mainSwitchOp} onChange={(v) => { set("s4_10_mainSwitchOp", v); handlePart9Classification("4.10", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="4.11" label="CB / RCD / AFDD manual operation" value={form.s4_11_cbRcdOperation} onChange={(v) => { set("s4_11_cbRcdOperation", v); handlePart9Classification("4.11", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
@@ -3569,10 +3666,15 @@ function EICRPage() {
           <EICRInspectionItem id="4.13" label="RCD for fault protection" value={form.s4_13_rcdFaultProtection} onChange={(v) => { set("s4_13_rcdFaultProtection", v); handlePart9Classification("4.13", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="4.14" label="RCD for additional protection" value={form.s4_14_rcdAdditional} onChange={(v) => { set("s4_14_rcdAdditional", v); handlePart9Classification("4.14", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="4.15" label="RCD 6-monthly test notice" value={form.s4_15_rcdTestNotice} onChange={(v) => { set("s4_15_rcdTestNotice", v); handlePart9Classification("4.15", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="4.16" label="AFDD test button function" value={form.s4_16_afddTestButton} onChange={(v) => { set("s4_16_afddTestButton", v); handlePart9Classification("4.16", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="4.17" label="Diagrams / charts / schedules" value={form.s4_17_diagrams} onChange={(v) => { set("s4_17_diagrams", v); handlePart9Classification("4.17", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="4.18" label="Alternative supply / dual supply warning notice" value={form.s4_18_altSupplyWarning} onChange={(v) => { set("s4_18_altSupplyWarning", v); handlePart9Classification("4.18", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="4.19" label="Next inspection label" value={form.s4_19_nextInspectionLabel} onChange={(v) => { set("s4_19_nextInspectionLabel", v); handlePart9Classification("4.19", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="4.20" label="Correct selection and installation of surge protective devices (SPD)" value={form.s4_20_otherLabelling} onChange={(v) => { set("s4_20_otherLabelling", v); handlePart9Classification("4.20", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="4.21" label="Compatibility of protective devices" value={form.s4_21_compatibility} onChange={(v) => { set("s4_21_compatibility", v); handlePart9Classification("4.21", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="4.22" label="Single-pole switching in line conductors only" value={form.s4_22_singlePole} onChange={(v) => { set("s4_22_singlePole", v); handlePart9Classification("4.22", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="4.23" label="Protection of distribution equipment against mechanical damage" value={form.s4_23_mechDamage} onChange={(v) => { set("s4_23_mechDamage", v); handlePart9Classification("4.23", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="4.24" label="Protection against electromagnetic effects / mutual influence" value={form.s4_24_emEffects} onChange={(v) => { set("s4_24_emEffects", v); handlePart9Classification("4.24", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="4.25" label="All connections tight and secure" value={form.s4_25_connections} onChange={(v) => { set("s4_25_connections", v); handlePart9Classification("4.25", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
         </EICRSISection>
 
@@ -3580,36 +3682,97 @@ function EICRPage() {
           <EICRInspectionItem id="5.1" label="Conductor identification" value={form.s5_1_conductorId} onChange={(v) => { set("s5_1_conductorId", v); handlePart9Classification("5.1", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="5.2" label="Cables correctly supported" value={form.s5_2_cablesSupported} onChange={(v) => { set("s5_2_cablesSupported", v); handlePart9Classification("5.2", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="5.3" label="Insulation of live parts" value={form.s5_3_insulationLive} onChange={(v) => { set("s5_3_insulationLive", v); handlePart9Classification("5.3", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="5.4" label="Non-sheathed cables enclosed in conduit / trunking / ducting" value={form.s5_4_nonSheathed} onChange={(v) => { set("s5_4_nonSheathed", v); handlePart9Classification("5.4", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="5.5" label="Adequacy of cables for current-carrying capacity (containment / method)" value={form.s5_5_containment} onChange={(v) => { set("s5_5_containment", v); handlePart9Classification("5.5", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="5.6" label="Cables correctly terminated at all connection points" value={form.s5_6_terminated} onChange={(v) => { set("s5_6_terminated", v); handlePart9Classification("5.6", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="5.7" label="Cable damage / deterioration" value={form.s5_7_cableDamage} onChange={(v) => { set("s5_7_cableDamage", v); handlePart9Classification("5.7", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="5.8" label="Current-carrying capacity" value={form.s5_8_currentCapacity} onChange={(v) => { set("s5_8_currentCapacity", v); handlePart9Classification("5.8", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="5.9" label="Voltage drop within acceptable limits" value={form.s5_9_voltageDrop} onChange={(v) => { set("s5_9_voltageDrop", v); handlePart9Classification("5.9", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="5.10" label="Selection of cables to minimise risk of thermal damage" value={form.s5_10_thermalEffects} onChange={(v) => { set("s5_10_thermalEffects", v); handlePart9Classification("5.10", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="5.11" label="Cables not liable to mechanical damage" value={form.s5_11_cablesParallel} onChange={(v) => { set("s5_11_cablesParallel", v); handlePart9Classification("5.11", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="5.12" label="Cable routes identified / accessible" value={form.s5_12_cableRoutes} onChange={(v) => { set("s5_12_cableRoutes", v); handlePart9Classification("5.12", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="5.13" label="Adequacy of conductor cross-sectional area" value={form.s5_13_cableSize} onChange={(v) => { set("s5_13_cableSize", v); handlePart9Classification("5.13", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="5.14" label="Condition of insulation — live conductors" value={form.s5_14a_insulationCondition} onChange={(v) => { set("s5_14a_insulationCondition", v); handlePart9Classification("5.14a", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="5.14" label="Presence and adequacy of fire barriers / cable seals" value={form.s5_14b_fireBarriers} onChange={(v) => { set("s5_14b_fireBarriers", v); handlePart9Classification("5.14b", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="5.15" label="Protection against radiant heat / thermal effects" value={form.s5_15_radiantHeat} onChange={(v) => { set("s5_15_radiantHeat", v); handlePart9Classification("5.15", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="5.16" label="Absence of undue electromagnetic / electrostatic effects" value={form.s5_16_emEffects} onChange={(v) => { set("s5_16_emEffects", v); handlePart9Classification("5.16", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="5.17" label="Adequate working space / accessibility to cables" value={form.s5_17_workingSpace} onChange={(v) => { set("s5_17_workingSpace", v); handlePart9Classification("5.17", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="5.18" label="Adequacy of circuit protective conductors (CPC)" value={form.s5_18_cpcSize} onChange={(v) => { set("s5_18_cpcSize", v); handlePart9Classification("5.18", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="5.19" label="Visual condition of insulation — not damaged or deteriorated" value={form.s5_19_insulationVisual} onChange={(v) => { set("s5_19_insulationVisual", v); handlePart9Classification("5.19", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="5.20" label="Correct wiring system selected for the environment" value={form.s5_20_correctSystem} onChange={(v) => { set("s5_20_correctSystem", v); handlePart9Classification("5.20", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="5.21" label="Cables not exposed to harmful substances" value={form.s5_21_harmfulSubstances} onChange={(v) => { set("s5_21_harmfulSubstances", v); handlePart9Classification("5.21", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="5.22" label="Cables installed to minimise effects of mutual heating" value={form.s5_22_mutualHeating} onChange={(v) => { set("s5_22_mutualHeating", v); handlePart9Classification("5.22", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="5.23" label="Cable routes marked where concealed" value={form.s5_23_concealed} onChange={(v) => { set("s5_23_concealed", v); handlePart9Classification("5.23", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="5.24" label="Earthing / bonding connections present and secure" value={form.s5_24_earthBonding} onChange={(v) => { set("s5_24_earthBonding", v); handlePart9Classification("5.24", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
         </EICRSISection>
 
         <EICRSISection id="s6" title="6.0 Final Circuits" isOpen={openSections["s6"] !== false} onToggle={() => toggleSection("s6")}>
           <EICRInspectionItem id="6.1" label="Conductor identification" value={form.s6_1_conductorId} onChange={(v) => { set("s6_1_conductorId", v); handlePart9Classification("6.1", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="6.2" label="Cables correctly supported" value={form.s6_2_cablesSupported} onChange={(v) => { set("s6_2_cablesSupported", v); handlePart9Classification("6.2", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="6.3" label="Insulation of live parts — condition" value={form.s6_3_insulationLive} onChange={(v) => { set("s6_3_insulationLive", v); handlePart9Classification("6.3", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="6.4" label="Non-sheathed cables enclosed in conduit / trunking" value={form.s6_4_nonSheathed} onChange={(v) => { set("s6_4_nonSheathed", v); handlePart9Classification("6.4", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="6.5" label="Cables correctly terminated at accessories" value={form.s6_5_terminated} onChange={(v) => { set("s6_5_terminated", v); handlePart9Classification("6.5", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="6.6" label="Current-carrying capacity" value={form.s6_6_currentCapacity} onChange={(v) => { set("s6_6_currentCapacity", v); handlePart9Classification("6.6", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="6.7" label="Protective devices adequate" value={form.s6_7_protectiveDevices} onChange={(v) => { set("s6_7_protectiveDevices", v); handlePart9Classification("6.7", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="6.8" label="Circuit protective conductors" value={form.s6_8_cpc} onChange={(v) => { set("s6_8_cpc", v); handlePart9Classification("6.8", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="6.9" label="Voltage drop within acceptable limits" value={form.s6_9_voltageDrop} onChange={(v) => { set("s6_9_voltageDrop", v); handlePart9Classification("6.9", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="6.10" label="Selection of cables to minimise thermal damage" value={form.s6_10_thermalEffects} onChange={(v) => { set("s6_10_thermalEffects", v); handlePart9Classification("6.10", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="6.11" label="Cables not liable to mechanical damage (routed safely)" value={form.s6_11_cablesRouted} onChange={(v) => { set("s6_11_cablesRouted", v); handlePart9Classification("6.11", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="6.12" label="Condition and security of accessories" value={form.s6_12a_accessories} onChange={(v) => { set("s6_12a_accessories", v); handlePart9Classification("6.12a", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="6.12" label="Adequacy of boxes and other enclosures" value={form.s6_12b_enclosures} onChange={(v) => { set("s6_12b_enclosures", v); handlePart9Classification("6.12b", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="6.13" label="RCD ≤30mA — all sockets ≤32A" value={form.s6_13_rcd30mA_sockets} onChange={(v) => { set("s6_13_rcd30mA_sockets", v); handlePart9Classification("6.13a", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="6.13" label="RCD ≤30mA — outdoor mobile equip" value={form.s6_13_rcd30mA_outdoor} onChange={(v) => { set("s6_13_rcd30mA_outdoor", v); handlePart9Classification("6.13b", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="6.13" label="RCD ≤30mA — concealed cables <50mm" value={form.s6_13_rcd30mA_concealed} onChange={(v) => { set("s6_13_rcd30mA_concealed", v); handlePart9Classification("6.13c", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="6.13" label="RCD ≤30mA — luminaires (domestic)" value={form.s6_13_rcd30mA_luminaires} onChange={(v) => { set("s6_13_rcd30mA_luminaires", v); handlePart9Classification("6.13d", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="6.14" label="Ring final circuit conductors — continuity verified" value={form.s6_14_ringConductors} onChange={(v) => { set("s6_14_ringConductors", v); handlePart9Classification("6.14", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="6.15" label="Adequate number of socket-outlets per circuit" value={form.s6_15_socketCount} onChange={(v) => { set("s6_15_socketCount", v); handlePart9Classification("6.15", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="6.16" label="Lighting circuit arrangements (number of points / loading)" value={form.s6_16_lighting} onChange={(v) => { set("s6_16_lighting", v); handlePart9Classification("6.16", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="6.17" label="Fixed equipment correctly connected" value={form.s6_17a_fixedEquip} onChange={(v) => { set("s6_17a_fixedEquip", v); handlePart9Classification("6.17a", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="6.17" label="Heating equipment suitable for installation" value={form.s6_17b_heating} onChange={(v) => { set("s6_17b_heating", v); handlePart9Classification("6.17b", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="6.17" label="Flexible cables / cords of adequate size and type" value={form.s6_17c_flexibles} onChange={(v) => { set("s6_17c_flexibles", v); handlePart9Classification("6.17c", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="6.17" label="Accessories suitable for their location" value={form.s6_17d_accessories} onChange={(v) => { set("s6_17d_accessories", v); handlePart9Classification("6.17d", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="6.18" label="Accessories condition" value={form.s6_18_accessories} onChange={(v) => { set("s6_18_accessories", v); handlePart9Classification("6.18", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="6.19" label="Surge protective device (SPD) provided where required" value={form.s6_19_spd} onChange={(v) => { set("s6_19_spd", v); handlePart9Classification("6.19", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="6.20" label="General condition of wiring and accessories" value={form.s6_20_conditionWiring} onChange={(v) => { set("s6_20_conditionWiring", v); handlePart9Classification("6.20", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
         </EICRSISection>
 
         <EICRSISection id="s7" title="7.0 Isolation & Switching" isOpen={openSections["s7"] !== false} onToggle={() => toggleSection("s7")}>
-          <EICRInspectionItem id="7.1" label="Isolators" value={form.s7_1_isolators} onChange={(v) => { set("s7_1_isolators", v); handlePart9Classification("7.1", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
-          <EICRInspectionItem id="7.2" label="Switching off for mechanical maintenance" value={form.s7_2_mechMaintenance} onChange={(v) => { set("s7_2_mechMaintenance", v); handlePart9Classification("7.2", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
-          <EICRInspectionItem id="7.3" label="Emergency switching off" value={form.s7_3_emergencySwitching} onChange={(v) => { set("s7_3_emergencySwitching", v); handlePart9Classification("7.3", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
-          <EICRInspectionItem id="7.4" label="Functional switching" value={form.s7_4_functionalSwitching} onChange={(v) => { set("s7_4_functionalSwitching", v); handlePart9Classification("7.4", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="7.1" label="Isolators — provision" value={form.s7_1a_provision} onChange={(v) => { set("s7_1a_provision", v); handlePart9Classification("7.1a", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="7.1" label="Isolators — location" value={form.s7_1b_location} onChange={(v) => { set("s7_1b_location", v); handlePart9Classification("7.1b", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="7.1" label="Isolators — accessibility" value={form.s7_1c_accessibility} onChange={(v) => { set("s7_1c_accessibility", v); handlePart9Classification("7.1c", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="7.1" label="Isolators — rating" value={form.s7_1d_rating} onChange={(v) => { set("s7_1d_rating", v); handlePart9Classification("7.1d", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="7.1" label="Isolators — labelling / identification" value={form.s7_1e_labelling} onChange={(v) => { set("s7_1e_labelling", v); handlePart9Classification("7.1e", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="7.1" label="Isolators — operation" value={form.s7_1f_operation} onChange={(v) => { set("s7_1f_operation", v); handlePart9Classification("7.1f", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="7.2" label="Mechanical maintenance switching — provision" value={form.s7_2a_provision} onChange={(v) => { set("s7_2a_provision", v); handlePart9Classification("7.2a", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="7.2" label="Mechanical maintenance switching — location" value={form.s7_2b_location} onChange={(v) => { set("s7_2b_location", v); handlePart9Classification("7.2b", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="7.2" label="Mechanical maintenance switching — prevention of inadvertent reconnection" value={form.s7_2c_prevention} onChange={(v) => { set("s7_2c_prevention", v); handlePart9Classification("7.2c", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="7.2" label="Mechanical maintenance switching — labelling" value={form.s7_2d_labelling} onChange={(v) => { set("s7_2d_labelling", v); handlePart9Classification("7.2d", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="7.3" label="Emergency switching off — provision" value={form.s7_3a_provision} onChange={(v) => { set("s7_3a_provision", v); handlePart9Classification("7.3a", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="7.3" label="Emergency switching off — location" value={form.s7_3b_location} onChange={(v) => { set("s7_3b_location", v); handlePart9Classification("7.3b", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="7.3" label="Emergency switching off — accessibility" value={form.s7_3c_accessibility} onChange={(v) => { set("s7_3c_accessibility", v); handlePart9Classification("7.3c", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="7.3" label="Emergency switching off — labelling / identification" value={form.s7_3d_labelling} onChange={(v) => { set("s7_3d_labelling", v); handlePart9Classification("7.3d", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="7.4" label="Functional switching — provision" value={form.s7_4a_provision} onChange={(v) => { set("s7_4a_provision", v); handlePart9Classification("7.4a", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="7.4" label="Functional switching — location" value={form.s7_4b_location} onChange={(v) => { set("s7_4b_location", v); handlePart9Classification("7.4b", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="7.4" label="Functional switching — type / suitability" value={form.s7_4c_type} onChange={(v) => { set("s7_4c_type", v); handlePart9Classification("7.4c", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="7.4" label="Functional switching — labelling" value={form.s7_4d_labelling} onChange={(v) => { set("s7_4d_labelling", v); handlePart9Classification("7.4d", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
         </EICRSISection>
 
         <EICRSISection id="s8" title="8.0 Current-Using Equipment" isOpen={openSections["s8"] !== false} onToggle={() => toggleSection("s8")}>
           <EICRInspectionItem id="8.1" label="IP rating" value={form.s8_1_ipRating} onChange={(v) => { set("s8_1_ipRating", v); handlePart9Classification("8.1", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="8.2" label="Not a fire hazard" value={form.s8_2_fireHazard} onChange={(v) => { set("s8_2_fireHazard", v); handlePart9Classification("8.2", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="8.3" label="Enclosure not damaged" value={form.s8_3_enclosure} onChange={(v) => { set("s8_3_enclosure", v); handlePart9Classification("8.3", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="8.4" label="Equipment suitable for its environment / external influences" value={form.s8_4_environment} onChange={(v) => { set("s8_4_environment", v); handlePart9Classification("8.4", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="8.5" label="Security of fixing" value={form.s8_5_security} onChange={(v) => { set("s8_5_security", v); handlePart9Classification("8.5", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
-          <EICRInspectionItem id="8.7" label="Recessed luminaires (downlighters)" value={form.s8_7_recessedLuminaires} onChange={(v) => { set("s8_7_recessedLuminaires", v); handlePart9Classification("8.7", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="8.6" label="Luminaires: type and installation suitability" value={form.s8_6_luminaireCount} onChange={(v) => { set("s8_6_luminaireCount", v); handlePart9Classification("8.6", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <div style={{ padding: "4px 8px 8px" }}>
+            <label style={{ fontFamily: font, fontSize: 10, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>8.6 — List number and location of luminaires inspected</label>
+            <textarea value={form.s8_6_luminaireList} onChange={e => set("s8_6_luminaireList", e.target.value)} rows={3} placeholder="e.g. 12 × downlighters throughout — living room (4), bedrooms (6), hallway (2)"
+              style={{ width: "100%", marginTop: 4, fontFamily: font, fontSize: 12, color: C.text, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", outline: "none", resize: "vertical", boxSizing: "border-box" }} />
+          </div>
+          <EICRInspectionItem id="8.7" label="Recessed luminaires — fire protection" value={form.s8_7a_fireProt} onChange={(v) => { set("s8_7a_fireProt", v); handlePart9Classification("8.7a", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="8.7" label="Recessed luminaires — thermal clearances" value={form.s8_7b_clearances} onChange={(v) => { set("s8_7b_clearances", v); handlePart9Classification("8.7b", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="8.7" label="Recessed luminaires — wiring terminations" value={form.s8_7c_wiring} onChange={(v) => { set("s8_7c_wiring", v); handlePart9Classification("8.7c", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="8.7" label="Recessed luminaires — accessibility for maintenance" value={form.s8_7d_access} onChange={(v) => { set("s8_7d_access", v); handlePart9Classification("8.7d", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
         </EICRSISection>
 
         <EICRSISection id="s9" title="9.0 Special Locations" isOpen={openSections["s9"] !== false} onToggle={() => toggleSection("s9")}>
@@ -3617,8 +3780,10 @@ function EICRPage() {
           <EICRInspectionItem id="9.1" label="SELV / PELV requirements" value={form.s9_1_selvPelv} onChange={(v) => { set("s9_1_selvPelv", v); handlePart9Classification("9.1b", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="9.1" label="Shaver supply unit" value={form.s9_1_shaver} onChange={(v) => { set("s9_1_shaver", v); handlePart9Classification("9.1c", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
           <EICRInspectionItem id="9.1" label="Supplementary bonding" value={form.s9_1_suppBonding} onChange={(v) => { set("s9_1_suppBonding", v); handlePart9Classification("9.1d", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
-          <EICRInspectionItem id="9.1" label="IP rating for zone" value={form.s9_1_ipRating} onChange={(v) => { set("s9_1_ipRating", v); handlePart9Classification("9.1e", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
-          <EICRInspectionItem id="9.1" label="Equipment suitable for zone" value={form.s9_1_zoneEquipment} onChange={(v) => { set("s9_1_zoneEquipment", v); handlePart9Classification("9.1f", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="9.1" label="Low voltage (e.g. 230V) socket-outlets sited ≥2.5m from zone 1" value={form.s9_1_socketDistance} onChange={(v) => { set("s9_1_socketDistance", v); handlePart9Classification("9.1e", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="9.1" label="IP rating for zone" value={form.s9_1_ipRating} onChange={(v) => { set("s9_1_ipRating", v); handlePart9Classification("9.1f", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="9.1" label="Suitability of current-using equipment for particular position within the location" value={form.s9_1_zoneAccessories} onChange={(v) => { set("s9_1_zoneAccessories", v); handlePart9Classification("9.1g", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
+          <EICRInspectionItem id="9.1" label="Equipment suitable for zone" value={form.s9_1_zoneEquipment} onChange={(v) => { set("s9_1_zoneEquipment", v); handlePart9Classification("9.1h", ["C1","C2","C3","FI"].includes(v) ? v : null); }} />
         </EICRSISection>
 
         <EICRSISection id="s10" title="10.0 Prosumer Installation" isOpen={openSections["s10"] !== false} onToggle={() => toggleSection("s10")}>
