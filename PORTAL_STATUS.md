@@ -230,4 +230,126 @@ Five roles exist in the system. Role is stored in `profiles.role`.
 
 ---
 
-*— End of Part 1 of 3 —*
+---
+
+## 5. PAGES & ROUTES
+
+Navigation is driven by a `page` state variable (string). There is no URL-based router — all views are rendered conditionally in a single `App.jsx`.
+
+### Dashboard (`page === "dashboard"`)
+- **Access:** All roles
+- **Engineer/Junior view:** Today's jobs, upcoming jobs, awaiting sign-off count
+- **Admin/Agent/Supervisor view:** 4 stat cards (Total Properties, Compliant, Expiring Soon, Overdue), list of expiring/overdue properties, EICRs awaiting sign-off count
+- **Actions:** Click property to navigate to Property Detail
+
+### Properties (`page === "properties"`)
+- **Access:** All roles (Admin/Agent can create properties and request jobs)
+- **Display:** Property cards with compliance status indicator (green/amber/red), address, tenant, EICR expiry, reference
+- **Filters:** Status (All/OK/Soon/Overdue), Client dropdown, Sort (Default/Status/Expiry/A-Z), text search (address, tenant, ref)
+- **Actions:** Add Property, CSV Import (Admin/Agent), "+ Job" button per card, click to open Property Detail
+
+### Property Detail (`page === "propertyDetail"`)
+- **Access:** All roles
+- **Display:** Property header (address, ref, tenant, phone, landlord name), 3 compliance pills (EICR, Smoke & CO, PAT with expiry + colour), jobs list, documents list, comments per job
+- **Actions:** Edit Property, + Job, Download certificates, Add comments, Cancel jobs (Admin), Upload/generate certificates
+
+### Jobs (`page === "jobs"`)
+- **Access:** All roles
+- **Display:** Job list with status badge, reference, property, engineer, scheduled date
+- **Filters:** Status (All/Pending/Scheduled/In Progress/Completed/Cancelled/Awaiting Sign-Off), Client dropdown, text search
+- **Actions (Admin only):** Edit job (type/notes), Assign engineer + scheduled date, Reschedule
+
+### EICR Form (`page === "eicr"`)
+- **Access:** Engineer, Junior, Supervisor, Admin
+- **Display:** Full BS 7671 EICR form — multi-part with job selector dropdown (In Progress jobs only)
+- **Sections:** Contractor info, Client/Landlord, Installation address, Purpose, Condition assessment, Supply characteristics, Distribution board, Inspection schedule (Part 9: 80+ items), Observations (Part 5), Circuit details (Part 11A), Test results (Part 11B), Declaration
+- **Smart features:** Postcode/UPRN lookup, previous EICR carry-forward, mark all pass, auto-calculations, common observations, sticky nav, floating save, progress bar
+- **Actions:** Save Draft, Submit (Junior → Awaiting Sign-Off; Engineer → Completed)
+
+### Fire Alarm — DFPM25 (`page === "dfpm25"`)
+- **Access:** Engineer, Junior, Supervisor, Admin
+- **Display:** Domestic fire/smoke alarm inspection certificate form
+- **Sections:** Contractor, Client/Landlord, Installation, System Grade & Category, Detector counts, 10-item inspection checklist, Sound level instruments, Declaration/Outcome
+- **Actions:** Select job (Smoke Alarm/Fire Alarm type), complete checklist (✓/✗/N/A), submit
+
+### Emergency Lighting — EPM25 (`page === "epm25"`)
+- **Access:** Engineer, Junior, Supervisor, Admin
+- **Display:** Emergency lighting periodic inspection certificate form
+- **Sections:** Contractor, Client/Landlord, Installation, System description, Classification, 19-item inspection checklist, Test instruments, Declaration
+- **Actions:** Select job, complete checklist, submit
+
+### Installation Certificate — EIC183C (`page === "eic183c"`)
+- **Access:** Engineer, Junior, Supervisor, Admin
+- **Display:** Electrical Installation Certificate for new work, alterations, or DB replacements
+- **Sections:** Contractor registration, Client/Landlord, Installation, Work details, Comments on existing installation, Declaration & departures, Supply characteristics, Earthing/bonding/main switch, 14-item inspection schedule, Test results
+- **Actions:** Select job (Remedial/New Installation/Alteration types), complete form, submit
+
+### Sign-Off Queue (`page === "signoff"`)
+- **Access:** Supervisor, Admin only
+- **Display:** Queue of jobs with status "Awaiting Sign-Off", expandable to show full EICR data, engineer name, submission date
+- **Actions:** Approve (→ Completed; auto-creates Remedial job if Unsatisfactory), Reject with reason (→ In Progress, returned to engineer)
+
+### Documents / Certificate Vault (`page === "documents"`)
+- **Access:** All roles (read); Admin/Agent/Engineer/Supervisor (upload/generate)
+- **Display:** All uploaded certificates, searchable by property/tenant, filterable by type (EICR, Smoke Alarm, PAT, etc.), alert banner for pending uploads
+- **Actions:** Upload certificate, Download (signed URL), Auto-generate certificate from form data, "Generate All" pending certificates at once
+
+### Audit Trail (`page === "audit"`)
+- **Access:** All roles (read-only)
+- **Display:** Activity log with timestamp, action, user name, role
+- **Filters:** Role (All/Admin/Engineer/Supervisor/etc.), text search
+- **Pagination:** First 30 entries, then "Load all" button
+
+### Team Management (`page === "team"`)
+- **Access:** Admin only
+- **Display:** All team members with name, email, role badge (colour-coded), organisation name, filterable by organisation
+- **Actions:** Add User (direct creation), Invite User (email), Add Agency, Edit Agency, Edit User (role/org), Upload/update signature
+
+### More (`page === "more"`)
+- **Access:** All roles (content varies by role)
+- **Display:** Menu of additional pages and settings
+- **Items:** Form pages (Engineer/Junior/Supervisor), Sign-Off Queue (Supervisor/Admin, with badge), Audit Trail, Team (Admin), Edit Name, Change Password, Sign Out
+
+---
+
+## 6. MODAL COMPONENTS
+
+All modals use a shared `Modal` base component (slide-up bottom sheet on mobile, centred dialog on desktop).
+
+| Modal | Purpose | Access |
+|-------|---------|--------|
+| AddPropertyModal | Create single property (address, tenant, phone, landlord, last EICR date) | Admin, Agent |
+| CSVImportModal | Bulk import properties from CSV with duplicate detection (5000-row limit) | Admin, Agent |
+| EditPropertyModal | Edit property details (address, tenant, landlord, etc.) | Admin, Agent |
+| RequestJobModal | Request new job — select service type (EICR/Remedial/Smoke Alarm/Fire Alarm/Emergency Lighting/PAT/New Installation/Alteration) + notes | Admin, Agent |
+| EditJobModal | Change job type and notes for pending jobs | Admin |
+| AssignModal | Assign engineer + scheduled date (or reassign/reschedule) | Admin |
+| UploadCertModal | Upload certificate PDF/image for a job (max 50MB) | Admin, Agent, Engineer, Supervisor |
+| AddUserModal | Create user with name, email, password, role (radio buttons with descriptions), org | Admin |
+| InviteUserModal | Send email invite with magic link | Admin |
+| EditUserModal | Edit user's name, role, organisation | Admin |
+| AddAgencyModal | Create new client organisation | Admin |
+| EditAgencyModal | Rename an organisation | Admin |
+| SignatureModal | Upload digital signature image (PNG/JPEG/SVG, max 2MB) for an engineer | Admin |
+| ChangePasswordModal | Change own password (validates current password, signs out other sessions) | All roles |
+| EditNameModal | Update own display name | All roles |
+| Reject EICR (inline) | Reject submitted EICR with reason textarea; returns to engineer | Supervisor, Admin |
+
+---
+
+## 7. NAVIGATION & LAYOUT
+
+### Desktop
+- **Sidebar** (fixed left, 240px): OhmniumIQ logo, logged-in user card (name + role), full navigation menu, Sign Out button with version info
+- Sign-Off Queue menu item shows badge count of awaiting jobs
+- Form pages (EICR, DFPM25, EPM25, EIC183C) only visible to Engineer/Junior/Supervisor
+
+### Mobile
+- **MobileTopBar** (fixed top): Logo, user name badge, global property search bar (Admin/Agent only — live results with status colours, max 6 results)
+- **BottomNav** (fixed bottom): 5 tabs — Home, Properties, Jobs, Docs, More. Purple notification dot on "More" if jobs awaiting sign-off
+
+### Responsive breakpoints
+- `BP.mobile` = 640px
+- `BP.tablet` = 1024px
+
+*— End of Part 2A — Pages, Modals, Navigation —*
