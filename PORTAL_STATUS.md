@@ -353,3 +353,251 @@ All modals use a shared `Modal` base component (slide-up bottom sheet on mobile,
 - `BP.tablet` = 1024px
 
 *— End of Part 2A — Pages, Modals, Navigation —*
+
+---
+
+## 8. EICR FORM — DEEP DIVE
+
+The EICR form is the core feature of the portal. It implements a full **BS 7671 / IET 18th Edition Electrical Installation Condition Report** and is the most complex part of the codebase.
+
+---
+
+### Form Sections Overview
+
+| Part | Title | Key Fields |
+|------|-------|-----------|
+| Part 1 | Client & Installation Details | Contractor (auto), landlord, agent, installation address, postcode, UPRN |
+| Part 2 | Purpose of Report | Purpose dropdown, inspection date, previous report |
+| Part 3 | Summary of Condition | General condition, premises type, estimated age, alterations |
+| Part 4 | Declaration | Inspector name/date, reviewer name/date, BS 7671 edition, next inspection date |
+| Part 5 | Observations & Recommendations | Dynamic observation rows (C1/C2/C3/FI), no-remedial toggle |
+| Part 6 | Extent & Limitations | Extent dropdown, limitations dropdown, agreed-with, sampling extent |
+| Part 7 | Supply Characteristics | Earthing system, phase, voltages, frequency, Ze, Ipf, supply protective device |
+| Part 8 | Distribution Board Particulars | Max demand, earthing/bonding conductors, bonding connections, main switch, DB details |
+| Part 9 | Inspection Schedule | 10 sections, 81+ items, each toggled ✓/N/A/LIM/C1/C2/C3/FI |
+| Part 11A | Circuit Details | Per-circuit: description, wiring type, CSA, OCP, RCD details |
+| Part 11B | Test Results | Per-circuit: r1/r2/R1+R2, IR, Zs, polarity, RCD time; test instruments; tested-by |
+
+---
+
+### Constants & Lookup Tables
+
+**PURPOSE_OPTIONS**
+`change_of_tenancy` | `general_periodic` | `sale_purchase` | `after_works`
+
+**CONDITION_OPTIONS**
+`satisfactory_standard` | `satisfactory_recommendations` (C3s only) | `unsatisfactory_c2` | `unsatisfactory_multiple` | `unsatisfactory_specific` | `older_installation`
+
+**EXTENT_OPTIONS** — `full_property` | `flat_only`
+
+**LIMITATIONS_OPTIONS** — `na` | `standard`
+
+**ESTIMATED_AGE_OPTIONS** — 0–5, 5–10, 10–15, 15–20, 20–25, 25–30, 30–40, 40–50, 50+
+
+**CABLE_SIZES** — 0.75, 1.0, 1.5, 2.5, 4.0, 6.0, 10.0, 16.0, 25.0, 35.0, 50.0 (mm²)
+
+**WIRING_TYPES**
+N/A, LIM, A (thermoplastic sheathed), B (thermoplastic in metallic conduit), C (non-metallic conduit), D (metallic trunking), E (non-metallic trunking), F (thermoplastic/SWA), G (thermosetting/SWA), H (mineral-insulated), O (other)
+
+**OCP_TYPES** — B, C, D, BS 3036, N/A
+**OCP_RATINGS** — 6, 10, 13, 16, 20, 25, 32, 40, 45, 50, 63, 80, 100, N/A (amps)
+
+**MAX_ZS_LOOKUP** — Auto-populates max earth fault loop impedance from OCP type + rating:
+
+| Type | 6A | 10A | 16A | 20A | 32A | 40A | 50A | 63A |
+|------|----|-----|-----|-----|-----|-----|-----|-----|
+| B | 5.82 | 3.49 | 2.18 | 1.75 | 1.09 | 0.87 | 0.70 | 0.55 |
+| C | 2.91 | 1.75 | 1.09 | 0.87 | 0.54 | 0.44 | 0.35 | 0.27 |
+| D | 1.45 | 0.87 | 0.54 | 0.44 | 0.27 | 0.22 | 0.17 | 0.13 |
+
+**REF_METHODS** — 100, 101, 102, 103, A, B, C, D, E, F, G, N/A
+
+**MAX_DISCONNECT_TIMES** — 0.1, 0.2, 0.4, 1, 5, N/A (seconds)
+
+**RCD_TYPES** — AC, A, F, B, N/A
+**RCD_RATINGS_A** — 6, 10, 16, 20, 25, 32, 40, 63, N/A (amps)
+**RCD_RATINGS (mA)** — 10, 30, 100, 300
+
+**TEST_VOLTAGES** — 250V, 500V, 1000V
+
+**TOGGLE_OPTIONS** — ✓, N/A, LIM, X
+
+**BS_EN_OPTIONS** — MCB BS EN 60898-1, RCBO BS EN 61009-1, RCCB BS EN 61008-1, AFDD BS EN 62606, MCCB BS EN 60947-2, Fuses (HRC) BS EN 60269, Rewirable Fuse BS 3036, Switch Disconnector BS EN 60947-3, SPD BS EN 61643-11
+
+**CIRCUIT_DESCRIPTIONS** — Grouped dropdown with 35+ options across 8 categories:
+Lighting Circuits, Socket Circuits, Dedicated Appliance Circuits, Heating & Ventilation, Special Installations, Outdoor/Ancillary, Misc/Common, Distribution/Protection
+
+**Text Constants**
+- `INSPECTOR_DECLARATION_TEXT` — Full BS 7671 compliant inspector declaration
+- `REVIEWER_DECLARATION_TEXT` — QS reviewer declaration
+- `OPERATIONAL_LIMITATIONS` — Standard limitations text (read-only)
+- `NOTES_FOR_RECIPIENT` — 5 sections: Purpose, What to do, Remedial action, Re-inspection guidance, RCD testing
+- `CLASSIFICATION_GUIDANCE` — C1 (Danger), C2 (Potentially Dangerous), C3 (Improvement Recommended), FI (Further Investigation)
+
+---
+
+### Full `eicr_data` JSONB Field Reference
+
+**Metadata**
+- `formType` — `"EICR183C"`
+- `isDraft` — boolean
+- `submittedAt` / `submittedBy` — ISO timestamp / user ID
+- `rejectionReason` / `rejectedBy` / `rejectedAt` — set on supervisor rejection
+
+**Part 1 — Contractor (auto-filled)**
+`tradingTitle`, `contractorAddress`, `contractorTel`, `company`
+
+**Part 1 — Client**
+`landlordName`, `landlordDetails`, `agentName`, `agencyAddress`, `clientAddress`, `clientPostcode`, `occupiedBy`
+
+**Part 1 — Installation**
+`installationAddress`, `installationPostcode`, `installationTel`, `uprn`
+
+**Part 2**
+`purposeKey`, `inspectionDate`, `recordsAvailable`, `previousReportAvailable`, `previousReportDate`
+
+**Part 3**
+`conditionKey`, `generalCondition`, `premisesType`, `premisesOther`, `estimatedAgeRange`, `evidenceOfAlterations`, `alterationsAge`
+
+**Part 4**
+`inspectorName`, `inspectorDate`, `nextInspectionDate`, `nextInspectionReason`, `reviewerName`, `reviewerDate`, `bs7671AmendedTo`
+
+**Part 5**
+`observations` (array — see below), `noRemedialRequired`, `c1Items`, `c2Items`, `c3Items`, `fiItems`
+
+Observation object: `{ itemNo, ref, observation, code, location, linkedFromPart9, linkedRef }`
+
+**Part 6**
+`extentKey`, `limitationsKey`, `agreedWith`, `extentOfSampling`
+
+**Part 7**
+`earthingSystem`, `supplyPhase`, `nominalVoltageLines`, `nominalVoltageEarth`, `nominalFrequency`, `prospectiveFaultCurrent`, `externalEarthFaultLoop`, `supplyProtectiveBSEN`, `supplyProtectiveType`, `supplyProtectiveRating`
+
+**Part 8**
+`maxDemand`, `earthingDistributor`, `earthingElectrode`, `earthElectrodeType`, `earthElectrodeLocation`, `earthElectrodeResistance`, `earthingConductorMaterial`, `earthingConductorCSA`, `earthingConductorVerified`, `bondingConductorMaterial`, `bondingConductorCSA`, `bondingConductorVerified`, `bondingWater`, `bondingGas`, `bondingSteel`, `bondingOil`, `bondingLightning`, `mainSwitchLocation`, `mainSwitchBSEN`, `mainSwitchType`, `mainSwitchRating`, `mainSwitchPoles`, `mainSwitchCurrentRating`, `mainSwitchVoltage`, `dbDesignation`, `dbLocation`, `dbZdb`, `dbIpf`
+
+**Part 9** — 81+ toggle fields (see inspection schedule below)
+
+**Part 11A**
+`dbDesignation`, `dbLocation`, `dbZdb`, `dbIpf`, `dbPolarityConfirmed`, `spdT1`, `spdT2`, `spdT3`, `spdNA`
+
+`circuits` array: `{ num, description, wiringType, refMethod, points, liveCsa, cpcCsa, maxDisconnect, ocpBSEN, ocpType, ocpRating, ocpKA, ocpMaxZs, rcdBSEN, rcdType, rcdRating, rcdImA }`
+
+**Part 11B**
+`testResults` array: `{ num, r1, rn, r2, r1r2, r2only, irLL, irLE, testV, polarity, zs, rcdTime, rcdTestBtn, afddTestBtn, comments }`
+
+`testInstrumentMulti`, `testInstrumentContinuity`, `testInstrumentInsulation`, `testInstrumentLoop`, `testInstrumentEarth`, `testInstrumentRCD`, `testedByName`, `testedByPosition`, `testedByDate`, `vulnerableCircuits`, `scheduleInspectedBy`, `scheduleInspectedDate`
+
+---
+
+### Part 9 Inspection Schedule — All Sections & Items
+
+**Section 1 — Intake Equipment (8 items)**
+Service cable, service head, earthing arrangement, meter tails, metering equipment, isolator, consumer's isolator, consumer's meter tails
+
+**Section 2 — Alternative Sources (2 items)**
+Generating set (switched alternative), generating set (parallel with supply)
+
+**Section 3 — Methods of Protection (16 items)**
+*Earthing & Bonding (10):* Main arrangement, distributor's arrangement, conductor size, connections, accessibility ×3, labels, FELV
+*Additional Protection (6):* RCD ≤30mA for sockets, concealed cables, bath/shower, outdoor, heating cables; AFDD
+
+**Section 4 — Consumer Unit / Distribution Board (25 items)**
+Working space, security, insulation of live parts, barriers, IP rating, fire rating, enclosure damage, obstacles, main switches present/operation, CB/RCD/AFDD operation, RCD test button, RCD fault/additional protection, RCD 6-monthly notice, AFDD test button, diagrams/charts, alternative supply warning notice, next inspection label, other labelling, compatibility, single-pole switching, mechanical damage, electromagnetic effects, connections tight
+
+**Section 5 — Distribution Circuits / Submains (24 items)**
+Conductor identification, cable support, insulation condition, non-sheathed cables, containment, terminations, cable damage, current capacity, voltage drop, thermal effects, cables in parallel, cable routes, CSA adequacy, insulation condition (visual), fire barriers, radiant heat, electromagnetic effects, working space, CPC adequacy, correct wiring system, harmful substances, mutual heating, concealed routes, earth/bonding
+
+**Section 6 — Final Circuits (20 items)**
+Conductor identification, cable support, insulation condition, non-sheathed, terminations, current capacity, protective devices, CPC, voltage drop, thermal effects, mechanical damage (×2), RCD ≤30mA for sockets/outdoor/concealed/luminaires (4 items), ring conductor continuity, socket count, lighting, fixed equipment (×4), accessories (×2), SPD provided, wiring & accessories condition
+
+**Section 7 — Isolation & Switching (16 items)**
+*Isolators (6):* Provision, location, accessibility, rating, labelling, operation
+*Mechanical maintenance (4):* Provision, location, inadvertent reconnection prevention, labelling
+*Emergency switching (4):* Provision, location, accessibility, labelling
+*Functional switching (4):* Provision, location, type/suitability, labelling
+
+**Section 8 — Current-Using Equipment (11 items)**
+IP rating, fire hazard, enclosure damage, environment suitability, security of fixing, luminaire type/suitability, luminaire list (text field), recessed luminaires: fire protection, thermal clearances, wiring terminations, maintenance accessibility
+
+**Section 9 — Special Locations / Bath & Shower (8 items)**
+RCD provision, SELV/PELV requirements, shaver supply unit, supplementary bonding, socket distance from bath, IP rating, equipment suitability for zone, zone accessories
+
+**Section 10 — Prosumer Installation (1 item)**
+Prosumer's low voltage installation
+
+---
+
+### Smart / Automation Features
+
+| Feature | How it works |
+|---------|-------------|
+| Auto R1+R2 | When r1 or r2 entered → `(r1 + r2) / 4` |
+| Auto R1+R2 from Zs | When Zs entered → `Zs − Zdb` → populates R1+R2 (only when Zs ≥ Zdb) |
+| Auto Max Zs | When OCP type + rating selected → looks up MAX_ZS_LOOKUP table |
+| Part 9 → Part 5 link | When Part 9 item set to C1/C2/C3/FI → auto-creates observation row in Part 5 |
+| Part 9 → Part 5 unlink | When classification cleared → removes linked observation |
+| Zs pass/fail badge | Compares measured Zs to ocpMaxZs → green PASS / red FAIL shown inline |
+| Mark All Pass | Sets all 81+ Part 9 items to ✓, clears all linked Part 5 observations |
+| Fill All N/A | Fills only blank Part 9 fields with "N/A" (with confirmation dialog) |
+| Copy IR to all | Copies irLL, irLE, testV from circuit 1 to all test result rows |
+| Copy polarity to all | Copies polarity from circuit 1 to all test result rows |
+| Domestic template | Loads 7 pre-built circuits: Lights GF, Lights FF, Sockets GF, Sockets FF, Cooker, Boiler, Smoke alarm |
+| Clone circuits | Duplicates last circuit N times (1–20), blanks description field on each clone |
+| Previous EICR carry-forward | Detects prior Completed EICR on same property → offers one-tap load of form data |
+| Auto next inspection date | Fills 5 years from inspection date if next inspection date field is blank |
+| Live observation counts | C1/C2/C3/FI badge counts update live in Part 5 header |
+| Form progress bar | Percentage of key fields completed, shown below sticky nav |
+| Sticky section nav | Parts 1–9, 11A, 11B tabs fixed at top of page while scrolling |
+| Floating Save Draft | Save button fixed bottom-right, always visible |
+| Common obs suggestions | Quick dropdown of 10 pre-written C1/C2/C3/FI observation texts |
+| Postcode/UPRN lookup | Calls postcodes.io — enter postcode or UPRN to auto-fill installation postcode |
+| Re-open job | Supervisor/Admin button resets Completed/Awaiting jobs back to In Progress |
+| Reference method dropdown | Per-circuit dropdown for reference method (100, 101, A, B, C…) |
+
+---
+
+### Draft vs Submitted State
+
+| State | `isDraft` | Job status | Who can set |
+|-------|----------|-----------|------------|
+| Saved draft | `true` | In Progress | Any form user |
+| Submitted (Junior) | `false` | Awaiting Sign-Off | Junior engineer |
+| Submitted (Engineer) | `false` | Completed | Engineer, Supervisor, Admin |
+| Rejected | `false` + `rejectionReason` set | In Progress | Supervisor, Admin |
+| Re-opened | metadata stripped | In Progress | Supervisor, Admin |
+
+On rejection, `rejectionReason`, `rejectedBy`, `rejectedAt` are added to `eicr_data`. The engineer sees a warning banner with the reason when they re-open the form.
+
+On re-open, all metadata fields are stripped but all form field data is preserved.
+
+---
+
+### PDF Certificate — 7-Page Structure
+
+| Page | Content |
+|------|---------|
+| 1 | Title, CRN, contractor block, Parts 1–4 (client, purpose, condition, declarations + signatures) |
+| 2 | Part 5 (observations table with colour-coded badges), Parts 6–8 (extent, supply, DB particulars) |
+| 3 | Part 9 Sections 1–5 (two-column layout, pass/C1/C2/C3/FI/NA badges) |
+| 4 | Part 9 Sections 6–10 (two-column), inspected-by block |
+| 5 | Part 11A circuit details table (17 columns) |
+| 6 | Part 11B test results table (15 columns), vulnerable circuits, test instruments, tested-by + signature |
+| 7 | Notes for Recipients (5 guidance sections) + Classification Guidance grid (C1/C2/C3/FI) |
+
+Margins: 12mm all sides. Signature images fetched from `profiles.signature_url` and rendered into declaration blocks.
+
+---
+
+### CRN Generation
+
+```
+getNextCRN():
+  SELECT crn FROM jobs WHERE crn IS NOT NULL ORDER BY crn DESC LIMIT 1
+  → if none found: return "1000000"
+  → else: return String(parseInt(last) + 1)
+```
+
+7-digit sequential number. Stored in `jobs.crn` on form submission.
+
+*— End of Part 2B — EICR Form Deep Dive —*
