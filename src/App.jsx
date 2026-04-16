@@ -400,6 +400,7 @@ function DataProvider({ children, userProfile }) {
     const { data, error } = await supabase.from("properties").insert({
       address: prop.address, tenant_name: prop.tenant, tenant_phone: prop.phone, landlord_name: prop.landlordName || null,
       last_eicr: prop.lastEicr || null, expiry_date: prop.expiryDate || null,
+      smoke_expiry: prop.smokeExpiry || null, pat_expiry: prop.patExpiry || null,
       agency_id: prop.agencyId || userProfile.organisation_id,
       created_by: userProfile.id,
     }).select().single();
@@ -526,13 +527,17 @@ function DataProvider({ children, userProfile }) {
 // BOTTOM NAV (mobile)
 // ─────────────────────────────────────────────
 function BottomNav({ active, setActive, role, jobs }) {
+  const auth = useContext(AuthContext);
   const pSO = jobs.filter(j => j.status === "Awaiting Sign-Off").length;
+  // Red dot on Jobs tab when the current engineer has any rejected EICRs awaiting rework
+  const hasRejected = ["engineer", "junior"].includes(role)
+    && jobs.some(j => j.engineer_id === auth.id && j.eicr_data?.rejectionReason);
   const items = [
-    { id: "dashboard", label: "Home", icon: "shield" },
-    { id: "properties", label: "Properties", icon: "home" },
-    { id: "jobs", label: "Jobs", icon: "briefcase" },
-    { id: "documents", label: "Docs", icon: "file" },
-    { id: "more", label: "More", icon: "menu" },
+    { id: "dashboard", label: "Home",       icon: "shield"    },
+    { id: "properties", label: "Properties", icon: "home"     },
+    { id: "jobs",       label: "Jobs",       icon: "briefcase" },
+    { id: "documents",  label: "Docs",       icon: "file"      },
+    { id: "more",       label: "More",       icon: "menu"      },
   ];
   return (
     <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 50, background: C.surface, borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "space-around", padding: "6px 0 env(safe-area-inset-bottom, 6px)" }}>
@@ -542,7 +547,12 @@ function BottomNav({ active, setActive, role, jobs }) {
           <button key={item.id} onClick={() => setActive(item.id)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: "none", border: "none", cursor: "pointer", padding: "6px 12px", minWidth: 56, position: "relative" }}>
             <Icon name={item.icon} size={20} color={isA ? C.accent : C.textDim} />
             <span style={{ fontFamily: font, fontSize: 9, fontWeight: isA ? 600 : 400, color: isA ? C.accent : C.textDim }}>{item.label}</span>
-            {item.id === "more" && pSO > 0 && ["supervisor", "admin"].includes(role) && <span style={{ position: "absolute", top: 2, right: 6, width: 8, height: 8, borderRadius: "50%", background: C.purple }} />}
+            {item.id === "more" && pSO > 0 && ["supervisor", "admin"].includes(role) && (
+              <span style={{ position: "absolute", top: 2, right: 6, width: 8, height: 8, borderRadius: "50%", background: C.purple }} />
+            )}
+            {item.id === "jobs" && hasRejected && (
+              <span style={{ position: "absolute", top: 2, right: 6, width: 8, height: 8, borderRadius: "50%", background: C.red }} />
+            )}
           </button>
         );
       })}
@@ -1560,7 +1570,29 @@ function PropertiesPage({ onRequestJob, onSelectProperty }) {
             </div>
           );
         })}
-        {filtered.length === 0 && <div style={{ padding: 40, textAlign: "center", background: C.card, borderRadius: 14, border: `1px solid ${C.border}` }}><span style={{ fontFamily: font, fontSize: 13, color: C.textDim }}>{properties.length === 0 ? "No properties yet — add your first one" : "No properties match"}</span></div>}
+        {filtered.length === 0 && properties.length === 0 && ["admin", "agent"].includes(role) ? (
+          <div style={{ padding: mob ? "40px 24px" : "60px 40px", textAlign: "center", background: C.card, borderRadius: 14, border: `1px solid ${C.border}` }}>
+            <div style={{ width: 64, height: 64, borderRadius: 16, background: C.accentGlow, border: `1px solid rgba(59,130,246,.25)`, display: "grid", placeItems: "center", margin: "0 auto 20px" }}>
+              <Icon name="home" size={28} color={C.accent} />
+            </div>
+            <div style={{ fontFamily: font, fontSize: 17, fontWeight: 700, color: C.white, marginBottom: 8 }}>Add your first property</div>
+            <div style={{ fontFamily: font, fontSize: 13, color: C.textMuted, lineHeight: 1.6, maxWidth: 360, margin: "0 auto 24px" }}>
+              Your property portfolio is empty. Add properties individually or bulk-import from a CSV to get started with compliance tracking.
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+              <button onClick={() => setShowAdd(true)} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: font, fontSize: 13, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 10, padding: "11px 22px", cursor: "pointer", minHeight: 44 }}>
+                <Icon name="plus" size={15} color={C.white} />Add Property
+              </button>
+              <button onClick={() => setShowCSV(true)} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: font, fontSize: 13, fontWeight: 500, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "11px 22px", cursor: "pointer", minHeight: 44 }}>
+                <Icon name="csv" size={15} color={C.textMuted} />Import CSV
+              </button>
+            </div>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div style={{ padding: 40, textAlign: "center", background: C.card, borderRadius: 14, border: `1px solid ${C.border}` }}>
+            <span style={{ fontFamily: font, fontSize: 13, color: C.textDim }}>No properties match your filters</span>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -1631,12 +1663,20 @@ function JobsPage({ onNavigateEicr }) {
       {filtered.map(job => {
         const prop = properties.find(pp => pp.id === job.property_id);
         const eng = engineers.find(e => e.id === job.engineer_id);
+        const typeColor  = job.type === "EICR" ? C.accent : job.type === "Remedial" ? C.red : (job.type === "Smoke Alarm" || job.type === "Fire Alarm") ? C.amber : C.green;
+        const typeBg     = job.type === "EICR" ? C.accentGlow : job.type === "Remedial" ? C.redBg : (job.type === "Smoke Alarm" || job.type === "Fire Alarm") ? C.amberBg : C.greenBg;
+        const cardBorder = job.type === "EICR" ? "rgba(59,130,246,.4)" : job.type === "Remedial" ? "rgba(239,68,68,.3)" : C.border;
         return (
-          <div key={job.id} style={{ background: C.card, borderRadius: 14, padding: mob ? "16px" : "20px 24px", border: `1px solid ${C.border}`, display: "flex", flexDirection: mob ? "column" : "row", alignItems: mob ? "stretch" : "center", justifyContent: "space-between", marginBottom: 10, gap: mob ? 14 : 0 }}>
+          <div key={job.id} style={{ background: C.card, borderRadius: 14, padding: mob ? "16px" : "20px 24px", border: `1px solid ${cardBorder}`, display: "flex", flexDirection: mob ? "column" : "row", alignItems: mob ? "stretch" : "center", justifyContent: "space-between", marginBottom: 10, gap: mob ? 14 : 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, minWidth: 0 }}>
-              <div style={{ width: 42, height: 42, borderRadius: 10, background: job.type === "EICR" ? C.accentGlow : job.type === "Remedial" ? C.redBg : job.type === "Fire Alarm" ? C.greenBg : job.type === "Emergency Lighting" ? C.greenBg : C.greenBg, display: "grid", placeItems: "center", flexShrink: 0 }}><Icon name={job.type === "EICR" ? "shield" : job.type === "Remedial" ? "alert" : job.type === "Fire Alarm" ? "zap" : job.type === "Emergency Lighting" ? "activity" : job.type === "New Installation" ? "tool" : job.type === "Alteration" ? "tool" : "check"} size={20} color={job.type === "EICR" ? C.accent : job.type === "Remedial" ? C.red : C.green} /></div>
+              <div style={{ width: 42, height: 42, borderRadius: 10, background: typeBg, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                <Icon name={job.type === "EICR" ? "shield" : job.type === "Remedial" ? "alert" : job.type === "Fire Alarm" ? "zap" : job.type === "Emergency Lighting" ? "activity" : (job.type === "New Installation" || job.type === "Alteration") ? "tool" : "check"} size={20} color={typeColor} />
+              </div>
               <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontFamily: font, fontSize: 14, color: C.white, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{job.type} — {prop?.address?.split(",")[0] || "—"}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                  <span style={{ fontFamily: font, fontSize: 9, fontWeight: 700, color: typeColor, background: typeBg, border: `1px solid ${typeColor}33`, padding: "2px 8px", borderRadius: 10, whiteSpace: "nowrap", flexShrink: 0, letterSpacing: 0.4 }}>{job.type.toUpperCase()}</span>
+                  <div style={{ fontFamily: font, fontSize: 14, color: C.white, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{prop?.address?.split(",")[0] || "—"}</div>
+                </div>
                 <div style={{ fontFamily: font, fontSize: 12, color: C.textMuted, marginTop: 3 }}>{job.notes || "No notes"}</div>
                 <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginTop: 4, display: "flex", gap: 12, flexWrap: "wrap" }}>
                   <span>{eng?.full_name || "Unassigned"}</span>
@@ -1645,7 +1685,7 @@ function JobsPage({ onNavigateEicr }) {
                 </div>
               </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap", justifyContent: mob ? "flex-end" : "flex-end" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
               {role === "admin" && job.status === "Pending" && <button onClick={() => setEditModal(job)} style={{ fontFamily: font, fontSize: 11, color: C.textMuted, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>Edit</button>}
               {role === "admin" && job.status === "Pending" && <button onClick={() => setAssignModal(job)} style={{ fontFamily: font, fontSize: 11, fontWeight: 600, color: C.white, background: C.accent, border: "none", borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>Assign</button>}
               {role === "admin" && ["Scheduled", "In Progress"].includes(job.status) && <button onClick={() => setAssignModal(job)} style={{ fontFamily: font, fontSize: 11, color: C.amber, background: C.amberBg, border: `1px solid ${C.amberBorder}`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>Reschedule</button>}
@@ -1735,7 +1775,7 @@ function AssignModal({ open, job, onClose }) {
           <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{job.type} — {(prop.address || "").split(",")[0]}</div>
           {isReassign && <div style={{ fontFamily: font, fontSize: 11, color: C.amber, marginTop: 4 }}>Currently: {engineers.find(e => e.id === job.engineer_id)?.full_name || "Unassigned"} · {job.scheduled_date ? formatDate(job.scheduled_date) : "No date"}</div>}
         </div>}
-        <Select label="Engineer" value={engId} onChange={setEngId} options={[{ value: "", label: "— Select —" }, ...engineers.filter(e => ["engineer", "junior"].includes(e.role)).map(e => ({ value: e.id, label: `${e.full_name} (${e.role === "junior" ? "Junior" : "Senior"})` }))]} />
+        <Select label="Engineer" value={engId} onChange={setEngId} options={[{ value: "", label: "— Select —" }, ...engineers.filter(e => ["engineer", "junior"].includes(e.role)).map(e => ({ value: e.id, label: `${e.full_name} (${e.role === "junior" ? "Junior" : "Engineer"})` }))]} />
         <Input label="Scheduled Date" type="date" value={date} onChange={setDate} />
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
           <button onClick={() => onClose(null)} style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44 }}>Cancel</button>
@@ -2553,19 +2593,23 @@ function CSVImportModal({ open, onClose }) {
     if (lines.length < 2) { setError("CSV must have a header row and at least one data row"); return; }
     if (lines.length > 5001) { setError("CSV too large — maximum 5000 rows. Please split into smaller files."); return; }
     const headers = lines[0].split(",").map(h => h.trim().toLowerCase().replace(/"/g, ""));
-    const addrIdx = headers.findIndex(h => h.includes("address"));
+    const addrIdx   = headers.findIndex(h => h.includes("address"));
     const tenantIdx = headers.findIndex(h => h.includes("tenant") || h.includes("name"));
-    const phoneIdx = headers.findIndex(h => h.includes("phone") || h.includes("tel") || h.includes("mobile"));
-    const eicrIdx = headers.findIndex(h => h.includes("eicr") || h.includes("last") || h.includes("date"));
+    const phoneIdx  = headers.findIndex(h => h.includes("phone") || h.includes("tel") || h.includes("mobile"));
+    const eicrIdx   = headers.findIndex(h => h.includes("eicr") || h.includes("last eicr") || (h.includes("last") && h.includes("date")));
+    const smokeIdx  = headers.findIndex(h => h.includes("smoke"));
+    const patIdx    = headers.findIndex(h => h.includes("pat"));
     if (addrIdx === -1) { setError("No 'address' column found. Check your CSV header row."); return; }
     const parsed = lines.slice(1).map((line, i) => {
       const cols = line.split(",").map(c => c.trim().replace(/^"|"$/g, ""));
-      const addr = cols[addrIdx] || "";
-      const tenant = tenantIdx >= 0 ? cols[tenantIdx] || "" : "";
-      const phone = phoneIdx >= 0 ? cols[phoneIdx] || "" : "";
-      const lastEicr = eicrIdx >= 0 ? cols[eicrIdx] || "" : "";
+      const addr        = cols[addrIdx] || "";
+      const tenant      = tenantIdx >= 0 ? cols[tenantIdx] || "" : "";
+      const phone       = phoneIdx  >= 0 ? cols[phoneIdx]  || "" : "";
+      const lastEicr    = eicrIdx   >= 0 ? cols[eicrIdx]   || "" : "";
+      const smokeExpiry = smokeIdx  >= 0 ? cols[smokeIdx]  || "" : "";
+      const patExpiry   = patIdx    >= 0 ? cols[patIdx]    || "" : "";
       const isDup = properties.some(p => (p.address || "").toLowerCase() === addr.toLowerCase());
-      return { addr, tenant, phone, lastEicr, isDup, row: i + 2 };
+      return { addr, tenant, phone, lastEicr, smokeExpiry, patExpiry, isDup, row: i + 2 };
     }).filter(r => r.addr);
     setRows(parsed); setPreview(true); setError("");
   };
@@ -2582,8 +2626,12 @@ function CSVImportModal({ open, onClose }) {
     if (!toImport.length) return;
     setSaving(true);
     for (const r of toImport) {
-      const expiry = calcExpiry(r.lastEicr);
-      await addProperty({ address: r.addr, tenant: r.tenant, phone: r.phone, lastEicr: r.lastEicr || null, expiryDate: expiry });
+      await addProperty({
+        address: r.addr, tenant: r.tenant, phone: r.phone,
+        lastEicr: r.lastEicr || null, expiryDate: calcExpiry(r.lastEicr),
+        smokeExpiry: r.smokeExpiry || null,
+        patExpiry: r.patExpiry || null,
+      });
     }
     await addAudit({ action: `CSV import: ${toImport.length} properties added` });
     await fetchAll();
@@ -2616,13 +2664,13 @@ function CSVImportModal({ open, onClose }) {
                 <span style={{ fontFamily: font, fontSize: 11, color: r.isDup ? C.red : C.green, fontWeight: 600, whiteSpace: "nowrap" }}>{r.isDup ? "DUP" : "NEW"}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: font, fontSize: 12, color: r.isDup ? C.textDim : C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.addr}</div>
-                  <div style={{ fontFamily: font, fontSize: 11, color: C.textDim }}>{r.tenant}{r.lastEicr ? ` · EICR: ${r.lastEicr}` : ""}</div>
+                  <div style={{ fontFamily: font, fontSize: 11, color: C.textDim }}>{r.tenant}{r.lastEicr ? ` · EICR: ${r.lastEicr}` : ""}{r.smokeExpiry ? ` · Smoke: ${r.smokeExpiry}` : ""}{r.patExpiry ? ` · PAT: ${r.patExpiry}` : ""}</div>
                 </div>
               </div>
             ))}
           </div>
           <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, marginBottom: 12 }}>
-            Expected columns: <span style={{ color: C.accent }}>address, tenant name, phone, last eicr date</span>
+            Expected columns: <span style={{ color: C.accent }}>address, tenant name, phone, last eicr date, smoke expiry, pat expiry</span> — smoke and PAT columns are optional
           </div>
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
             <button onClick={() => { reset(); onClose(); }} style={{ fontFamily: font, fontSize: 13, color: C.textMuted, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 20px", cursor: "pointer", minHeight: 44 }}>Cancel</button>
@@ -2635,7 +2683,7 @@ function CSVImportModal({ open, onClose }) {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ fontFamily: font, fontSize: 13, color: C.text, lineHeight: 1.6 }}>
-            Upload a CSV file with your properties. The file needs an <strong style={{ color: C.accent }}>address</strong> column, and optionally: tenant name, phone, last eicr date.
+            Upload a CSV file with your properties. The file needs an <strong style={{ color: C.accent }}>address</strong> column, and optionally: tenant name, phone, last eicr date, smoke expiry, pat expiry.
           </div>
           <label style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, background: C.surfaceAlt, border: `2px dashed ${C.border}`, borderRadius: 14, padding: "32px 20px", cursor: "pointer", textAlign: "center" }}>
             <Icon name="csv" size={32} color={C.textDim} />
@@ -2648,7 +2696,7 @@ function CSVImportModal({ open, onClose }) {
           {error && <div style={{ fontFamily: font, fontSize: 12, color: C.red, background: C.redBg, padding: "10px 14px", borderRadius: 8 }}>{error}</div>}
           <div style={{ fontFamily: font, fontSize: 11, color: C.textDim, background: C.surfaceAlt, borderRadius: 8, padding: "10px 14px" }}>
             <strong style={{ color: C.textMuted }}>Example header row:</strong><br />
-            <span style={{ fontFamily: fontMono, color: C.accent }}>address,tenant name,phone,last eicr date</span>
+            <span style={{ fontFamily: fontMono, color: C.accent }}>address,tenant name,phone,last eicr date,smoke expiry,pat expiry</span>
           </div>
         </div>
       )}
