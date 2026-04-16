@@ -601,3 +601,188 @@ getNextCRN():
 7-digit sequential number. Stored in `jobs.crn` on form submission.
 
 *— End of Part 2B — EICR Form Deep Dive —*
+
+---
+
+## 9. KEY BUSINESS LOGIC
+
+### Job Lifecycle / Workflow
+
+Jobs move through a strict status machine. The allowed transitions are:
+
+```
+Pending → Scheduled → In Progress → Awaiting Sign-Off → Completed
+                                 ↘ (engineer)          ↗ (supervisor approves)
+                                   Completed (direct)    ← engineer role only
+                              Awaiting Sign-Off ← rejected back to In Progress
+                              Completed → In Progress   (re-open by supervisor/admin)
+```
+
+**Step-by-step:**
+
+1. **Pending** — Agent/Admin creates a job via RequestJobModal. No engineer assigned yet.
+2. **Scheduled** — Admin assigns an engineer + scheduled date via AssignModal.
+3. **In Progress** — Engineer opens the job in the EICR form and saves a draft. Status auto-updates to In Progress on first save.
+4. **Awaiting Sign-Off** — Junior engineer submits the completed EICR. Lands in the Sign-Off Queue.
+5. **Completed** (direct) — Full Engineer/Supervisor/Admin submits → bypasses queue, goes straight to Completed.
+6. **Approved** — Supervisor approves from Sign-Off Queue → status = Completed.
+   - If `outcome = Unsatisfactory`: system auto-creates a new Remedial job (Pending) on the same property.
+7. **Rejected** — Supervisor rejects with a reason → status returns to In Progress. Engineer sees the reason in the form.
+8. **Re-opened** — Supervisor/Admin can reopen a Completed or Awaiting Sign-Off job → status = In Progress, form data preserved, metadata cleared.
+9. **Cancelled** — Admin can cancel any job. Cancelled jobs are hidden from most views but kept in the database.
+
+**Auto-created Remedial jobs:**
+- Triggered when: supervisor approves an EICR with `outcome = Unsatisfactory`, OR when a certificate is uploaded and the job's EICR data shows Unsatisfactory outcome.
+- Created with: `type = "Remedial"`, `status = "Pending"`, `notes = "Auto-created from unsatisfactory EICR — [job ref]"`.
+- Audit entry logged with role `Auto`.
+
+---
+
+### Compliance Calculation
+
+Properties have three independent compliance tracks: EICR, Smoke & CO, PAT.
+
+```
+calcStatus(expiryDate):
+  if no date        → "red"   (no certificate on record)
+  if date < today   → "red"   (expired)
+  if date < today + 60 days → "amber"  (expiring soon)
+  otherwise         → "green" (compliant)
+
+overallStatus(property):
+  worst of calcStatus(expiry_date), calcStatus(smoke_expiry), calcStatus(pat_expiry)
+```
+
+**Dashboard compliance donuts** (Admin/Agent view):
+- Count properties by `overallStatus` → green / amber / red totals
+- "Needs Attention" list = all amber + red properties, sorted by urgency
+
+**EICR expiry rule:** Last EICR date + 5 years = expiry date. This is auto-calculated whenever a certificate is uploaded or a property is created/edited.
+
+---
+
+### Certificate Upload Workflow
+
+When a certificate PDF is uploaded via UploadCertModal:
+
+1. File validated: max 50MB, must be PDF or image.
+2. File uploaded to Supabase Storage: `{orgId}/{jobId}/{timestamp}_{filename}`.
+3. `documents` row created with `file_path`, `type`, `expiry_date`, `job_id`, `property_id`.
+4. Property compliance dates auto-updated:
+   - **EICR upload** → `properties.expiry_date = uploaded expiry`, `properties.last_eicr = expiry − 5 years`
+   - **Smoke upload** → `properties.smoke_expiry = uploaded expiry`, `properties.last_smoke = today`
+   - **PAT upload** → `properties.pat_expiry = uploaded expiry`, `properties.last_pat = today`
+5. Job marked `has_cert = true`.
+6. If job's `eicr_data.outcome = Unsatisfactory` → auto-create Remedial job (same as sign-off approval path).
+7. Audit log entry written.
+
+**Downloads:** Supabase signed URLs are generated on demand (60-minute validity). No files are ever served directly from the app.
+
+---
+
+### Multi-Tenancy & Organisation Scoping
+
+The portal supports multiple letting agencies as clients of one contractor (Ohmnium Electrical).
+
+**Data isolation rules:**
+- Every property has an `agency_id` pointing to an `organisations` row of type `agency`.
+- Every job, document, comment, and audit entry carries an `organisation_id` — always derived from the **property's** `agency_id`, never the creating user's own org. This ensures agency users can see data created by Ohmnium engineers on their properties.
+- Fallback chain for `organisation_id`: `property.agency_id` → explicit param → `user.organisation_id`.
+
+**Query scoping by role:**
+- **Admin:** No org filter — sees all data across all organisations.
+- **Agent:** Queries filtered by `organisation_id = user.organisation_id`.
+- **Engineer/Junior:** Queries filtered by `engineer_id = user.id` (only their assigned jobs and the properties those jobs belong to).
+- **Supervisor:** Sees all jobs (contractor-wide), scoped to the contractor's organisation context.
+
+**RLS on Supabase** enforces these rules at the database level as a second layer of security.
+
+---
+
+### CSV Bulk Import
+
+Agents and Admins can bulk-import properties from a CSV file.
+
+**Expected columns:** `address`, `tenant name`, `phone`, `last eicr date`, `smoke expiry`, `pat expiry`
+
+**Process:**
+1. Parse CSV client-side. Reject files over 5,000 rows (DoS protection).
+2. Normalise addresses (lowercase, trim) and compare against existing properties to detect duplicates.
+3. Show preview: new rows vs skipped duplicates.
+4. On confirm: insert all new properties, auto-calculate EICR expiry (last_eicr + 5 years).
+5. Single audit log entry: `"CSV import: N properties added"`.
+
+---
+
+### Team Management Logic
+
+**Creating a user (AddUserModal):**
+1. Calls `supabase.auth.admin.createUser()` (requires service role key).
+2. Fallback: `supabase.auth.signUp()` if admin API is unavailable.
+3. Upserts a `profiles` row with name, role, and `organisation_id`.
+
+**Inviting a user (InviteUserModal):**
+1. Calls `supabase.auth.admin.inviteUserByEmail()`.
+2. User receives a magic link email; sets their own password on first sign-in.
+3. `handle_new_user` DB trigger auto-creates a `profiles` row on sign-up.
+
+**Signature management:**
+- Admin uploads a PNG/JPEG/SVG (max 2MB) via SignatureModal.
+- File stored in Supabase Storage.
+- URL saved to `profiles.signature_url`.
+- Signature is rendered into the declaration blocks of generated PDF certificates.
+
+---
+
+### AI Remedial Scope Generation
+
+Triggered from the EICR form when the observations field contains more than 20 characters.
+
+- **Model:** `claude-sonnet-4-20250514` via Anthropic API (`/v1/messages`)
+- **System prompt:** "You are a qualified electrical engineer writing remedial work scopes based on EICR observations..."
+- **Input:** The text content of the observations field
+- **Output:** Populates the recommendations/remedial scope field
+- **API key:** Stored server-side (not in the Vite env — called via a Netlify function or similar proxy to avoid exposing key in client bundle)
+
+---
+
+### Audit Logging
+
+Every significant action writes a row to `audit_log`. Key logged events:
+
+| Action | Triggered by |
+|--------|-------------|
+| Property added / edited / deleted | Admin, Agent |
+| Job created / assigned / cancelled | Admin, Agent |
+| EICR saved as draft | Engineer, Junior |
+| EICR submitted | Engineer, Junior |
+| EICR approved / rejected | Supervisor, Admin |
+| Certificate uploaded | Admin, Agent, Engineer |
+| Remedial job auto-created | System (role: Auto) |
+| CSV import: N properties | Admin, Agent |
+| User invited / created | Admin |
+| Password changed | Any user |
+
+Entries are immutable — there is no delete or edit on audit records.
+
+---
+
+### DataContext — Key Mutations Reference
+
+All data mutations go through `DataContext` functions, which handle Supabase calls, org scoping, and audit logging:
+
+| Function | What it does |
+|----------|-------------|
+| `addProperty(prop)` | Insert property, auto-generate ref, log audit |
+| `updateProperty(id, updates)` | Update property fields, recalculate expiry if needed |
+| `deleteProperty(id)` | Delete property and cascade-related records |
+| `addJob(job)` | Insert job, derive org_id from property, auto-generate ref |
+| `updateJob(id, updates)` | Update job fields including eicr_data JSONB |
+| `deleteJob(id)` | Delete job |
+| `addDoc(doc)` | Insert document record, update property compliance dates |
+| `uploadFile(file, path)` | Upload file to Supabase Storage |
+| `addAudit(entry)` | Insert audit_log row |
+| `addComment(comment)` | Insert job_comments row with org_id from job |
+| `getNextCRN()` | Query max CRN, return next sequential number |
+
+*— End of Part 2C — Key Business Logic —*
