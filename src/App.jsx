@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, createContext, useContext } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext } from "react";
 import { createClient } from "@supabase/supabase-js";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -1222,6 +1222,35 @@ function DashboardPage({ onNavigateProperty }) {
   const mob = w < BP.mobile;
   const tab = w < BP.tablet;
 
+  // Build lookup map once — used by both engineer and admin views
+  const propById = useMemo(() => Object.fromEntries(properties.map(p => [p.id, p])), [properties]);
+
+  // Single pass over properties: group by compliance status and pre-sort expiring
+  const complianceStats = useMemo(() => {
+    const green = [], amber = [], red = [];
+    for (const p of properties) {
+      const st = overallStatus(p);
+      if (st === "green") green.push(p);
+      else if (st === "amber") amber.push(p);
+      else red.push(p);
+    }
+    const earliestExpiry = (p) => Math.min(
+      p.expiry_date  ? new Date(p.expiry_date).getTime()  : Infinity,
+      p.smoke_expiry ? new Date(p.smoke_expiry).getTime() : Infinity,
+      p.pat_expiry   ? new Date(p.pat_expiry).getTime()   : Infinity,
+    );
+    return {
+      g: green.length,
+      a: amber.length,
+      r: red.length,
+      expiringSoon: [...amber].sort((x, y) => earliestExpiry(x) - earliestExpiry(y)),
+      overdue: red,
+    };
+  }, [properties]);
+
+  const activeJobs = useMemo(() => jobs.filter(j => j.status !== "Completed").length, [jobs]);
+  const awaiting   = useMemo(() => jobs.filter(j => j.status === "Awaiting Sign-Off").length, [jobs]);
+
   if (loading) return <div style={{ padding: 60, textAlign: "center" }}><div style={{ fontFamily: font, fontSize: 14, color: C.textMuted }}>Loading dashboard…</div></div>;
 
   // Engineer-specific dashboard
@@ -1245,7 +1274,7 @@ function DashboardPage({ onNavigateProperty }) {
         {todayJobs.length > 0 && (
           <div style={{ background: C.card, borderRadius: 14, padding: mob ? 20 : 28, border: `1px solid ${C.border}`, marginBottom: mob ? 14 : 20 }}>
             <h3 style={{ fontFamily: font, fontSize: 15, fontWeight: 600, color: C.white, margin: "0 0 16px" }}>Today's Jobs</h3>
-            {todayJobs.map(job => { const prop = properties.find(p => p.id === job.property_id); return (
+            {todayJobs.map(job => { const prop = propById[job.property_id]; return (
               <div key={job.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", borderRadius: 10, background: C.accentGlow, border: `1px solid rgba(59,130,246,.25)`, marginBottom: 8, gap: 10 }}>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 600 }}>{prop?.address?.split(",")[0] || "—"}</div>
@@ -1260,7 +1289,7 @@ function DashboardPage({ onNavigateProperty }) {
         {upcomingJobs.length > 0 && (
           <div style={{ background: C.card, borderRadius: 14, padding: mob ? 20 : 28, border: `1px solid ${C.border}`, marginBottom: mob ? 14 : 20 }}>
             <h3 style={{ fontFamily: font, fontSize: 15, fontWeight: 600, color: C.white, margin: "0 0 16px" }}>Upcoming Jobs</h3>
-            {upcomingJobs.slice(0, 5).map(job => { const prop = properties.find(p => p.id === job.property_id); return (
+            {upcomingJobs.slice(0, 5).map(job => { const prop = propById[job.property_id]; return (
               <div key={job.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", borderRadius: 10, background: C.surfaceAlt, border: `1px solid ${C.border}`, marginBottom: 8, gap: 10 }}>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ fontFamily: font, fontSize: 13, color: C.white, fontWeight: 500 }}>{prop?.address?.split(",")[0] || "—"}</div>
@@ -1288,18 +1317,8 @@ function DashboardPage({ onNavigateProperty }) {
     );
   }
 
-  // Overall compliance = worst status across all 3 cert types for each property
-  const g = properties.filter(p => overallStatus(p) === "green").length;
-  const a = properties.filter(p => overallStatus(p) === "amber").length;
-  const r = properties.filter(p => overallStatus(p) === "red").length;
-  const activeJobs = jobs.filter(j => j.status !== "Completed").length;
-  const awaiting = jobs.filter(j => j.status === "Awaiting Sign-Off").length;
-  const expiringSoon = properties.filter(p => overallStatus(p) === "amber").sort((a, b) => {
-    const aMin = Math.min(...[p => p.expiry_date, p => p.smoke_expiry, p => p.pat_expiry].map(f => f(a) ? new Date(f(a)) : Infinity));
-    const bMin = Math.min(...[p => p.expiry_date, p => p.smoke_expiry, p => p.pat_expiry].map(f => f(b) ? new Date(f(b)) : Infinity));
-    return aMin - bMin;
-  });
-  const overdue = properties.filter(p => overallStatus(p) === "red");
+  // Unpack pre-computed compliance stats (single pass, computed above hooks)
+  const { g, a, r, expiringSoon, overdue } = complianceStats;
 
   return (
     <div>
@@ -1423,6 +1442,19 @@ function AddPropertyModal({ open, onClose }) {
   );
 }
 
+const PROPERTY_FILTER_OPTIONS = [
+  { id: "all", label: "All" },
+  { id: "green", label: "OK" },
+  { id: "amber", label: "Soon" },
+  { id: "red", label: "Overdue" },
+];
+const PROPERTY_SORT_OPTIONS = [
+  { id: "ref", label: "Default" },
+  { id: "status", label: "Status" },
+  { id: "expiry", label: "Expiry" },
+  { id: "tenant", label: "A–Z" },
+];
+
 function PropertiesPage({ onRequestJob, onSelectProperty }) {
   const { properties, organisations, loading } = useContext(DataContext);
   const auth = useContext(AuthContext);
@@ -1438,23 +1470,38 @@ function PropertiesPage({ onRequestJob, onSelectProperty }) {
   const role = auth.role;
   const clients = organisations.filter(o => o.type === "agency");
 
-  const statusOrder = { red: 0, amber: 1, green: 2 };
+  const STATUS_ORDER = { red: 0, amber: 1, green: 2 };
 
-  const filtered = properties.filter(p => {
-    const st = overallStatus(p);
-    if (filter !== "all" && st !== filter) return false;
-    if (clientFilter !== "all" && p.agency_id !== clientFilter) return false;
-    if (search && !(p.address || "").toLowerCase().includes(search.toLowerCase()) && !(p.tenant_name || "").toLowerCase().includes(search.toLowerCase()) && !(p.ref || "").toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  }).sort((a, b) => {
-    if (sort === "status") return statusOrder[overallStatus(a)] - statusOrder[overallStatus(b)];
-    if (sort === "expiry") {
-      const earliest = (p) => Math.min(p.expiry_date ? new Date(p.expiry_date).getTime() : Infinity, p.smoke_expiry ? new Date(p.smoke_expiry).getTime() : Infinity, p.pat_expiry ? new Date(p.pat_expiry).getTime() : Infinity);
-      return earliest(a) - earliest(b);
-    }
-    if (sort === "tenant") return (a.tenant_name || "").localeCompare(b.tenant_name || "");
-    return 0; // default: database order (ref)
-  });
+  // Annotate each property once with its status and earliest expiry timestamp,
+  // then filter and sort on those pre-computed values — no redundant overallStatus calls.
+  const filtered = useMemo(() => {
+    const searchLower = search.toLowerCase();
+    return properties
+      .map(p => ({
+        p,
+        st: overallStatus(p),
+        earliestExpiry: Math.min(
+          p.expiry_date  ? new Date(p.expiry_date).getTime()  : Infinity,
+          p.smoke_expiry ? new Date(p.smoke_expiry).getTime() : Infinity,
+          p.pat_expiry   ? new Date(p.pat_expiry).getTime()   : Infinity,
+        ),
+      }))
+      .filter(({ p, st }) => {
+        if (filter !== "all" && st !== filter) return false;
+        if (clientFilter !== "all" && p.agency_id !== clientFilter) return false;
+        if (searchLower && !(p.address || "").toLowerCase().includes(searchLower)
+          && !(p.tenant_name || "").toLowerCase().includes(searchLower)
+          && !(p.ref || "").toLowerCase().includes(searchLower)) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        if (sort === "status") return STATUS_ORDER[a.st] - STATUS_ORDER[b.st];
+        if (sort === "expiry") return a.earliestExpiry - b.earliestExpiry;
+        if (sort === "tenant") return (a.p.tenant_name || "").localeCompare(b.p.tenant_name || "");
+        return 0;
+      })
+      .map(({ p }) => p);
+  }, [properties, filter, clientFilter, search, sort]);
 
   if (loading) return <div style={{ padding: 40, textAlign: "center" }}><span style={{ fontFamily: font, fontSize: 13, color: C.textDim }}>Loading properties…</span></div>;
 
@@ -1465,7 +1512,7 @@ function PropertiesPage({ onRequestJob, onSelectProperty }) {
       <CSVImportModal open={showCSV} onClose={(r) => { setShowCSV(false); if (r === "imported") showToast("Import complete"); }} />
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-          {[{ id: "all", label: "All" }, { id: "green", label: "OK" }, { id: "amber", label: "Soon" }, { id: "red", label: "Overdue" }].map(f => (<button key={f.id} onClick={() => setFilter(f.id)} style={{ fontFamily: font, fontSize: 11, fontWeight: filter === f.id ? 600 : 400, color: filter === f.id ? C.white : C.textMuted, background: filter === f.id ? (f.id === "all" ? C.accent : statusColor(f.id)) : C.card, border: `1px solid ${filter === f.id ? "transparent" : C.border}`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>{f.label}</button>))}
+          {PROPERTY_FILTER_OPTIONS.map(f => (<button key={f.id} onClick={() => setFilter(f.id)} style={{ fontFamily: font, fontSize: 11, fontWeight: filter === f.id ? 600 : 400, color: filter === f.id ? C.white : C.textMuted, background: filter === f.id ? (f.id === "all" ? C.accent : statusColor(f.id)) : C.card, border: `1px solid ${filter === f.id ? "transparent" : C.border}`, borderRadius: 8, padding: "8px 14px", cursor: "pointer", minHeight: 36 }}>{f.label}</button>))}
         </div>
         {clients.length > 0 && (
           <select value={clientFilter} onChange={e => setClientFilter(e.target.value)} style={{ fontFamily: font, fontSize: 11, color: C.text, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", cursor: "pointer", minHeight: 36, outline: "none" }}>
@@ -1474,7 +1521,7 @@ function PropertiesPage({ onRequestJob, onSelectProperty }) {
           </select>
         )}
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-          {[{ id: "ref", label: "Default" }, { id: "status", label: "Status" }, { id: "expiry", label: "Expiry" }, { id: "tenant", label: "A–Z" }].map(s => (<button key={s.id} onClick={() => setSort(s.id)} style={{ fontFamily: font, fontSize: 11, fontWeight: sort === s.id ? 600 : 400, color: sort === s.id ? C.accent : C.textMuted, background: "transparent", border: `1px solid ${sort === s.id ? C.accent : "transparent"}`, borderRadius: 8, padding: "8px 10px", cursor: "pointer", minHeight: 36 }}>{s.label}</button>))}
+          {PROPERTY_SORT_OPTIONS.map(s => (<button key={s.id} onClick={() => setSort(s.id)} style={{ fontFamily: font, fontSize: 11, fontWeight: sort === s.id ? 600 : 400, color: sort === s.id ? C.accent : C.textMuted, background: "transparent", border: `1px solid ${sort === s.id ? C.accent : "transparent"}`, borderRadius: 8, padding: "8px 10px", cursor: "pointer", minHeight: 36 }}>{s.label}</button>))}
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flex: mob ? "1 1 100%" : "0 1 auto" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.card, borderRadius: 8, padding: "6px 12px", border: `1px solid ${C.border}`, flex: 1, minWidth: mob ? 0 : 220 }}><Icon name="search" size={14} color={C.textDim} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…" style={{ fontFamily: font, fontSize: 12, color: C.text, background: "transparent", border: "none", outline: "none", width: "100%", minHeight: 28 }} /></div>
@@ -2644,17 +2691,22 @@ function DocumentsPage() {
     } catch (e) { showToast("Download failed — check your connection"); console.error("Download error:", e); }
   };
 
-  const filtered = documents.filter(d => {
-    const pr = properties.find(pp => pp.id === d.property_id);
-    if (typeFilter !== "all" && d.type !== typeFilter) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      return (pr?.address || "").toLowerCase().includes(q) || (pr?.tenant_name || "").toLowerCase().includes(q) || (d.type || "").toLowerCase().includes(q);
-    }
-    return true;
-  });
+  // O(1) property lookups instead of O(n) .find() inside the filter loop
+  const propById = useMemo(() => Object.fromEntries(properties.map(p => [p.id, p])), [properties]);
 
-  const certTypes = [...new Set(documents.map(d => d.type))].filter(Boolean);
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return documents.filter(d => {
+      if (typeFilter !== "all" && d.type !== typeFilter) return false;
+      if (!search) return true;
+      const pr = propById[d.property_id];
+      return (pr?.address || "").toLowerCase().includes(q)
+        || (pr?.tenant_name || "").toLowerCase().includes(q)
+        || (d.type || "").toLowerCase().includes(q);
+    });
+  }, [documents, propById, typeFilter, search]);
+
+  const certTypes = useMemo(() => [...new Set(documents.map(d => d.type))].filter(Boolean), [documents]);
 
   return (
     <div>
@@ -3100,22 +3152,19 @@ function EICRPage() {
   });
   const updateObs = (idx, key, val) => setForm(prev => { const o = [...prev.observations]; o[idx] = { ...o[idx], [key]: val }; return { ...prev, observations: o }; });
 
-  // Part 9 → Part 5 linked observations
+  // Part 9 → Part 5 linked observations (fully immutable — no push/splice)
   const handlePart9Classification = (refCode, code) => {
     setForm(prev => {
-      let obs = [...prev.observations];
-      const existingIdx = obs.findIndex(o => o.linkedFromPart9 && o.linkedRef === refCode);
+      const existingIdx = prev.observations.findIndex(o => o.linkedFromPart9 && o.linkedRef === refCode);
+      let obs;
       if (code) {
-        if (existingIdx >= 0) {
-          obs[existingIdx] = { ...obs[existingIdx], code };
-        } else {
-          obs.push({ itemNo: "", ref: refCode, observation: "", code, location: "", linkedFromPart9: true, linkedRef: refCode });
-        }
+        obs = existingIdx >= 0
+          ? prev.observations.map((o, i) => i === existingIdx ? { ...o, code } : o)
+          : [...prev.observations, { itemNo: "", ref: refCode, observation: "", code, location: "", linkedFromPart9: true, linkedRef: refCode }];
       } else {
-        if (existingIdx >= 0) obs.splice(existingIdx, 1);
+        obs = existingIdx >= 0 ? prev.observations.filter((_, i) => i !== existingIdx) : prev.observations;
       }
-      obs = obs.map((o, i) => ({ ...o, itemNo: String(i + 1) }));
-      return { ...prev, observations: obs };
+      return { ...prev, observations: obs.map((o, i) => ({ ...o, itemNo: String(i + 1) })) };
     });
   };
 
@@ -3131,22 +3180,20 @@ function EICRPage() {
   const removeCircuit = (idx) => { if (form.circuits.length <= 1) return; setForm(prev => ({ ...prev, circuits: prev.circuits.filter((_, i) => i !== idx), testResults: prev.testResults.filter((_, i) => i !== idx) })); };
   const moveCircuit = (idx, dir) => {
     setForm(prev => {
-      const cs = [...prev.circuits]; const ts = [...prev.testResults];
       const target = idx + dir;
-      if (target < 0 || target >= cs.length) return prev;
-      [cs[idx], cs[target]] = [cs[target], cs[idx]];
-      [ts[idx], ts[target]] = [ts[target], ts[idx]];
-      const renumbered = cs.map((c, i) => ({ ...c, num: String(i + 1) }));
-      const renumberedT = ts.map((t, i) => ({ ...t, num: String(i + 1) }));
-      return { ...prev, circuits: renumbered, testResults: renumberedT };
+      if (target < 0 || target >= prev.circuits.length) return prev;
+      const swapAt = (arr, i, j) => arr.map((el, k) => k === i ? arr[j] : k === j ? arr[i] : el);
+      const circuits    = swapAt(prev.circuits, idx, target).map((c, i) => ({ ...c, num: String(i + 1) }));
+      const testResults = swapAt(prev.testResults, idx, target).map((t, i) => ({ ...t, num: String(i + 1) }));
+      return { ...prev, circuits, testResults };
     });
   };
   const fillAllNA = () => {
     if (!window.confirm("Fill all blank/unanswered Part 9 items with N/A across the entire certificate?")) return;
-    const p9Keys = Object.keys(form).filter(k => k.startsWith("s") && (form[k] === "" || form[k] === null || form[k] === undefined));
     setForm(prev => {
-      const updates = {};
-      p9Keys.forEach(k => { updates[k] = "na"; });
+      const updates = Object.keys(prev)
+        .filter(k => k.startsWith("s") && (prev[k] === "" || prev[k] === null || prev[k] === undefined))
+        .reduce((acc, k) => ({ ...acc, [k]: "na" }), {});
       return { ...prev, ...updates };
     });
     showToast("Blank Part 9 fields filled with N/A");
