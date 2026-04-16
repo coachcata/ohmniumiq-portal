@@ -786,3 +786,185 @@ All data mutations go through `DataContext` functions, which handle Supabase cal
 | `getNextCRN()` | Query max CRN, return next sequential number |
 
 *— End of Part 2C — Key Business Logic —*
+
+---
+
+## 10. RECENT CHANGES — LAST MONTH (March–April 2026)
+
+The following changes were made across ~35 commits. Grouped by area:
+
+### EICR Form — Core Rebuild (v18.0)
+- Complete form restructure to match full BS 7671 IET 18th Edition layout
+- Replaced free-text fields with dropdowns: purpose, general condition, estimated age, extent/limitations, wiring types, cable sizes, RCD ratings
+- Part 9 classifications now use colour codes: C1=red, C2=amber, C3=blue, FI=purple
+- Part 9 items auto-create and auto-remove linked observations in Part 5 when classified
+- CRN (7-digit certificate reference number) generated on form submission and stored in `jobs.crn`
+- Section A restructured: removed `clientName`, added `agencyAddress`/`landlordDetails`, contractor block is now read-only auto-filled
+- BS 7671 amended year updated from 2024 to 2026 throughout form and PDF
+
+### EICR Form — Circuit Tools (v18.1–18.2)
+- Part 11A: full dropdowns for reference method, max disconnection time, wiring type, OCP type/rating, RCD type/rating, cable sizes
+- Part 11B: expanded test result fields — individual r1/rn/r2, R1+R2 (auto-calc), IR L/L, IR L/E, test voltage dropdown, polarity toggle buttons, Zs, RCD time, RCD/AFDD test button toggles, full-width comments field
+- Circuit clone system: "Clone last circuit" button with 1–20 count selector
+- OCP Type + Rating → auto-populates Max Zs from lookup table
+- Grouped circuit description dropdown: 35+ options across 8 categories
+- "Today" quick-fill button added to all date input fields
+- `landlord_name` field added to properties and pre-fills into EICR/EIC forms correctly (previously was incorrectly pulling `tenant_name`)
+- `alterationsAge` converted from text field to dropdown (<5, <10, <15, <20 years)
+- `reasonForRecommendation` converted to dropdown (3 standard options)
+- Common observations panel: always-visible scrollable panel (replaced hidden dropdown button)
+- Part 5 Location field: converted from text to dropdown (Fusebox, Throughout, bonding, circuit descriptions)
+- R1+R2 calculation fixed: now divides by 4 instead of simple addition
+
+### EICR Form — Smart Features (v20.0)
+- **Domestic template:** One-click load of 7 pre-built circuits (Lights GF/FF, Sockets GF/FF, Cooker, Boiler, Smoke alarm)
+- **Mark All Pass:** Single button passes all Part 9 items, clears linked observations
+- **Copy IR to all / Copy polarity to all:** Propagates values from circuit 1 to all rows
+- **Auto next inspection date:** Fills 5 years from inspection date if field is blank
+- **Zs pass/fail badge:** Green PASS / red FAIL shown inline under each Zs field vs Max Zs
+- **Previous EICR carry-forward:** Detects prior Completed EICR on same property, offers one-tap load
+- **Common observation suggestions:** Quick dropdown of 10 pre-written C1/C2/C3/FI texts
+- **Live observation counts:** C1/C2/C3/FI badge counts update in real time in Part 5 header
+- **Form progress bar:** Key-field completion percentage shown below sticky nav
+- **Sticky section nav:** Part tabs (1–9, 11A, 11B) fixed at top while scrolling
+- **Floating Save Draft:** Save button fixed to bottom-right, always visible while scrolling
+- **Re-open Job button:** Supervisors/Admins can reopen Completed or Awaiting Sign-Off jobs
+
+### Part 9 Inspection Schedule Expansion
+- Added ~50 new inspection items across sections 3.3, 4, 5, 6, 7, 8, and 9
+- Section 3.3: 6 new additional protection items (RCD/AFDD)
+- Section 4: added items 4.8, 4.16, 4.18, 4.20, 4.23, 4.24
+- Section 5: added 5.4–5.6, 5.9–5.24
+- Section 6: added 6.3–6.5, 6.9–6.12, 6.14–6.17, 6.19–6.20
+- Section 7: expanded 7.1 to 6 sub-items; 7.2–7.4 to 4 sub-items each
+- Section 8: added 8.4, 8.6 (with luminaire text box), expanded 8.7 to 4 sub-items
+- Section 9.1: added socket distance and zone accessories items
+- PDF renderer and form state defaults updated for all new items
+
+### Part 11A/11B Enhancements
+- Auto-calculate R1+R2 = Zs − Zdb when Zs is entered (only when Zs ≥ Zdb)
+- Circuit reorder: ▲/▼ buttons on each row; auto-renumbers all circuit and test result fields after each swap
+- Fill N/A: button in Part 11A header fills all blank Part 9 toggle fields with "na" after confirmation
+- Reference Method `<select>` dropdown added to each circuit row
+
+### PDF Certificate Renderer (v19.1–19.2)
+- Complete 7-page rebuild (472 lines, replacing original 181)
+- Proper 12mm margins all sides; multi-page slicing respects margins
+- Page 1: contractor block, Parts 1–4 with full BS 7671 declaration text and signature blocks
+- Page 2: Part 5 observations (colour-coded badges), Parts 6–8
+- Pages 3–4: Part 9 inspection schedule in two-column layout with pass/C1/C2/C3/FI/NA badges
+- Page 5: Part 11A circuit details (17-column table)
+- Page 6: Part 11B test results (15-column table), test instruments, tested-by + signature
+- Page 7: Notes for Recipients + Classification Guidance grid
+- Engineer signature images rendered from `profiles.signature_url`
+- Added `ocpKA` (short-circuit capacity kA) field to circuit grid and PDF renderer
+
+### Postcode / UPRN Finder
+- Widget added above address fields in Part 1
+- Postcode field: validates, canonicalises, and fills `installationPostcode`
+- UPRN field: resolves UPRN → postcode via postcodes.io, fills `installationPostcode`
+- Enter or click Find/Lookup to trigger; status message shown inline; no API key required
+
+### Team Management (v18.3–18.6)
+- **Add User modal:** Create users directly with name, email, password, role (radio buttons with descriptions), and org assignment
+- **Invite User:** existing email invite path retained as secondary option
+- **Add Agency modal:** Admin can create new client organisations (type `agency`)
+- **Edit User modal:** Admin can change any user's name, role, and organisation
+- **Edit Agency modal:** Admin can rename any organisation
+- **Org-aware Team page:** Contractor admin can view any agency's team; member rows show org name in "All Teams" view; defaults to user's own org
+
+### Properties
+- `landlord_name` column added to `properties` table (DB migration: `ALTER TABLE properties ADD COLUMN IF NOT EXISTS landlord_name text`)
+- Landlord name shown in Property Detail header card
+- Landlord name added to AddPropertyModal and EditPropertyModal
+
+### Bug Fixes & Security (v19.3–19.4)
+- **org_id fix:** Jobs, documents, audit entries, and comments now derive `organisation_id` from the property's `agency_id` — ensures agency users see all contractor-created data on their properties
+- **Null crash fixes (9 locations):** Unsafe `.address.split()` / `.toLowerCase()` calls patched in MobileTopBar, PropertiesPage, EditJobModal, AssignModal, RequestJobModal, CSV duplicate check
+- **Signature upload:** Now validates file type (PNG/JPEG/SVG only) and size (< 2MB)
+- **Certificate upload:** File size cap enforced (< 50MB)
+- **CSV import:** 5,000-row limit added to prevent client-side DoS
+- **Password change:** Now signs out all other active sessions after update
+
+---
+
+## 11. KNOWN LIMITATIONS & TECHNICAL DEBT
+
+### Architecture
+- **Monolithic App.jsx (~492KB):** All pages, components, modals, constants, and business logic live in one file. This makes the codebase hard to navigate and will become a maintenance problem as it grows. No component file splitting has been done.
+- **String-based router:** Navigation is driven by a `page` state variable. There are no URLs for individual pages — deep-linking, browser back/forward, and bookmarking do not work.
+- **No error boundaries:** A runtime error in any component will crash the entire app.
+- **No offline support:** The app is entirely dependent on live Supabase connectivity.
+
+### Data & Performance
+- **No pagination on most lists:** Properties, jobs, and documents load all records at once. This will degrade as data grows. Audit trail has a 30-entry default with a "Load all" button.
+- **JSONB form data:** The entire EICR form state is stored as a single JSONB blob in `jobs.eicr_data`. This makes querying specific form fields (e.g. "all C1 observations across all jobs") impossible without application-level processing.
+- **Denormalised fields in audit_log:** `user_name` and `user_role` are stored as text strings at write time. If a user's name or role changes, historical audit entries will still show the old values (which is arguably correct for an audit trail, but worth noting).
+
+### Features
+- **PDF generation dependency:** Certificates are generated client-side using html2canvas + jsPDF. This means PDF quality and layout depend on the user's browser rendering and screen resolution. Large forms or slow devices may produce inconsistent output.
+- **No email notifications:** There is no automated email when a job is assigned, an EICR is rejected, or a job is ready to sign off. Engineers and agents must check the portal manually.
+- **No mobile EICR form:** The EICR form is complex and not optimised for small screens. Engineers completing forms on-site using a phone will have a poor experience.
+- **No recurring job scheduling:** There is no automated reminder or job creation system when a property's EICR expiry approaches. Agents must manually notice and request new jobs.
+- **Single contractor:** The system is hardcoded for Ohmnium Electrical as the sole contractor organisation. There is no multi-contractor support.
+- **AI feature exposure:** The Anthropic API key usage should be confirmed to be proxied through a Netlify function and not exposed in the client bundle.
+
+### Forms
+- **No form validation:** The EICR form does not prevent submission with missing required fields. Engineers can submit incomplete forms.
+- **No autosave:** Save Draft must be clicked manually. If the browser closes or crashes, unsaved work is lost.
+- **Backward compatibility fields:** `overallAssessment` and `outcome` legacy fields from pre-v18 are still handled in the form loader but are no longer written by the current form. These should be cleaned up eventually.
+
+---
+
+## 12. FUTURE DEVELOPMENT — SUGGESTED AREAS
+
+These are areas that have naturally emerged as candidates for development based on the current state of the portal:
+
+### High Value / Near-term
+- **Email notifications:** Notify engineer on job assignment, notify supervisor when EICR submitted, notify engineer on rejection with reason
+- **Form validation & autosave:** Prevent incomplete EICR submission; autosave draft every N minutes to localStorage or Supabase
+- **Mobile-optimised EICR form:** Simplified on-site view for engineers — focus on Part 9 toggles and test results, defer complex fields to desktop
+- **Pagination / virtual scrolling:** On Properties, Jobs, Documents lists to handle large portfolios
+- **URL routing:** Replace string-based `page` state with React Router to enable deep-linking and browser history
+
+### Medium-term
+- **Automated expiry reminders:** Scheduled function (Supabase Edge Function or Netlify scheduled function) that emails agents when properties are approaching EICR/Smoke/PAT expiry
+- **Recurring job templates:** Auto-create jobs N days before a property's expiry date
+- **File splitting / component architecture:** Break App.jsx into separate page and component files to make the codebase maintainable
+- **EICR field-level querying:** Migrate key EICR fields (outcome, inspector, classification counts) out of JSONB into proper columns for reporting
+
+### Longer-term
+- **Reporting & analytics:** Exportable compliance reports per agency, engineer performance metrics, job volume trends
+- **Client portal:** Read-only view for landlords to see their own property compliance status without agent involvement
+- **Multi-contractor support:** Allow the platform to serve multiple electrical contractors, each with their own agencies
+- **Offline / PWA support:** Allow engineers to complete EICR forms without internet connectivity and sync when back online
+- **Integration with NICEIC / NAPIT registers:** Auto-validate contractor registration numbers against industry registers
+
+---
+
+## 13. DEVELOPMENT ENVIRONMENT & DEPLOYMENT
+
+**Local setup:**
+```bash
+npm install
+npm run dev      # Vite dev server
+npm run build    # Production build → dist/
+```
+
+**Environment variables required (`.env`):**
+```
+VITE_SUPABASE_URL=https://wrftwkfqkarkmqebhclf.supabase.co
+VITE_SUPABASE_ANON_KEY=<anon key>
+```
+
+**Supabase schema:** Defined in `supabase-schema.sql` at repo root. Run against the Supabase project to set up tables, triggers, RLS policies, and seed data.
+
+**Deployment:** Push to `main` branch → Netlify auto-deploys. Configuration in `netlify.toml`.
+
+**Git branch convention:** Feature work is done on `claude/<description>-<id>` branches and merged to `main` via pull request.
+
+**Current active branch:** `claude/summarize-portal-changes-RfejA`
+
+---
+
+*— End of PORTAL_STATUS.md — Last updated April 2026 —*
